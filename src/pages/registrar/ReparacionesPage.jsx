@@ -565,12 +565,12 @@ const ReparacionesPage = () => {
         })),
         pago: pago.realizaPago
           ? {
-              realizaPago: true,
-              monto: convertirANumero(pago.monto),
-              metodo: pago.metodo,
-              // Agregar referencia para cuenta corriente
-              referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
-            }
+            realizaPago: true,
+            monto: convertirANumero(pago.monto),
+            metodo: pago.metodo,
+            // Agregar referencia para cuenta corriente
+            referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
+          }
           : null,
         notas: "",
       }
@@ -607,18 +607,22 @@ const ReparacionesPage = () => {
     try {
       setCargando(true)
 
-      // Si la reparación no está registrada, registrarla
+      let ticketNumber = numeroTicket
+
+      // Si la reparación no está registrada, registrarla y obtener el número
       if (!reparacionRegistrada) {
-        await registrarReparacion()
-        // No mostrar toast aquí, ya que registrarReparacion() ya muestra uno
+        const respuesta = await registrarReparacion()
+        // respuesta.numero_ticket viene del backend
+        ticketNumber = respuesta.numero_ticket
+        // Opcional: si quieres seguir usando estado para otros flujos
+        setNumeroTicket(respuesta.numero_ticket)
       } else {
-        // Solo mostrar toast si ya estaba registrada
         toast.success("Ticket enviado a la impresora", { position: "bottom-right" })
       }
 
-      // Preparar datos para el ticket
+      // Preparar datos para el ticket usando el número obtenido
       const ticketData = {
-        numeroTicket: numeroTicket || "", // Asegurar que no sea null
+        numeroTicket: ticketNumber,
         fechaActual,
         horaActual,
         cliente,
@@ -626,9 +630,9 @@ const ReparacionesPage = () => {
         total: calcularTotal(),
         pago: pago.realizaPago
           ? {
-              ...pago,
-              nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-            }
+            ...pago,
+            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+          }
           : null,
       }
 
@@ -667,18 +671,16 @@ const ReparacionesPage = () => {
 
     return (
       <div
-        className={`flex items-center ${
-          esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
-        } gap-2 relative`}
+        className={`flex items-center ${esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
+          } gap-2 relative`}
       >
         <div
-          className={`rounded-full w-8 h-8 flex items-center justify-center ${
-            esPasoActual
+          className={`rounded-full w-8 h-8 flex items-center justify-center ${esPasoActual
               ? "bg-orange-100 text-orange-600 border-2 border-orange-500"
               : esPasoCompletado
                 ? "bg-orange-500 text-white"
                 : "bg-gray-100 text-gray-400"
-          }`}
+            }`}
         >
           {esPasoCompletado ? <CheckCircle className="w-4 h-4" /> : icono}
         </div>
@@ -1220,16 +1222,14 @@ const ReparacionesPage = () => {
                                             <div
                                               key={metodo.id}
                                               onClick={() => handleMetodoPago(metodo.id)}
-                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                                pago.metodo === metodo.id
+                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${pago.metodo === metodo.id
                                                   ? "border-orange-500 bg-orange-50"
                                                   : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
-                                              }`}
+                                                }`}
                                             >
                                               <div
-                                                className={`p-3 rounded-full ${
-                                                  pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
-                                                }`}
+                                                className={`p-3 rounded-full ${pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
+                                                  }`}
                                               >
                                                 {metodo.id === "efectivo" && (
                                                   <Banknote
@@ -1288,11 +1288,10 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Saldo actual:</span>
                                                     <div
-                                                      className={`font-medium ${
-                                                        Number(cuentaCorriente.saldo) > 0
+                                                      className={`font-medium ${Number(cuentaCorriente.saldo) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                      }`}
+                                                        }`}
                                                     >
                                                       {formatearPrecio(Number(cuentaCorriente.saldo))}
                                                     </div>
@@ -1311,18 +1310,17 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Nuevo saldo proyectado:</span>
                                                     <div
-                                                      className={`font-medium ${
-                                                        (
+                                                      className={`font-medium ${(
                                                           Number(cuentaCorriente.saldo) +
-                                                            Number(convertirANumero(pago.monto))
+                                                          Number(convertirANumero(pago.monto))
                                                         ) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                      }`}
+                                                        }`}
                                                     >
                                                       {formatearPrecio(
                                                         Number(cuentaCorriente.saldo) +
-                                                          Number(convertirANumero(pago.monto)),
+                                                        Number(convertirANumero(pago.monto)),
                                                       )}
                                                     </div>
                                                   </div>
@@ -1331,7 +1329,7 @@ const ReparacionesPage = () => {
                                                 {cuentaCorriente.limiteCredito > 0 &&
                                                   pago.monto &&
                                                   cuentaCorriente.saldo + convertirANumero(pago.monto) >
-                                                    cuentaCorriente.limiteCredito && (
+                                                  cuentaCorriente.limiteCredito && (
                                                     <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-center">
                                                       <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
                                                       <span className="text-sm">
@@ -1505,9 +1503,9 @@ const ReparacionesPage = () => {
                     pago={
                       pago.realizaPago
                         ? {
-                            ...pago,
-                            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-                          }
+                          ...pago,
+                          nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+                        }
                         : null
                     }
                     formatearPrecio={formatearPrecio}
