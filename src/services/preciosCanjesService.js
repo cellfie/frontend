@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:4486/api"
+const API_URL = "https://api.sistemacellfierm22.site/api" 
 
 // Modificar la función getPreciosCanjes para eliminar la inferencia de categoría
 export const getPreciosCanjes = async () => {

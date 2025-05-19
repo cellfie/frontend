@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:4486/api" // Ajusta esto a la URL de tu backend
+const API_URL = "https://api.sistemacellfierm22.site/api" // Ajusta esto a la URL de tu backend
 
 // Función para registrar un nuevo usuario
 export const registerUser = async (userData) => {

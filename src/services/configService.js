@@ -1,5 +1,5 @@
 // URL base de la API
-export const API_URL = "http://localhost:4486/api"
+export const API_URL = "https://api.sistemacellfierm22.site/api" 
 
 // Función para formatear fechas
 export const formatDate = (dateString) => {

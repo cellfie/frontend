@@ -1,5 +1,5 @@
 // cuentaCorrienteService.js
-const API_URL = "http://localhost:4486/api"
+const API_URL = "https://api.sistemacellfierm22.site/api" 
 
 // Obtener todas las cuentas corrientes
 export const getCuentasCorrientes = async () => {
