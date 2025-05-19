@@ -156,14 +156,6 @@ export default function Home() {
       trend: equiposVendidosHoy.trend,
       trendUp: equiposVendidosHoy.trendUp,
     },
-    {
-      title: "Ingresos del Día",
-      value: `$${ventasHoy.monto.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      icon: DollarSign,
-      color: "bg-orange-200 text-orange-600",
-      trend: ventasHoy.trend,
-      trendUp: ventasHoy.trendUp,
-    },
   ]
 
   // Efecto para cargar los datos del usuario
