@@ -61,7 +61,7 @@ const LoginPage = () => {
       updateUser({
         id: userData.id,
         username: userData.nombre, // Adaptamos nombre a username para mantener consistencia en el frontend
-        role: userData.rol,
+        role: userData.role,
       })
 
       toast.success("Inicio de sesión exitoso")
