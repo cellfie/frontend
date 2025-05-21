@@ -1,5 +1,5 @@
 // reparacionesService.js
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Obtener todas las reparaciones
 export const getReparaciones = async (params = {}) => {
@@ -259,6 +259,7 @@ export const adaptReparacionToFrontend = (reparacion) => {
           metodoPago: pago.metodo_pago,
           fechaPago: pago.fecha_pago,
           usuarioId: pago.usuario_id,
+          usuarioNombre: pago.usuario_nombre || null,
           referenciaCuentaCorriente: pago.referencia_cuenta_corriente,
         }))
       : [],
