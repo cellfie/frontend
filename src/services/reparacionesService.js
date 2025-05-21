@@ -35,7 +35,7 @@ export const getReparaciones = async (params = {}) => {
 // Obtener una reparación por ID
 export const getReparacionById = async (id) => {
   try {
-    const response = await fetch(`${API_URL}/reparaciones/${id}`, {
+    const response = await fetch(`${API_URL}/reparaciones/${id}/completa`, {
       method: "GET",
       credentials: "include",
     })
@@ -263,6 +263,17 @@ export const adaptReparacionToFrontend = (reparacion) => {
           referenciaCuentaCorriente: pago.referencia_cuenta_corriente,
         }))
       : [],
+    historialAcciones: reparacion.historial_acciones
+      ? reparacion.historial_acciones.map((accion) => ({
+          id: accion.id,
+          tipo: accion.tipo_accion,
+          usuario: accion.usuario_nombre,
+          fecha: accion.fecha,
+          hora:
+            accion.hora || new Date(accion.fecha).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+          detalles: accion.detalles || "",
+        }))
+      : [],
   }
 }
 
@@ -284,4 +295,24 @@ export const getMetodosPagoReparacion = () => {
     { id: "transferencia", nombre: "Transferencia" },
     { id: "cuentaCorriente", nombre: "Cuenta Corriente" },
   ]
+}
+
+// Añadir una nueva función para obtener el historial de acciones
+export const getHistorialAccionesReparacion = async (id) => {
+  try {
+    const response = await fetch(`${API_URL}/reparaciones/${id}/historial`, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al obtener el historial de acciones")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getHistorialAccionesReparacion:", error)
+    throw error
+  }
 }

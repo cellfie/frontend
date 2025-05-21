@@ -296,82 +296,10 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       const reparacionCompleta = await getReparacionById(reparacion.id)
       const reparacionFormateada = adaptReparacionToFrontend(reparacionCompleta)
 
-      // Añadir historial de acciones (esto debería venir del backend en una implementación real)
-      // Estos son datos de ejemplo para mostrar la interfaz
-      reparacionFormateada.historialAcciones = [
-        {
-          tipo: "creacion",
-          usuario: "Juan Pérez",
-          fecha: reparacionFormateada.fechaIngreso,
-          hora: "10:30",
-          detalles: "Reparación registrada en el sistema",
-        },
-      ]
-
-      // Añadir acciones según el estado actual
-      if (reparacionFormateada.estado === "terminada" || reparacionFormateada.estado === "entregada") {
-        reparacionFormateada.historialAcciones.push({
-          tipo: "terminada",
-          usuario: "Ana Gómez",
-          fecha: new Date(
-            new Date(reparacionFormateada.fechaIngreso).getTime() + 2 * 24 * 60 * 60 * 1000,
-          ).toISOString(),
-          hora: "14:15",
-          detalles: "Reparación finalizada: cambio de pantalla y batería",
-        })
+      // Si no hay historial de acciones, inicializarlo como un array vacío
+      if (!reparacionFormateada.historialAcciones) {
+        reparacionFormateada.historialAcciones = []
       }
-
-      if (reparacionFormateada.estado === "entregada") {
-        reparacionFormateada.historialAcciones.push({
-          tipo: "entregada",
-          usuario: "Carlos Rodríguez",
-          fecha: new Date(
-            new Date(reparacionFormateada.fechaIngreso).getTime() + 3 * 24 * 60 * 60 * 1000,
-          ).toISOString(),
-          hora: "16:45",
-          detalles: "Equipo entregado al cliente",
-        })
-      }
-
-      if (reparacionFormateada.estado === "cancelada") {
-        reparacionFormateada.historialAcciones.push({
-          tipo: "cancelada",
-          usuario: "María López",
-          fecha: new Date(
-            new Date(reparacionFormateada.fechaIngreso).getTime() + 1 * 24 * 60 * 60 * 1000,
-          ).toISOString(),
-          hora: "11:20",
-          detalles: reparacionFormateada.motivoCancelacion || "Cliente decidió no proceder con la reparación",
-        })
-      }
-
-      // Añadir pagos al historial
-      if (reparacionFormateada.pagos && reparacionFormateada.pagos.length > 0) {
-        const usuarios = ["Juan Pérez", "Ana Gómez", "Carlos Rodríguez", "María López"]
-
-        reparacionFormateada.pagos.forEach((pago, index) => {
-          reparacionFormateada.historialAcciones.push({
-            tipo: "pago",
-            usuario: usuarios[index % usuarios.length],
-            fecha: pago.fechaPago,
-            hora: "15:30",
-            detalles: `Pago de ${formatearPrecio(pago.monto)} con ${
-              pago.metodoPago === "efectivo"
-                ? "efectivo"
-                : pago.metodoPago === "tarjeta"
-                  ? "tarjeta"
-                  : pago.metodoPago === "transferencia"
-                    ? "transferencia"
-                    : pago.metodoPago === "cuentaCorriente"
-                      ? "cuenta corriente"
-                      : "método desconocido"
-            }`,
-          })
-        })
-      }
-
-      // Ordenar el historial por fecha
-      reparacionFormateada.historialAcciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
 
       setCurrentReparacion(reparacionFormateada)
 
