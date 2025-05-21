@@ -441,16 +441,21 @@ export default function Home() {
     // Crear la fecha a partir del string
     const date = new Date(dateString)
 
-    // Ajustar la zona horaria (añadir 3 horas para compensar la diferencia)
-    const dateAdjusted = new Date(date.getTime() + 3 * 60 * 60 * 1000)
-
-    return dateAdjusted.toLocaleDateString("es-AR", {
+    // Formatear la fecha (día/mes/año)
+    const formattedDate = date.toLocaleDateString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+    })
+
+    // Formatear la hora (solo horas y minutos)
+    const formattedTime = date.toLocaleTimeString("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     })
+
+    return `${formattedDate} ${formattedTime}`
   }
 
   return (
