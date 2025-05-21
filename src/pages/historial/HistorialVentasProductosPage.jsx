@@ -61,7 +61,7 @@ import DevolucionesList from "@/components/devoluciones/DevolucionesList"
 
 const HistorialVentasProductosPage = () => {
   const { currentUser } = useAuth()
-  const isAdmin = currentUser?.rol === "admin"
+ const isAdmin = currentUser?.role === "admin"
 
   const [ventas, setVentas] = useState([])
   const [ventasFiltradas, setVentasFiltradas] = useState([])
