@@ -296,6 +296,83 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       const reparacionCompleta = await getReparacionById(reparacion.id)
       const reparacionFormateada = adaptReparacionToFrontend(reparacionCompleta)
 
+      // Añadir historial de acciones (esto debería venir del backend en una implementación real)
+      // Estos son datos de ejemplo para mostrar la interfaz
+      reparacionFormateada.historialAcciones = [
+        {
+          tipo: "creacion",
+          usuario: "Juan Pérez",
+          fecha: reparacionFormateada.fechaIngreso,
+          hora: "10:30",
+          detalles: "Reparación registrada en el sistema",
+        },
+      ]
+
+      // Añadir acciones según el estado actual
+      if (reparacionFormateada.estado === "terminada" || reparacionFormateada.estado === "entregada") {
+        reparacionFormateada.historialAcciones.push({
+          tipo: "terminada",
+          usuario: "Ana Gómez",
+          fecha: new Date(
+            new Date(reparacionFormateada.fechaIngreso).getTime() + 2 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          hora: "14:15",
+          detalles: "Reparación finalizada: cambio de pantalla y batería",
+        })
+      }
+
+      if (reparacionFormateada.estado === "entregada") {
+        reparacionFormateada.historialAcciones.push({
+          tipo: "entregada",
+          usuario: "Carlos Rodríguez",
+          fecha: new Date(
+            new Date(reparacionFormateada.fechaIngreso).getTime() + 3 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          hora: "16:45",
+          detalles: "Equipo entregado al cliente",
+        })
+      }
+
+      if (reparacionFormateada.estado === "cancelada") {
+        reparacionFormateada.historialAcciones.push({
+          tipo: "cancelada",
+          usuario: "María López",
+          fecha: new Date(
+            new Date(reparacionFormateada.fechaIngreso).getTime() + 1 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          hora: "11:20",
+          detalles: reparacionFormateada.motivoCancelacion || "Cliente decidió no proceder con la reparación",
+        })
+      }
+
+      // Añadir pagos al historial
+      if (reparacionFormateada.pagos && reparacionFormateada.pagos.length > 0) {
+        const usuarios = ["Juan Pérez", "Ana Gómez", "Carlos Rodríguez", "María López"]
+
+        reparacionFormateada.pagos.forEach((pago, index) => {
+          reparacionFormateada.historialAcciones.push({
+            tipo: "pago",
+            usuario: usuarios[index % usuarios.length],
+            fecha: pago.fechaPago,
+            hora: "15:30",
+            detalles: `Pago de ${formatearPrecio(pago.monto)} con ${
+              pago.metodoPago === "efectivo"
+                ? "efectivo"
+                : pago.metodoPago === "tarjeta"
+                  ? "tarjeta"
+                  : pago.metodoPago === "transferencia"
+                    ? "transferencia"
+                    : pago.metodoPago === "cuentaCorriente"
+                      ? "cuenta corriente"
+                      : "método desconocido"
+            }`,
+          })
+        })
+      }
+
+      // Ordenar el historial por fecha
+      reparacionFormateada.historialAcciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+
       setCurrentReparacion(reparacionFormateada)
 
       // Cargar cuenta corriente si hay cliente
@@ -1126,12 +1203,15 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
             <>
               <Tabs defaultValue="info" className="w-full">
                 <div className="px-4 sm:px-6 pt-3 border-b">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="info" className="text-sm">
                       Información
                     </TabsTrigger>
                     <TabsTrigger value="pagos" className="text-sm">
                       Pagos
+                    </TabsTrigger>
+                    <TabsTrigger value="historial" className="text-sm">
+                      Historial
                     </TabsTrigger>
                   </TabsList>
                 </div>
@@ -1419,6 +1499,89 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                             </div>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="historial" className="p-4 sm:p-6 pt-3 sm:pt-4 m-0">
+                    <div className="space-y-4 sm:space-y-6">
+                      <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2 mb-3 sm:mb-4">
+                          <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> Historial de Acciones
+                        </h3>
+
+                        {currentReparacion.historialAcciones && currentReparacion.historialAcciones.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="relative">
+                              {currentReparacion.historialAcciones.map((accion, index) => (
+                                <div key={index} className="mb-4 ml-6 relative">
+                                  {/* Línea vertical conectora */}
+                                  {index < currentReparacion.historialAcciones.length - 1 && (
+                                    <div className="absolute left-[-24px] top-6 bottom-[-12px] w-0.5 bg-gray-200"></div>
+                                  )}
+
+                                  {/* Círculo indicador con color según tipo de acción */}
+                                  <div
+                                    className={`absolute left-[-30px] top-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                                      accion.tipo === "creacion"
+                                        ? "bg-blue-100"
+                                        : accion.tipo === "terminada"
+                                          ? "bg-green-100"
+                                          : accion.tipo === "entregada"
+                                            ? "bg-purple-100"
+                                            : accion.tipo === "cancelada"
+                                              ? "bg-red-100"
+                                              : accion.tipo === "pago"
+                                                ? "bg-amber-100"
+                                                : "bg-gray-100"
+                                    }`}
+                                  >
+                                    {accion.tipo === "creacion" && <Plus className="h-3 w-3 text-blue-600" />}
+                                    {accion.tipo === "terminada" && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                    {accion.tipo === "entregada" && (
+                                      <ExternalLink className="h-3 w-3 text-purple-600" />
+                                    )}
+                                    {accion.tipo === "cancelada" && <Ban className="h-3 w-3 text-red-600" />}
+                                    {accion.tipo === "pago" && <DollarSign className="h-3 w-3 text-amber-600" />}
+                                    {accion.tipo === "edicion" && <Edit className="h-3 w-3 text-gray-600" />}
+                                  </div>
+
+                                  <div className="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200">
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <p className="text-xs sm:text-sm font-medium text-gray-800">
+                                          {accion.tipo === "creacion" && "Reparación creada"}
+                                          {accion.tipo === "terminada" && "Marcada como terminada"}
+                                          {accion.tipo === "entregada" && "Marcada como entregada"}
+                                          {accion.tipo === "cancelada" && "Reparación cancelada"}
+                                          {accion.tipo === "pago" && "Pago registrado"}
+                                          {accion.tipo === "edicion" && "Reparación editada"}
+                                        </p>
+                                        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
+                                          Por:{" "}
+                                          <span className="font-medium">{accion.usuario || "Usuario desconocido"}</span>
+                                        </p>
+                                      </div>
+                                      <span className="text-[10px] sm:text-xs text-gray-500">
+                                        {formatearFecha(accion.fecha)} {accion.hora || ""}
+                                      </span>
+                                    </div>
+
+                                    {accion.detalles && (
+                                      <p className="text-[10px] sm:text-xs text-gray-600 mt-1 border-t border-gray-200 pt-1">
+                                        {accion.detalles}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-6">
+                            <FileText className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No hay historial de acciones disponible</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TabsContent>
