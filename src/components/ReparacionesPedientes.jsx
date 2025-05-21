@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { toast } from "react-toastify"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -649,11 +649,42 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
   // Estado para reparaciones pendientes
   const [pendientes, setPendientes] = useState(0)
 
+  // Estados para los totales
+  const [totalReparaciones, setTotalReparaciones] = useState(0)
+  const [totalPagado, setTotalPagado] = useState(0)
+  const [totalPendiente, setTotalPendiente] = useState(0)
+
+  // Calcular los totales de las reparaciones filtradas
+  const calcularTotales = useCallback(() => {
+    let totalRep = 0
+    let totalPag = 0
+    let totalPen = 0
+
+    filteredReparaciones.forEach((reparacion) => {
+      const total = calcularTotal(reparacion)
+      const pagado = calcularTotalPagado(reparacion)
+      const pendiente = calcularSaldoPendiente(reparacion)
+
+      totalRep += total
+      totalPag += pagado
+      totalPen += pendiente
+    })
+
+    setTotalReparaciones(totalRep)
+    setTotalPagado(totalPag)
+    setTotalPendiente(totalPen)
+  }, [filteredReparaciones])
+
   // Actualizar el estado de reparaciones pendientes
   useEffect(() => {
     const pendientesCount = reparaciones.filter((r) => r.estado === "pendiente").length
     setPendientes(pendientesCount)
   }, [reparaciones])
+
+  // Calcular totales cuando cambian las reparaciones filtradas
+  useEffect(() => {
+    calcularTotales()
+  }, [filteredReparaciones, calcularTotales])
 
   // Colores para los estados
   const estadoColors = {
@@ -867,6 +898,25 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
         </div>
 
         {/* Estadísticas rápidas */}
+      </div>
+
+      {/* Resumen de totales */}
+      <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+        <h3 className="text-sm font-medium text-gray-700 mb-3">Resumen de Totales</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <span className="text-xs text-gray-500 block">Total Reparaciones</span>
+            <span className="text-lg font-semibold text-gray-800">{formatearPrecio(totalReparaciones)}</span>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <span className="text-xs text-gray-500 block">Total Pagado</span>
+            <span className="text-lg font-semibold text-green-600">{formatearPrecio(totalPagado)}</span>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <span className="text-xs text-gray-500 block">Total Pendiente</span>
+            <span className="text-lg font-semibold text-orange-600">{formatearPrecio(totalPendiente)}</span>
+          </div>
+        </div>
       </div>
 
       {/* Lista de reparaciones */}
