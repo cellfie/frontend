@@ -903,7 +903,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       {/* Resumen de totales */}
       <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
         <h3 className="text-sm font-medium text-gray-700 mb-3">Resumen de Totales</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
             <span className="text-xs text-gray-500 block">Total Reparaciones</span>
             <span className="text-lg font-semibold text-gray-800">{formatearPrecio(totalReparaciones)}</span>
