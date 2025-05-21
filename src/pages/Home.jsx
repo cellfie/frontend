@@ -15,7 +15,6 @@ import {
   Edit,
   Check,
   X,
-  DollarSign,
   Loader2,
   Trash2,
   Plus,
@@ -797,9 +796,12 @@ export default function Home() {
                                 </Badge>
                               )}
                               <p className="text-xs text-muted-foreground">
-                                Agregado: {formatDate(note.fecha_creacion)}
+                                Agregado: {note.fecha_creacion_formatted || formatDate(note.fecha_creacion)}
                                 {note.completada && note.fecha_completada && (
-                                  <> • Completado: {formatDate(note.fecha_completada)}</>
+                                  <>
+                                    {" "}
+                                    • Completado: {note.fecha_completada_formatted || formatDate(note.fecha_completada)}
+                                  </>
                                 )}
                               </p>
                             </div>
