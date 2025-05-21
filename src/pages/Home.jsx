@@ -15,7 +15,6 @@ import {
   Edit,
   Check,
   X,
-  DollarSign,
   Loader2,
   Trash2,
   Plus,
@@ -75,6 +74,8 @@ export default function Home() {
     trend: "0%",
     trendUp: true,
   })
+
+  const [currentUser, setCurrentUser] = useState(null)
 
   // Función para cargar el precio del dólar directamente desde la API
   const fetchDollarPrice = useCallback(async () => {
@@ -165,6 +166,7 @@ export default function Home() {
         const userData = await getCurrentUser()
         if (userData) {
           setUsername(userData.nombre)
+          setCurrentUser(userData)
 
           // Generar iniciales a partir del nombre
           const initials = userData.nombre
