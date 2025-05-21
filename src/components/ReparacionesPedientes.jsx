@@ -218,6 +218,16 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     })
   }
 
+  const formatearHora = (fechaStr) => {
+    if (!fechaStr) return ""
+    const fecha = new Date(fechaStr)
+    return fecha.toLocaleTimeString("es-ES", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+  }
+
   const formatearPrecio = (valor) => {
     if (valor === null || valor === undefined || valor === "") return "$ 0,00"
 

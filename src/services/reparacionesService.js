@@ -269,8 +269,7 @@ export const adaptReparacionToFrontend = (reparacion) => {
           tipo: accion.tipo_accion,
           usuario: accion.usuario_nombre,
           fecha: accion.fecha,
-          hora:
-            accion.hora || new Date(accion.fecha).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }),
+          hora: accion.hora || "",
           detalles: accion.detalles || "",
         }))
       : [],
