@@ -34,7 +34,7 @@ import { searchProductos } from "../services/productosService"
 import { getVentasEquipos } from "../services/ventasEquiposService"
 import { getNotas, createNota, deleteNota, toggleNotaCompletada } from "../services/notasService"
 import { getReparaciones } from "../services/reparacionesService"
-import { getTipoCambio, setTipoCambio } from "../services/tipoCambioService"
+import { getTipoCambio, setTipoCambio, formatNumberARS } from "../services/tipoCambioService"
 import { useNavigate } from "react-router-dom"
 import { DollarContext } from "@/context/DollarContext"
 import ReparacionesPendientes from "@/components/ReparacionesPedientes"
@@ -100,6 +100,7 @@ export default function Home() {
     if (isDollarDialogOpen && newDollarInputRef.current) {
       setTimeout(() => {
         newDollarInputRef.current.focus()
+        newDollarInputRef.current.select()
       }, 100)
     }
   }, [isDollarDialogOpen])
@@ -331,53 +332,63 @@ export default function Home() {
 
   // Función para abrir el diálogo de edición del dólar
   const openDollarDialog = () => {
-    setNewDollarPrice(dollarPrice.toString())
+    setNewDollarPrice(formatNumberARS(dollarPrice))
     setIsDollarDialogOpen(true)
   }
 
   // Función para guardar el nuevo precio del dólar
   const saveDollarPrice = async () => {
-    // Si ya está en proceso de actualización, no hacer nada
     if (isUpdatingDollar) return
 
-    setIsLoading(true)
     setIsUpdatingDollar(true)
 
     try {
-      // Verificar si el campo está vacío
-      if (!newDollarPrice || newDollarPrice.trim() === "") {
+      // Limpiar el valor ingresado (remover separadores de miles y cambiar coma por punto)
+      const cleanValue = newDollarPrice
+        .replace(/\./g, "") // Remover puntos (separadores de miles)
+        .replace(",", ".") // Cambiar coma por punto decimal
+        .trim()
+
+      if (!cleanValue || cleanValue === "") {
         toast.error("Por favor ingresa un valor válido")
-        setIsLoading(false)
-        setIsUpdatingDollar(false)
         return
       }
 
-      // Convertir a número
-      const numericValue = Number.parseFloat(newDollarPrice)
+      const numericValue = Number.parseFloat(cleanValue)
 
-      // Validar que sea un número válido mayor que cero
       if (isNaN(numericValue) || numericValue <= 0) {
         toast.error("El valor debe ser un número mayor que cero")
-        setIsLoading(false)
-        setIsUpdatingDollar(false)
         return
       }
 
-      // Llamar directamente al servicio para actualizar el precio
-      await setTipoCambio(numericValue)
+      console.log("Actualizando tipo de cambio a:", numericValue)
 
-      // Actualizar el contexto
-      await updateDollarPrice(numericValue)
+      // Llamar al servicio para actualizar el precio
+      const response = await setTipoCambio(numericValue)
 
-      // Cerrar el diálogo
-      setIsDollarDialogOpen(false)
+      if (response.success) {
+        // Actualizar el contexto con el nuevo valor
+        await updateDollarPrice(numericValue)
 
-      toast.success("Precio del dólar actualizado correctamente")
+        // Cerrar el diálogo
+        setIsDollarDialogOpen(false)
+
+        toast.success("Precio del dólar actualizado correctamente", {
+          position: "bottom-right",
+          autoClose: 2000,
+        })
+
+        console.log("Tipo de cambio actualizado exitosamente")
+      } else {
+        throw new Error(response.message || "Error en la respuesta del servidor")
+      }
     } catch (error) {
       console.error("Error al actualizar el dólar:", error)
-      toast.error(error.message || "No se pudo actualizar el dólar")
+      toast.error(error.message || "No se pudo actualizar el dólar", {
+        position: "bottom-right",
+        autoClose: 3000,
+      })
     } finally {
-      setIsLoading(false)
       setIsUpdatingDollar(false)
     }
   }
@@ -482,7 +493,6 @@ export default function Home() {
   const formatDate = (dateString) => {
     if (!dateString) return ""
 
-    // Crear la fecha a partir del string
     const date = new Date(dateString)
 
     // Formatear la fecha (día/mes/año)
@@ -549,14 +559,18 @@ export default function Home() {
               <div>
                 <p className="text-xs font-medium text-gray-100">Precio del Dólar</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-orange-600">${formatNumberARS(dollarPrice)}</span>
                   <Button
                     size="icon"
                     onClick={openDollarDialog}
                     className="h-7 w-7 bg-[#131321] hover:bg-[#131321]"
                     disabled={isUpdatingDollar}
                   >
-                    <Edit className="h-3.5 w-3.5 text-gray-100" />
+                    {isUpdatingDollar ? (
+                      <Loader2 className="h-3.5 w-3.5 text-gray-100 animate-spin" />
+                    ) : (
+                      <Edit className="h-3.5 w-3.5 text-gray-100" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -613,7 +627,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-[#0b0044]">${product.precio?.toFixed(2) || "0.00"}</p>
+                      <p className="font-bold text-[#0b0044]">${formatNumberARS(product.precio || 0)}</p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {product.stock > 10 ? (
                           <span className="text-green-600">Disponible</span>
@@ -865,20 +879,12 @@ export default function Home() {
       </Tabs>
 
       {/* Diálogo para editar el precio del dólar */}
-      <Dialog
-        open={isDollarDialogOpen}
-        onOpenChange={(open) => {
-          // Solo permitir cerrar el diálogo si no está en proceso de actualización
-          if (!isUpdatingDollar || !open) {
-            setIsDollarDialogOpen(open)
-          }
-        }}
-      >
+      <Dialog open={isDollarDialogOpen} onOpenChange={setIsDollarDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-orange-600">Actualizar Precio del Dólar</DialogTitle>
             <DialogDescription>
-              Ingresa el nuevo precio del dólar. El valor actual es ${dollarPrice.toFixed(2)}.
+              Ingresa el nuevo precio del dólar. El valor actual es ${formatNumberARS(dollarPrice)}.
             </DialogDescription>
           </DialogHeader>
 
@@ -895,23 +901,14 @@ export default function Home() {
                   id="new-dollar-price"
                   ref={newDollarInputRef}
                   type="text"
-                  placeholder="Ingresa el nuevo precio"
+                  placeholder="Ej: 1.200,50"
                   value={newDollarPrice}
                   onChange={(e) => {
-                    // Solo permitir números y punto decimal
-                    const value = e.target.value.replace(/[^0-9.]/g, "")
-                    // Permitir solo un punto decimal
-                    const parts = value.split(".")
-                    if (parts.length > 2) {
-                      return
-                    }
-                    // Limitar a 2 decimales
-                    if (parts[1] && parts[1].length > 2) {
-                      return
-                    }
+                    // Permitir números, puntos, comas y espacios
+                    const value = e.target.value.replace(/[^0-9.,\s]/g, "")
                     setNewDollarPrice(value)
                   }}
-                  className="mt-1"
+                  className="mt-1 text-lg"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !isUpdatingDollar) {
                       saveDollarPrice()
@@ -919,6 +916,9 @@ export default function Home() {
                   }}
                   disabled={isUpdatingDollar}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Formato argentino: use punto para miles y coma para decimales (ej: 1.200,50)
+                </p>
               </div>
             </div>
           </div>
@@ -932,12 +932,8 @@ export default function Home() {
             >
               Cancelar
             </Button>
-            <Button
-              onClick={saveDollarPrice}
-              className="bg-orange-600 hover:bg-orange-700"
-              disabled={isLoading || isUpdatingDollar}
-            >
-              {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            <Button onClick={saveDollarPrice} className="bg-orange-600 hover:bg-orange-700" disabled={isUpdatingDollar}>
+              {isUpdatingDollar ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Actualizar Precio
             </Button>
           </DialogFooter>
@@ -964,7 +960,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-lg">
                   <p className="text-sm text-muted-foreground">Precio</p>
-                  <p className="text-xl font-bold">${selectedProduct.precio?.toFixed(2) || "0.00"}</p>
+                  <p className="text-xl font-bold">${formatNumberARS(selectedProduct.precio || 0)}</p>
                 </div>
 
                 <div className="p-4 rounded-lg">
@@ -975,7 +971,7 @@ export default function Home() {
 
               <div className="p-4 rounded-lg ">
                 <p className="text-sm text-muted-foreground">Precio en Dólares</p>
-                <p className="text-xl font-bold">${((selectedProduct.precio || 0) / dollarPrice).toFixed(2)}</p>
+                <p className="text-xl font-bold">US$ {formatNumberARS((selectedProduct.precio || 0) / dollarPrice)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Basado en el tipo de cambio actual</p>
               </div>
             </div>
