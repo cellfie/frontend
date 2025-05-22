@@ -518,7 +518,7 @@ export default function Home() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-white p-4 rounded-lg shadow-md border border-gray-200"
+            className="bg-[#131321] p-4 rounded-lg shadow-md border border-gray-200"
           >
             <div className="flex items-center gap-2">
               <div className="w-full">
@@ -571,6 +571,7 @@ export default function Home() {
           </motion.div>
         </div>
       </div>
+
 
       {/* Barra de búsqueda */}
       <motion.div
@@ -804,20 +805,18 @@ export default function Home() {
                     notes.map((note) => (
                       <div
                         key={note.id}
-                        className={`flex items-start justify-between p-3 border rounded-md ${
-                          note.completada ? "bg-gray-50 border-gray-200" : "hover:bg-gray-100"
-                        }`}
+                        className={`flex items-start justify-between p-3 border rounded-md ${note.completada ? "bg-gray-50 border-gray-200" : "hover:bg-gray-100"
+                          }`}
                       >
                         <div className="flex items-start gap-2 flex-1">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleToggleNoteStatus(note.id)}
-                            className={`h-6 w-6 mt-0.5 ${
-                              note.completada
+                            className={`h-6 w-6 mt-0.5 ${note.completada
                                 ? "text-green-500 hover:text-green-700 hover:bg-green-50"
                                 : "text-gray-400 hover:text-orange-600 hover:bg-orange-50"
-                            }`}
+                              }`}
                             disabled={notesLoading}
                           >
                             {note.completada ? <CheckCircle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
