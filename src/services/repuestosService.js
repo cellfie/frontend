@@ -107,14 +107,11 @@ export const createRepuesto = async (repuestoData) => {
 // Actualizar un repuesto existente
 export const updateRepuesto = async (id, repuestoData) => {
   try {
-    // Obtener el repuesto actual para mantener su punto_venta_id
-    const repuestoActual = await getRepuestoById(id)
-
     // Adaptar los datos del frontend al formato que espera el backend
     const backendData = {
       nombre: repuestoData.name,
       descripcion: repuestoData.description || "",
-      punto_venta_id: repuestoActual.punto_venta_id, // Mantener el punto de venta original
+      punto_venta_id: Number(repuestoData.punto_venta_id),
       stock: repuestoData.stock,
     }
 

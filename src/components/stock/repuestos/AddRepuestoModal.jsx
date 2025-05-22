@@ -168,8 +168,8 @@ export const AddRepuestoModal = ({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-x-3 gap-y-3">
-              <div className="col-span-2">
+            <div className="grid grid-cols-4 gap-x-3 gap-y-3">
+              <div className="col-span-4">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-xs font-medium text-gray-500 flex items-center">
                     <Package className="h-3.5 w-3.5 mr-1 text-gray-400" /> INFORMACIÓN DEL REPUESTO
@@ -177,8 +177,8 @@ export const AddRepuestoModal = ({
                 </div>
               </div>
 
-              {/* Nombre */}
-              <div className="space-y-1 col-span-2">
+              {/* Nombre en la primera fila */}
+              <div className="space-y-1 col-span-4">
                 <Label htmlFor="name" className="text-sm">
                   Nombre <span className="text-red-500">*</span>
                 </Label>
@@ -195,8 +195,8 @@ export const AddRepuestoModal = ({
                 />
               </div>
 
-              {/* Stock y Punto de Venta */}
-              <div className="space-y-1">
+              {/* Stock y Punto de Venta en la misma fila */}
+              <div className="space-y-1 col-span-2">
                 <Label htmlFor="stock" className="text-sm">
                   Stock <span className="text-red-500">*</span>
                 </Label>
@@ -217,7 +217,7 @@ export const AddRepuestoModal = ({
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1 col-span-2">
                 <Label htmlFor="punto_venta_id" className="text-sm">
                   Punto de Venta <span className="text-red-500">*</span>
                 </Label>
@@ -270,8 +270,8 @@ export const AddRepuestoModal = ({
                 )}
               </div>
 
-              {/* Descripción */}
-              <div className="space-y-1 col-span-2">
+              {/* Descripción en la última fila */}
+              <div className="space-y-1 col-span-4">
                 <Label htmlFor="description" className="text-sm">
                   Descripción
                 </Label>
@@ -280,7 +280,7 @@ export const AddRepuestoModal = ({
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
-                  rows={3}
+                  rows={2}
                   className="resize-none border-orange-200 focus-visible:ring-orange-500"
                 />
               </div>

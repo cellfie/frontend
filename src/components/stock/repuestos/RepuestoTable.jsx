@@ -66,9 +66,7 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                   <TableRow className={`group ${showDetails === repuesto.id ? "bg-orange-50" : ""}`}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div>
-                          <div className="font-medium">{repuesto.name}</div>
-                        </div>
+                        <div className="font-medium">{repuesto.name}</div>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-sm text-gray-600 max-w-[300px] truncate">
@@ -209,8 +207,8 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                                   <div className="bg-[#131321]/5 p-4 rounded-lg flex flex-col justify-between">
                                     <div>
                                       <div className="flex items-center gap-2 text-orange-700 mb-3">
-                                        <Box size={16} />
-                                        <h3 className="font-medium">Información de inventario</h3>
+                                        <Package size={16} />
+                                        <h3 className="font-medium">Información técnica</h3>
                                       </div>
 
                                       <div className="space-y-3">
