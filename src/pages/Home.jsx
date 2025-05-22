@@ -35,7 +35,7 @@ import { searchProductos } from "../services/productosService"
 import { getVentasEquipos } from "../services/ventasEquiposService"
 import { getNotas, createNota, deleteNota, toggleNotaCompletada } from "../services/notasService"
 import { getReparaciones } from "../services/reparacionesService"
-import { getTipoCambio } from "../services/tipoCambioService"
+import { getTipoCambio, setTipoCambio } from "../services/tipoCambioService"
 import { useNavigate } from "react-router-dom"
 import { DollarContext } from "@/context/DollarContext"
 import ReparacionesPendientes from "@/components/ReparacionesPedientes"
@@ -320,13 +320,32 @@ export default function Home() {
 
   // Función para guardar el precio del dólar
   const saveDollarPrice = async () => {
+    if (isNaN(tempDollarPrice) || tempDollarPrice <= 0) {
+      toast.error("Por favor ingresa un valor válido mayor a cero")
+      return
+    }
+
     setIsLoading(true)
     try {
-      await updateDollarPrice(Number.parseFloat(tempDollarPrice))
-      setEditingDollar(false)
-      toast.success("Precio del dólar actualizado correctamente")
-    } catch {
-      toast.error("No se pudo actualizar el dólar")
+      // Convertir explícitamente a número y limitar a 2 decimales
+      const numericValue = Number.parseFloat(Number.parseFloat(tempDollarPrice).toFixed(2))
+
+      // Llamar directamente al servicio para actualizar el precio
+      const result = await setTipoCambio(numericValue)
+
+      if (result && result.valor) {
+        // Actualizar el estado global con el nuevo valor devuelto por la API
+        updateDollarPrice(result.valor)
+        setEditingDollar(false)
+        toast.success("Precio del dólar actualizado correctamente")
+      } else {
+        throw new Error("No se recibió confirmación del servidor")
+      }
+    } catch (error) {
+      console.error("Error al actualizar el dólar:", error)
+      toast.error("No se pudo actualizar el precio del dólar")
+      // Recargar el valor actual desde la API
+      fetchDollarPrice()
     } finally {
       setIsLoading(false)
     }
@@ -499,36 +518,51 @@ export default function Home() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-[#131321] p-3 rounded-lg border border-[#131321]"
+            className="bg-white p-4 rounded-lg shadow-md border border-gray-200"
           >
             <div className="flex items-center gap-2">
-              <div>
-                <p className="text-xs font-medium text-gray-100">Precio del Dólar</p>
+              <div className="w-full">
+                <p className="text-sm font-medium text-gray-600">Precio del Dólar</p>
                 {editingDollar ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mt-1">
                     <Input
                       type="number"
                       value={tempDollarPrice}
                       onChange={(e) => setTempDollarPrice(e.target.value)}
-                      className="w-24 h-8 text-sm bg-gray-300 mt-2"
+                      className="w-32 h-9 text-base"
                       step="0.01"
+                      autoFocus
+                      onKeyDown={(e) => e.key === "Enter" && saveDollarPrice()}
                     />
-                    <Button size="icon" variant="ghost" onClick={saveDollarPrice} className="h-7 w-7">
-                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    <Button
+                      size="sm"
+                      onClick={saveDollarPrice}
+                      className="h-9 bg-green-600 hover:bg-green-700 text-white"
+                      disabled={loadingDollar}
+                    >
+                      {loadingDollar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     </Button>
-                    <Button size="icon" variant="ghost" onClick={cancelDollarEdit} className="h-7 w-7">
-                      <X className="h-3.5 w-3.5 text-red-600" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={cancelDollarEdit}
+                      className="h-9"
+                      disabled={loadingDollar}
+                    >
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-2xl font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
                     <Button
-                      size="icon"
+                      size="sm"
+                      variant="outline"
                       onClick={() => setEditingDollar(true)}
-                      className="h-7 w-7 bg-[#131321] hover:bg-[#131321]"
+                      className="h-8 border-orange-200 hover:bg-orange-50 hover:text-orange-600"
                     >
-                      <Edit className="h-3.5 w-3.5 text-gray-100 " />
+                      <Edit className="h-3.5 w-3.5 mr-1" />
+                      Editar
                     </Button>
                   </div>
                 )}

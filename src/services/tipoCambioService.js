@@ -1,4 +1,4 @@
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
 
 export const getTipoCambio = async () => {
   try {
@@ -22,15 +22,23 @@ export const getTipoCambio = async () => {
 
 export const setTipoCambio = async (valor) => {
   try {
+    // Asegurar que el valor es un número y tiene máximo 2 decimales
+    const numericValue = Number.parseFloat(Number.parseFloat(valor).toFixed(2))
+
+    if (isNaN(numericValue) || numericValue <= 0) {
+      throw new Error("El valor debe ser un número mayor a cero")
+    }
+
     const res = await fetch(`${API_URL}/tipo-cambio`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ valor: Number.parseFloat(valor) }),
+      body: JSON.stringify({ valor: numericValue }),
       credentials: "include",
     })
 
     if (!res.ok) {
-      throw new Error("Error al actualizar el tipo de cambio")
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.message || "Error al actualizar el tipo de cambio")
     }
 
     return await res.json()
