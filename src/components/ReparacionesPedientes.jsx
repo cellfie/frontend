@@ -30,6 +30,8 @@ import {
   AlertTriangle,
   CreditCardIcon,
   Info,
+  MapPin,
+  AlertCircle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -57,14 +59,19 @@ import {
 } from "@/services/reparacionesService"
 import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
+import { useAuth } from "@/context/AuthContext"
 
 const ReparacionesPendientes = ({ showHeader = true }) => {
+  const { currentUser } = useAuth()
+  const isAdmin = currentUser?.role === "admin"
+
   // Estados principales
   const [reparaciones, setReparaciones] = useState([])
   const [filteredReparaciones, setFilteredReparaciones] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("todos")
   const [ordenarPor, setOrdenarPor] = useState("fecha-reciente")
+  const [busquedaRealizada, setBusquedaRealizada] = useState(false)
 
   // Estados para modales
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -105,10 +112,33 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
   // Referencia para el contenedor de tarjetas
   const cardsContainerRef = useRef(null)
 
-  // Cargar reparaciones al iniciar
+  // Cargar reparaciones al iniciar - solo si es admin
   useEffect(() => {
-    cargarReparaciones()
-  }, [])
+    if (isAdmin) {
+      cargarReparaciones()
+    } else {
+      // Si es empleado, inicializar con lista vacía y quitar estado de carga
+      setReparaciones([])
+      setFilteredReparaciones([])
+      setCargando(false)
+      cargarDatosIniciales()
+    }
+  }, [isAdmin])
+
+  // Cargar datos iniciales (métodos de pago y estados)
+  const cargarDatosIniciales = async () => {
+    try {
+      // Cargar métodos de pago
+      const metodos = await getMetodosPagoReparacion()
+      setMetodosPago(metodos)
+
+      // Cargar estados de reparación
+      const estados = getEstadosReparacion()
+      setEstadosReparacion(estados)
+    } catch (error) {
+      console.error("Error al cargar datos iniciales:", error)
+    }
+  }
 
   // Cargar reparaciones
   const cargarReparaciones = async () => {
@@ -140,8 +170,77 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     }
   }
 
+  // Buscar reparaciones por término de búsqueda (para empleados)
+  const buscarReparaciones = async () => {
+    if (!searchTerm.trim()) {
+      // Si el empleado no ha ingresado búsqueda, mostrar lista vacía
+      if (!isAdmin) {
+        setFilteredReparaciones([])
+        return
+      }
+
+      // Si es admin, mostrar todas las reparaciones
+      setFilteredReparaciones(reparaciones)
+      return
+    }
+
+    // Verificar que el término de búsqueda tenga al menos 3 caracteres
+    if (!isAdmin && searchTerm.trim().length < 3) {
+      setFilteredReparaciones([])
+      return
+    }
+
+    setCargando(true)
+    try {
+      const reparacionesData = await getReparaciones()
+
+      // Filtrar por término de búsqueda
+      const termino = searchTerm.toLowerCase()
+      const reparacionesFiltradas = reparacionesData.filter(
+        (rep) =>
+          rep.cliente_nombre?.toLowerCase().includes(termino) ||
+          rep.id?.toString().toLowerCase().includes(termino) ||
+          rep.numero_ticket?.toString().includes(termino) ||
+          rep.equipo?.marca?.toLowerCase().includes(termino) ||
+          rep.equipo?.modelo?.toLowerCase().includes(termino),
+      )
+
+      // Procesar cada reparación
+      const reparacionesFormateadas = reparacionesFiltradas.map((rep) => {
+        return adaptReparacionToFrontend(rep)
+      })
+
+      setFilteredReparaciones(reparacionesFormateadas)
+      setBusquedaRealizada(true)
+    } catch (error) {
+      console.error("Error al buscar reparaciones:", error)
+      toast.error("Error al buscar reparaciones", { position: "bottom-right" })
+    } finally {
+      setCargando(false)
+    }
+  }
+
   // Efecto para filtrar reparaciones
   useEffect(() => {
+    // Si es empleado y hay búsqueda, realizar búsqueda en el servidor
+    if (!isAdmin && searchTerm.trim()) {
+      // Verificar que el término de búsqueda tenga al menos 3 caracteres
+      if (searchTerm.trim().length >= 3) {
+        buscarReparaciones()
+      } else {
+        setFilteredReparaciones([])
+      }
+      return
+    }
+
+    // Si es empleado y no hay búsqueda, mostrar lista vacía
+    if (!isAdmin && !searchTerm.trim()) {
+      setFilteredReparaciones([])
+      setBusquedaRealizada(false)
+      return
+    }
+
+    // Para administradores, filtrar la lista completa localmente
     let filtered = [...reparaciones]
 
     // Filtrar por término de búsqueda
@@ -174,7 +273,26 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     }
 
     setFilteredReparaciones(filtered)
-  }, [reparaciones, searchTerm, filtroEstado, ordenarPor])
+  }, [reparaciones, searchTerm, filtroEstado, ordenarPor, isAdmin])
+
+  // Manejar la búsqueda para empleados
+  const handleBusqueda = (e) => {
+    setSearchTerm(e.target.value)
+
+    // Si es empleado y se borra la búsqueda, limpiar resultados
+    if (!isAdmin && e.target.value === "") {
+      setFilteredReparaciones([])
+      setBusquedaRealizada(false)
+    }
+  }
+
+  // Manejar el envío del formulario de búsqueda para empleados
+  const handleSubmitBusqueda = (e) => {
+    e.preventDefault()
+    if (!isAdmin) {
+      buscarReparaciones()
+    }
+  }
 
   // Calcular el total de una reparación
   const calcularTotal = (reparacion) => {
@@ -277,6 +395,38 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     }
 
     return 0
+  }
+
+  // Función para obtener el estilo del punto de venta
+  const getPuntoVentaStyle = (nombrePuntoVenta) => {
+    if (!nombrePuntoVenta)
+      return {
+        bg: "bg-gray-100",
+        text: "text-gray-600",
+        border: "border-gray-200",
+      }
+
+    const nombre = nombrePuntoVenta.toLowerCase()
+
+    if (nombre.includes("tala")) {
+      return {
+        bg: "bg-orange-50",
+        text: "text-orange-700",
+        border: "border-orange-200",
+      }
+    } else if (nombre.includes("trancas")) {
+      return {
+        bg: "bg-blue-50",
+        text: "text-blue-700",
+        border: "border-blue-200",
+      }
+    } else {
+      return {
+        bg: "bg-purple-50",
+        text: "text-purple-700",
+        border: "border-purple-200",
+      }
+    }
   }
 
   // Cargar información de cuenta corriente del cliente
@@ -473,7 +623,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       setCurrentReparacion(reparacionFormateada)
 
       // Recargar todas las reparaciones
-      await cargarReparaciones()
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
 
       // Cerrar el modal de edición
       setShowEditModal(false)
@@ -499,7 +653,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       setShowCompleteModal(false)
 
       // Recargar reparaciones
-      await cargarReparaciones()
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
     } catch (error) {
       console.error("Error al marcar como terminada:", error)
       toast.error(error.message || "Error al marcar la reparación como terminada", { position: "bottom-right" })
@@ -539,7 +697,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       setShowCancelModal(false)
 
       // Recargar reparaciones
-      await cargarReparaciones()
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
 
       // Si hay cliente, recargar su cuenta corriente para ver los cambios
       if (currentReparacion.cliente?.id) {
@@ -617,7 +779,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       await registrarPagoReparacion(currentReparacion.id, nuevoPago)
 
       // Actualizar la lista de reparaciones
-      await cargarReparaciones()
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
 
       setShowPaymentModal(false)
       toast.success("Pago registrado correctamente", {
@@ -640,7 +806,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       toast.success("Reparación marcada como entregada", { position: "bottom-right" })
 
       // Recargar reparaciones
-      await cargarReparaciones()
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
     } catch (error) {
       console.error("Error al marcar como entregada:", error)
       toast.error(error.message || "Error al marcar la reparación como entregada", { position: "bottom-right" })
@@ -737,7 +907,16 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     <div className="w-full">
       {showHeader && (
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Reparaciones Pendientes</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isAdmin ? "Gestión de Reparaciones" : "Buscar Reparaciones"}
+            </h1>
+            <p className="text-gray-500">
+              {isAdmin
+                ? "Administra todas las reparaciones del sistema"
+                : "Busca reparaciones específicas usando el cliente, equipo o número de ticket"}
+            </p>
+          </div>
           <Button
             variant="outline"
             onClick={() => window.history.back()}
@@ -750,189 +929,238 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
       {/* Barra de búsqueda y filtros */}
       <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-        {/* Modificar la sección de filtros para mejorar la vista móvil */}
-        {/* Reemplazar el div de filtros actual con esta versión mejorada */}
         <div className="flex flex-col gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              type="text"
-              placeholder="Buscar por cliente, equipo, número de ticket..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 border-gray-200 focus-visible:ring-orange-500 rounded-lg"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Vista de escritorio para los filtros - se oculta en móvil */}
-          <div className="hidden md:flex gap-3 justify-between flex-wrap">
-            <Button
-              variant={filtroEstado === "todos" ? "default" : "outline"}
-              onClick={() => setFiltroEstado("todos")}
-              className={
-                filtroEstado === "todos" ? "bg-orange-600 hover:bg-orange-700" : "border-gray-200 hover:bg-gray-50"
-              }
-            >
-              Todos
-            </Button>
-            <Button
-              variant={filtroEstado === "pendiente" ? "default" : "outline"}
-              onClick={() => setFiltroEstado("pendiente")}
-              className={
-                filtroEstado === "pendiente"
-                  ? "bg-orange-500 hover:bg-orange-600"
-                  : "border-orange-200 text-orange-600 hover:bg-orange-50"
-              }
-            >
-              Pendientes
-            </Button>
-            <Button
-              variant={filtroEstado === "terminada" ? "default" : "outline"}
-              onClick={() => setFiltroEstado("terminada")}
-              className={
-                filtroEstado === "terminada"
-                  ? "bg-blue-500 hover:bg-blue-600"
-                  : "border-blue-200 text-blue-600 hover:bg-blue-50"
-              }
-            >
-              Terminadas
-            </Button>
-            <Button
-              variant={filtroEstado === "entregada" ? "default" : "outline"}
-              onClick={() => setFiltroEstado("entregada")}
-              className={
-                filtroEstado === "entregada"
-                  ? "bg-green-500 hover:bg-green-600"
-                  : "border-green-200 text-green-600 hover:bg-green-50"
-              }
-            >
-              Entregadas
-            </Button>
-            <Button
-              variant={filtroEstado === "cancelada" ? "default" : "outline"}
-              onClick={() => setFiltroEstado("cancelada")}
-              className={
-                filtroEstado === "cancelada"
-                  ? "bg-red-500 hover:bg-red-600"
-                  : "border-red-200 text-red-600 hover:bg-red-50"
-              }
-            >
-              Canceladas
-            </Button>
-
-            <Button
-              variant="outline"
-              className="flex items-center gap-1 border-gray-200 hover:bg-gray-50 ml-auto"
-              onClick={() => setOrdenarPor(ordenarPor === "fecha-reciente" ? "fecha-antigua" : "fecha-reciente")}
-            >
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${ordenarPor === "fecha-antigua" ? "rotate-180" : ""}`}
+          {isAdmin ? (
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Buscar por cliente, equipo, número de ticket..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 border-gray-200 focus-visible:ring-orange-500 rounded-lg"
               />
-              <span className="truncate">Fecha</span>
-            </Button>
-          </div>
-
-          {/* Vista móvil para los filtros - se muestra solo en móvil */}
-          <div className="md:hidden">
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              <Button
-                variant={filtroEstado === "todos" ? "default" : "outline"}
-                onClick={() => setFiltroEstado("todos")}
-                className={`text-xs h-9 px-2 ${
-                  filtroEstado === "todos" ? "bg-orange-600 hover:bg-orange-700" : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                Todos
-              </Button>
-              <Button
-                variant={filtroEstado === "pendiente" ? "default" : "outline"}
-                onClick={() => setFiltroEstado("pendiente")}
-                className={`text-xs h-9 px-2 ${
-                  filtroEstado === "pendiente"
-                    ? "bg-orange-500 hover:bg-orange-600"
-                    : "border-orange-200 text-orange-600 hover:bg-orange-50"
-                }`}
-              >
-                Pendientes
-              </Button>
-              <Button
-                variant="outline"
-                className="text-xs h-9 px-2 flex items-center justify-center gap-1 border-gray-200 hover:bg-gray-50"
-                onClick={() => setOrdenarPor(ordenarPor === "fecha-reciente" ? "fecha-antigua" : "fecha-reciente")}
-              >
-                <ChevronDown
-                  className={`h-3 w-3 transition-transform ${ordenarPor === "fecha-antigua" ? "rotate-180" : ""}`}
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitBusqueda} className="flex flex-col sm:flex-row gap-3 items-center">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Buscar por cliente, equipo, número de ticket..."
+                  className="pl-9 border-gray-200 focus-visible:ring-orange-500 rounded-lg"
+                  value={searchTerm}
+                  onChange={handleBusqueda}
                 />
-                <span className="truncate">Fecha</span>
+              </div>
+              <Button
+                type="submit"
+                className="bg-orange-600 hover:bg-orange-700"
+                disabled={searchTerm.trim().length < 3}
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Buscar
               </Button>
+            </form>
+          )}
+
+          {!isAdmin && !searchTerm.trim() && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-700 flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Ingresa un término de búsqueda</p>
+                <p className="text-sm">
+                  Debes ingresar al menos 3 caracteres para buscar reparaciones (cliente, equipo, número de ticket).
+                </p>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                variant={filtroEstado === "terminada" ? "default" : "outline"}
-                onClick={() => setFiltroEstado("terminada")}
-                className={`text-xs h-9 px-2 ${
-                  filtroEstado === "terminada"
-                    ? "bg-blue-500 hover:bg-blue-600"
-                    : "border-blue-200 text-blue-600 hover:bg-blue-50"
-                }`}
-              >
-                Terminadas
-              </Button>
-              <Button
-                variant={filtroEstado === "entregada" ? "default" : "outline"}
-                onClick={() => setFiltroEstado("entregada")}
-                className={`text-xs h-9 px-2 ${
-                  filtroEstado === "entregada"
-                    ? "bg-green-500 hover:bg-green-600"
-                    : "border-green-200 text-green-600 hover:bg-green-50"
-                }`}
-              >
-                Entregadas
-              </Button>
-              <Button
-                variant={filtroEstado === "cancelada" ? "default" : "outline"}
-                onClick={() => setFiltroEstado("cancelada")}
-                className={`text-xs h-9 px-2 ${
-                  filtroEstado === "cancelada"
-                    ? "bg-red-500 hover:bg-red-600"
-                    : "border-red-200 text-red-600 hover:bg-red-50"
-                }`}
-              >
-                Canceladas
-              </Button>
+          )}
+
+          {!isAdmin && searchTerm.trim().length > 0 && searchTerm.trim().length < 3 && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-700 flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Término de búsqueda demasiado corto</p>
+                <p className="text-sm">Ingresa al menos 3 caracteres para realizar la búsqueda.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Filtros - solo para administradores */}
+          {isAdmin && (
+            <>
+              {/* Vista de escritorio para los filtros - se oculta en móvil */}
+              <div className="hidden md:flex gap-3 justify-between flex-wrap">
+                <Button
+                  variant={filtroEstado === "todos" ? "default" : "outline"}
+                  onClick={() => setFiltroEstado("todos")}
+                  className={
+                    filtroEstado === "todos" ? "bg-orange-600 hover:bg-orange-700" : "border-gray-200 hover:bg-gray-50"
+                  }
+                >
+                  Todos
+                </Button>
+                <Button
+                  variant={filtroEstado === "pendiente" ? "default" : "outline"}
+                  onClick={() => setFiltroEstado("pendiente")}
+                  className={
+                    filtroEstado === "pendiente"
+                      ? "bg-orange-500 hover:bg-orange-600"
+                      : "border-orange-200 text-orange-600 hover:bg-orange-50"
+                  }
+                >
+                  Pendientes
+                </Button>
+                <Button
+                  variant={filtroEstado === "terminada" ? "default" : "outline"}
+                  onClick={() => setFiltroEstado("terminada")}
+                  className={
+                    filtroEstado === "terminada"
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : "border-blue-200 text-blue-600 hover:bg-blue-50"
+                  }
+                >
+                  Terminadas
+                </Button>
+                <Button
+                  variant={filtroEstado === "entregada" ? "default" : "outline"}
+                  onClick={() => setFiltroEstado("entregada")}
+                  className={
+                    filtroEstado === "entregada"
+                      ? "bg-green-500 hover:bg-green-600"
+                      : "border-green-200 text-green-600 hover:bg-green-50"
+                  }
+                >
+                  Entregadas
+                </Button>
+                <Button
+                  variant={filtroEstado === "cancelada" ? "default" : "outline"}
+                  onClick={() => setFiltroEstado("cancelada")}
+                  className={
+                    filtroEstado === "cancelada"
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "border-red-200 text-red-600 hover:bg-red-50"
+                  }
+                >
+                  Canceladas
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-1 border-gray-200 hover:bg-gray-50 ml-auto"
+                  onClick={() => setOrdenarPor(ordenarPor === "fecha-reciente" ? "fecha-antigua" : "fecha-reciente")}
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${ordenarPor === "fecha-antigua" ? "rotate-180" : ""}`}
+                  />
+                  <span className="truncate">Fecha</span>
+                </Button>
+              </div>
+
+              {/* Vista móvil para los filtros - se muestra solo en móvil */}
+              <div className="md:hidden">
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <Button
+                    variant={filtroEstado === "todos" ? "default" : "outline"}
+                    onClick={() => setFiltroEstado("todos")}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "todos"
+                        ? "bg-orange-600 hover:bg-orange-700"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    Todos
+                  </Button>
+                  <Button
+                    variant={filtroEstado === "pendiente" ? "default" : "outline"}
+                    onClick={() => setFiltroEstado("pendiente")}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "pendiente"
+                        ? "bg-orange-500 hover:bg-orange-600"
+                        : "border-orange-200 text-orange-600 hover:bg-orange-50"
+                    }`}
+                  >
+                    Pendientes
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-xs h-9 px-2 flex items-center justify-center gap-1 border-gray-200 hover:bg-gray-50"
+                    onClick={() => setOrdenarPor(ordenarPor === "fecha-reciente" ? "fecha-antigua" : "fecha-reciente")}
+                  >
+                    <ChevronDown
+                      className={`h-3 w-3 transition-transform ${ordenarPor === "fecha-antigua" ? "rotate-180" : ""}`}
+                    />
+                    <span className="truncate">Fecha</span>
+                  </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant={filtroEstado === "terminada" ? "default" : "outline"}
+                    onClick={() => setFiltroEstado("terminada")}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "terminada"
+                        ? "bg-blue-500 hover:bg-blue-600"
+                        : "border-blue-200 text-blue-600 hover:bg-blue-50"
+                    }`}
+                  >
+                    Terminadas
+                  </Button>
+                  <Button
+                    variant={filtroEstado === "entregada" ? "default" : "outline"}
+                    onClick={() => setFiltroEstado("entregada")}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "entregada"
+                        ? "bg-green-500 hover:bg-green-600"
+                        : "border-green-200 text-green-600 hover:bg-green-50"
+                    }`}
+                  >
+                    Entregadas
+                  </Button>
+                  <Button
+                    variant={filtroEstado === "cancelada" ? "default" : "outline"}
+                    onClick={() => setFiltroEstado("cancelada")}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "cancelada"
+                        ? "bg-red-500 hover:bg-red-600"
+                        : "border-red-200 text-red-600 hover:bg-red-50"
+                    }`}
+                  >
+                    Canceladas
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Resumen de totales - solo para administradores o cuando hay resultados */}
+      {(isAdmin || (busquedaRealizada && filteredReparaciones.length > 0)) && (
+        <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Resumen de Totales</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="text-xs text-gray-500 block">Total Reparaciones</span>
+              <span className="text-lg font-semibold text-gray-800">{formatearPrecio(totalReparaciones)}</span>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="text-xs text-gray-500 block">Total Pagado</span>
+              <span className="text-lg font-semibold text-green-600">{formatearPrecio(totalPagado)}</span>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <span className="text-xs text-gray-500 block">Total Pendiente</span>
+              <span className="text-lg font-semibold text-orange-600">{formatearPrecio(totalPendiente)}</span>
             </div>
           </div>
         </div>
-
-        {/* Estadísticas rápidas */}
-      </div>
-
-      {/* Resumen de totales */}
-      <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Resumen de Totales</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <span className="text-xs text-gray-500 block">Total Reparaciones</span>
-            <span className="text-lg font-semibold text-gray-800">{formatearPrecio(totalReparaciones)}</span>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <span className="text-xs text-gray-500 block">Total Pagado</span>
-            <span className="text-lg font-semibold text-green-600">{formatearPrecio(totalPagado)}</span>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <span className="text-xs text-gray-500 block">Total Pendiente</span>
-            <span className="text-lg font-semibold text-orange-600">{formatearPrecio(totalPendiente)}</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Lista de reparaciones */}
       {cargando ? (
@@ -947,9 +1175,15 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
         <div className="bg-white rounded-xl shadow-sm p-8 text-center">
           <div className="flex flex-col items-center justify-center gap-2">
             <Wrench className="h-12 w-12 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-700">No hay reparaciones</h3>
+            <h3 className="text-lg font-medium text-gray-700">
+              {!isAdmin && !busquedaRealizada ? "Realiza una búsqueda" : "No hay reparaciones"}
+            </h3>
             <p className="text-sm text-gray-500">
-              No se encontraron reparaciones que coincidan con los criterios de búsqueda
+              {!isAdmin && !busquedaRealizada
+                ? "Ingresa un término de búsqueda para encontrar reparaciones"
+                : !isAdmin && busquedaRealizada
+                  ? `No se encontraron reparaciones que coincidan con "${searchTerm}". Intenta con otro término de búsqueda.`
+                  : "No se encontraron reparaciones que coincidan con los criterios de búsqueda"}
             </p>
           </div>
         </div>
@@ -958,6 +1192,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
           <AnimatePresence>
             {filteredReparaciones.map((reparacion) => {
               const estadoColor = estadoColors[reparacion.estado] || estadoColors.pendiente
+              const puntoVentaStyle = getPuntoVentaStyle(reparacion.puntoVenta?.nombre)
 
               return (
                 <motion.div
@@ -972,21 +1207,37 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     <div className={`h-2 w-full ${estadoColor.bg}`}></div>
                     <CardHeader className="p-5 pb-3">
                       <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-base font-semibold text-gray-800">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <CardTitle className="text-base font-semibold text-gray-800 truncate">
                               {reparacion.cliente?.nombre}
                             </CardTitle>
                           </div>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                            <Tag className="h-3 w-3" />
+
+                          {/* Información del ticket y fecha */}
+                          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                            <Tag className="h-3 w-3 flex-shrink-0" />
                             <span>#{reparacion.numeroTicket}</span>
-                            <Calendar className="h-3 w-3 ml-2" />
+                            <Calendar className="h-3 w-3 ml-2 flex-shrink-0" />
                             <span>{formatearFecha(reparacion.fechaIngreso)}</span>
                           </div>
+
+                          {/* Punto de venta - Agregado aquí */}
+                          {reparacion.puntoVenta?.nombre && (
+                            <div className="flex items-center gap-1 mb-2">
+                              <Badge
+                                variant="outline"
+                                className={`text-xs px-2 py-0.5 h-5 flex items-center gap-1 font-medium border ${puntoVentaStyle.border} ${puntoVentaStyle.bg} ${puntoVentaStyle.text}`}
+                              >
+                                <MapPin className="h-3 w-3" />
+                                <span className="truncate max-w-[80px]">{reparacion.puntoVenta.nombre}</span>
+                              </Badge>
+                            </div>
+                          )}
                         </div>
+
                         <Badge
-                          className={`${estadoColor.badge} text-xs px-2 py-0.5 h-5 flex items-center gap-0.5 font-medium`}
+                          className={`${estadoColor.badge} text-xs px-2 py-0.5 h-5 flex items-center gap-0.5 font-medium flex-shrink-0 ml-2`}
                         >
                           {obtenerNombreEstado(reparacion.estado)}
                         </Badge>
@@ -996,10 +1247,10 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     <CardContent className="p-5 pt-2 flex-grow">
                       <div className="space-y-4">
                         <div className="flex items-center gap-2 text-sm">
-                          <div className={`${estadoColor.light} p-1.5 rounded-full`}>
+                          <div className={`${estadoColor.light} p-1.5 rounded-full flex-shrink-0`}>
                             <Smartphone className={`h-4 w-4 ${estadoColor.text}`} />
                           </div>
-                          <span className="text-gray-800 font-medium">
+                          <span className="text-gray-800 font-medium truncate">
                             {reparacion.equipo?.marca} {reparacion.equipo?.modelo}
                           </span>
                         </div>
@@ -1094,8 +1345,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                             <DollarSign className="h-4 w-4 mr-1.5" /> Pagar
                           </Button>
                         )}
-
-                        {/* Botón de cancelar movido al modal de detalles */}
                       </div>
                     </CardFooter>
                   </Card>
@@ -1110,12 +1359,9 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       <Dialog
         open={showDetailsModal}
         onOpenChange={(open) => {
-          // Si se está cerrando el modal, actualizar el estado
           if (!open) setShowDetailsModal(false)
         }}
       >
-        {/* Modificar el modal de detalles para mejorar la vista móvil */}
-        {/* Reemplazar el DialogContent del modal de detalles con esta versión mejorada */}
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden p-0 sm:max-w-lg md:max-w-2xl lg:max-w-4xl rounded-xl">
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 border-b">
             <div className="flex justify-between items-center w-full">
@@ -1124,12 +1370,21 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
               </DialogTitle>
             </div>
             {currentReparacion && (
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge
                   className={`${estadoColors[currentReparacion.estado]?.badge || estadoColors.pendiente.badge} flex items-center gap-1 text-xs`}
                 >
                   {obtenerNombreEstado(currentReparacion.estado)}
                 </Badge>
+                {currentReparacion.puntoVenta?.nombre && (
+                  <Badge
+                    variant="outline"
+                    className={`text-xs px-2 py-0.5 h-5 flex items-center gap-1 font-medium border ${getPuntoVentaStyle(currentReparacion.puntoVenta.nombre).border} ${getPuntoVentaStyle(currentReparacion.puntoVenta.nombre).bg} ${getPuntoVentaStyle(currentReparacion.puntoVenta.nombre).text}`}
+                  >
+                    <MapPin className="h-3 w-3" />
+                    {currentReparacion.puntoVenta.nombre}
+                  </Badge>
+                )}
                 <span className="text-xs sm:text-sm">
                   Ticket #{currentReparacion.numeroTicket} - {formatearFecha(currentReparacion.fechaIngreso)}
                 </span>
@@ -1528,7 +1783,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t">
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {/* Botón para cancelar (solo si está pendiente o terminada) */}
+                  {/* Botones de acción */}
                   {(currentReparacion.estado === "pendiente" || currentReparacion.estado === "terminada") && (
                     <Button
                       onClick={() => {
@@ -1541,7 +1796,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     </Button>
                   )}
 
-                  {/* Botón para marcar como completada (solo si está pendiente) */}
                   {currentReparacion.estado === "pendiente" && (
                     <Button
                       onClick={() => {
@@ -1554,7 +1808,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     </Button>
                   )}
 
-                  {/* Botón para registrar pago (si tiene saldo pendiente y no está cancelada) */}
                   {calcularSaldoPendiente(currentReparacion) > 0 && currentReparacion.estado !== "cancelada" && (
                     <Button
                       onClick={() => {
@@ -1567,7 +1820,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     </Button>
                   )}
 
-                  {/* Botón para marcar como entregada (solo si está completada y pagada) */}
                   {currentReparacion.estado === "terminada" && calcularSaldoPendiente(currentReparacion) <= 0 && (
                     <Button
                       onClick={() => {
@@ -1590,12 +1842,9 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       <Dialog
         open={showEditModal}
         onOpenChange={(open) => {
-          // Si se está cerrando el modal, actualizar el estado
           if (!open) setShowEditModal(false)
         }}
       >
-        {/* Modificar el modal de edición para mejorar la vista móvil */}
-        {/* Reemplazar el DialogContent del modal de edición con esta versión mejorada */}
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden p-0 sm:max-w-lg md:max-w-2xl lg:max-w-4xl rounded-xl">
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 border-b">
             <div className="flex justify-between items-center w-full">
@@ -1747,12 +1996,9 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       <Dialog
         open={showPaymentModal}
         onOpenChange={(open) => {
-          // Si se está cerrando el modal, actualizar el estado
           if (!open) setShowPaymentModal(false)
         }}
       >
-        {/* Modificar el modal de pago para mejorar la vista móvil */}
-        {/* Reemplazar el DialogContent del modal de pago con esta versión mejorada */}
         <DialogContent className="max-w-md p-0 rounded-xl">
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 border-b">
             <div className="flex justify-between items-center w-full">
@@ -1982,7 +2228,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       <AlertDialog
         open={showCompleteModal}
         onOpenChange={(open) => {
-          // Si se está cerrando el modal, actualizar el estado
           if (!open) setShowCompleteModal(false)
         }}
       >
@@ -2057,7 +2302,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       <AlertDialog
         open={showCancelModal}
         onOpenChange={(open) => {
-          // Si se está cerrando el modal, actualizar el estado
           if (!open) setShowCancelModal(false)
         }}
       >

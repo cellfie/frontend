@@ -205,7 +205,7 @@ const ReparacionesPage = () => {
 
         // Establecer punto de venta por defecto (si hay alguno)
         if (puntos.length > 0) {
-          setPuntoVentaSeleccionado(puntos[0].id.toString())
+          setPuntoVentaSeleccionado(puntos[1].id.toString())
         }
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)
