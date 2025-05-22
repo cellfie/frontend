@@ -322,12 +322,28 @@ export default function Home() {
   const saveDollarPrice = async () => {
     setIsLoading(true)
     try {
-      // Convertir a número, si está vacío usar 0
-      const numericValue = tempDollarPrice === "" ? 0 : Number.parseFloat(tempDollarPrice)
+      // Verificar si el campo está vacío
+      if (tempDollarPrice.trim() === "") {
+        toast.error("Por favor ingresa un valor válido")
+        setIsLoading(false)
+        return
+      }
+
+      // Convertir a número
+      const numericValue = Number.parseFloat(tempDollarPrice)
+
+      // Validar que sea un número válido mayor que cero
+      if (isNaN(numericValue) || numericValue <= 0) {
+        toast.error("El valor debe ser un número mayor que cero")
+        setIsLoading(false)
+        return
+      }
+
       await updateDollarPrice(numericValue)
       setEditingDollar(false)
       toast.success("Precio del dólar actualizado correctamente")
-    } catch {
+    } catch (error) {
+      console.error("Error al actualizar el dólar:", error)
       toast.error("No se pudo actualizar el dólar")
     } finally {
       setIsLoading(false)
@@ -507,35 +523,56 @@ export default function Home() {
               <div>
                 <p className="text-xs font-medium text-gray-100">Precio del Dólar</p>
                 {editingDollar ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="text"
-                      value={tempDollarPrice}
-                      onChange={(e) => {
-                        // Permitir valores vacíos o números con hasta 2 decimales
-                        const value = e.target.value
-                        if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs text-gray-300">Actual: ${dollarPrice.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Nuevo precio"
+                        value={tempDollarPrice}
+                        onChange={(e) => {
+                          // Solo permitir números y punto decimal
+                          const value = e.target.value.replace(/[^0-9.]/g, "")
+                          // Permitir solo un punto decimal
+                          const parts = value.split(".")
+                          if (parts.length > 2) {
+                            return
+                          }
+                          // Limitar a 2 decimales
+                          if (parts[1] && parts[1].length > 2) {
+                            return
+                          }
                           setTempDollarPrice(value)
-                        }
-                      }}
-                      className="w-24 h-8 text-sm bg-gray-300 mt-2"
-                    />
-                    <Button size="icon" variant="ghost" onClick={saveDollarPrice} className="h-7 w-7">
-                      <Check className="h-3.5 w-3.5 text-green-600" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={cancelDollarEdit} className="h-7 w-7">
-                      <X className="h-3.5 w-3.5 text-red-600" />
-                    </Button>
+                        }}
+                        className="w-24 h-8 text-sm bg-gray-300"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            saveDollarPrice()
+                          }
+                        }}
+                      />
+                      <Button size="icon" variant="ghost" onClick={saveDollarPrice} className="h-7 w-7">
+                        <Check className="h-3.5 w-3.5 text-green-600" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={cancelDollarEdit} className="h-7 w-7">
+                        <X className="h-3.5 w-3.5 text-red-600" />
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
                     <Button
                       size="icon"
-                      onClick={() => setEditingDollar(true)}
+                      onClick={() => {
+                        setEditingDollar(true)
+                        setTempDollarPrice("") // Limpiar el campo al iniciar la edición
+                      }}
                       className="h-7 w-7 bg-[#131321] hover:bg-[#131321]"
                     >
-                      <Edit className="h-3.5 w-3.5 text-gray-100 " />
+                      <Edit className="h-3.5 w-3.5 text-gray-100" />
                     </Button>
                   </div>
                 )}
