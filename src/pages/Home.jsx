@@ -322,7 +322,9 @@ export default function Home() {
   const saveDollarPrice = async () => {
     setIsLoading(true)
     try {
-      await updateDollarPrice(Number.parseFloat(tempDollarPrice))
+      // Convertir a número, si está vacío usar 0
+      const numericValue = tempDollarPrice === "" ? 0 : Number.parseFloat(tempDollarPrice)
+      await updateDollarPrice(numericValue)
       setEditingDollar(false)
       toast.success("Precio del dólar actualizado correctamente")
     } catch {
@@ -507,11 +509,16 @@ export default function Home() {
                 {editingDollar ? (
                   <div className="flex items-center gap-2">
                     <Input
-                      type="number"
+                      type="text"
                       value={tempDollarPrice}
-                      onChange={(e) => setTempDollarPrice(e.target.value)}
+                      onChange={(e) => {
+                        // Permitir valores vacíos o números con hasta 2 decimales
+                        const value = e.target.value
+                        if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+                          setTempDollarPrice(value)
+                        }
+                      }}
                       className="w-24 h-8 text-sm bg-gray-300 mt-2"
-                      step="0.01"
                     />
                     <Button size="icon" variant="ghost" onClick={saveDollarPrice} className="h-7 w-7">
                       <Check className="h-3.5 w-3.5 text-green-600" />
