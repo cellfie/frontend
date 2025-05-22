@@ -7,7 +7,6 @@ export const getTipoCambio = async () => {
     })
 
     if (!res.ok) {
-      // Instead of throwing an error, return a default value
       console.warn("Error al obtener el tipo de cambio. Usando valor por defecto.")
       return 0
     }
@@ -20,7 +19,7 @@ export const getTipoCambio = async () => {
   }
 }
 
-export const setTipoCambio = async (valor) => {
+export const setTipoCambio = async (valor, notas = "") => {
   try {
     // Asegurar que el valor es un número y tiene máximo 2 decimales
     const numericValue = Number.parseFloat(Number.parseFloat(valor).toFixed(2))
@@ -32,7 +31,10 @@ export const setTipoCambio = async (valor) => {
     const res = await fetch(`${API_URL}/tipo-cambio`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ valor: numericValue }),
+      body: JSON.stringify({ 
+        valor: numericValue,
+        notas: notas 
+      }),
       credentials: "include",
     })
 
@@ -45,5 +47,24 @@ export const setTipoCambio = async (valor) => {
   } catch (error) {
     console.error("Error en setTipoCambio:", error)
     throw error
+  }
+}
+
+// Nueva función para obtener el historial de tipos de cambio
+export const getHistorialTipoCambio = async (limit = 10, offset = 0) => {
+  try {
+    const res = await fetch(`${API_URL}/tipo-cambio/historial?limit=${limit}&offset=${offset}`, {
+      credentials: "include",
+    })
+
+    if (!res.ok) {
+      console.warn("Error al obtener el historial de tipo de cambio.")
+      return { data: [], pagination: { total: 0, limit, offset } }
+    }
+
+    return await res.json()
+  } catch (error) {
+    console.error("Error en getHistorialTipoCambio:", error)
+    return { data: [], pagination: { total: 0, limit, offset } }
   }
 }
