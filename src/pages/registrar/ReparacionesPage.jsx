@@ -27,6 +27,7 @@ import {
   UserPlus,
   X,
   AlertCircle,
+  MapPin,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -39,9 +40,10 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Importar servicios
-import { createReparacion } from "@/services/reparacionesService"
+import { createReparacion, getPuntosVenta } from "@/services/reparacionesService"
 import { searchClientes, createCliente } from "@/services/clientesService"
 import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { printTicket } from "@/services/ticketPrinterService"
@@ -119,6 +121,11 @@ const ReparacionesPage = () => {
   // Estado para indicar carga
   const [cargando, setCargando] = useState(false)
 
+  // Estado para los puntos de venta
+  const [puntosVenta, setPuntosVenta] = useState([])
+  const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
+  const [cargandoPuntosVenta, setCargandoPuntosVenta] = useState(false)
+
   // Referencia para imprimir
   const ticketRef = useRef()
 
@@ -176,11 +183,11 @@ const ReparacionesPage = () => {
     return Number.parseFloat(valorFormateado)
   }
 
-  // Cargar métodos de pago al iniciar
+  // Cargar métodos de pago y puntos de venta al iniciar
   useEffect(() => {
-    const cargarMetodosPago = async () => {
+    const cargarDatosIniciales = async () => {
       try {
-        // Obtener los métodos de pago del servicio
+        // Cargar métodos de pago
         const metodos = await getMetodosPagoReparacion()
 
         // Agregar el método de cuenta corriente si no existe
@@ -190,12 +197,25 @@ const ReparacionesPage = () => {
         }
 
         setMetodosPago(metodos)
+
+        // Cargar puntos de venta
+        setCargandoPuntosVenta(true)
+        const puntos = await getPuntosVenta()
+        setPuntosVenta(puntos)
+
+        // Establecer punto de venta por defecto (si hay alguno)
+        if (puntos.length > 0) {
+          setPuntoVentaSeleccionado(puntos[0].id.toString())
+        }
       } catch (error) {
-        console.error("Error al cargar métodos de pago:", error)
+        console.error("Error al cargar datos iniciales:", error)
+        toast.error("Error al cargar datos iniciales", { position: "bottom-right" })
+      } finally {
+        setCargandoPuntosVenta(false)
       }
     }
 
-    cargarMetodosPago()
+    cargarDatosIniciales()
   }, [])
 
   // Efecto para verificar la cuenta corriente cuando se selecciona como método de pago
@@ -463,6 +483,12 @@ const ReparacionesPage = () => {
         toast.error("Por favor ingrese el nombre del cliente", { position: "bottom-right" })
         return
       }
+
+      // Validar que se haya seleccionado un punto de venta
+      if (!puntoVentaSeleccionado) {
+        toast.error("Por favor seleccione un punto de venta", { position: "bottom-right" })
+        return
+      }
     } else if (pasoActual === 2) {
       if (!equipo.marca) {
         toast.error("Por favor ingrese la marca del equipo", { position: "bottom-right" })
@@ -565,14 +591,15 @@ const ReparacionesPage = () => {
         })),
         pago: pago.realizaPago
           ? {
-            realizaPago: true,
-            monto: convertirANumero(pago.monto),
-            metodo: pago.metodo,
-            // Agregar referencia para cuenta corriente
-            referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
-          }
+              realizaPago: true,
+              monto: convertirANumero(pago.monto),
+              metodo: pago.metodo,
+              // Agregar referencia para cuenta corriente
+              referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
+            }
           : null,
         notas: "",
+        punto_venta_id: Number(puntoVentaSeleccionado),
       }
 
       // Enviar al backend
@@ -602,6 +629,13 @@ const ReparacionesPage = () => {
     return metodoPago ? metodoPago.nombre : "Desconocido"
   }
 
+  // Obtener el nombre del punto de venta
+  const obtenerNombrePuntoVenta = (id) => {
+    if (!id) return "No seleccionado"
+    const puntoVenta = puntosVenta.find((p) => p.id.toString() === id.toString())
+    return puntoVenta ? puntoVenta.nombre : "Desconocido"
+  }
+
   // Función para imprimir usando el servicio de impresión
   const handlePrintTicket = async () => {
     try {
@@ -627,12 +661,16 @@ const ReparacionesPage = () => {
         horaActual,
         cliente,
         equipo,
+        puntoVenta: {
+          id: puntoVentaSeleccionado,
+          nombre: obtenerNombrePuntoVenta(puntoVentaSeleccionado),
+        },
         total: calcularTotal(),
         pago: pago.realizaPago
           ? {
-            ...pago,
-            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-          }
+              ...pago,
+              nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+            }
           : null,
       }
 
@@ -662,6 +700,7 @@ const ReparacionesPage = () => {
     setBusquedaRealizada(false)
     setMostrarFormNuevoCliente(false)
     setCuentaCorriente(null)
+    // No reiniciamos el punto de venta seleccionado para mantener la consistencia
   }
 
   // Renderizar los pasos del formulario
@@ -671,16 +710,18 @@ const ReparacionesPage = () => {
 
     return (
       <div
-        className={`flex items-center ${esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
-          } gap-2 relative`}
+        className={`flex items-center ${
+          esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
+        } gap-2 relative`}
       >
         <div
-          className={`rounded-full w-8 h-8 flex items-center justify-center ${esPasoActual
+          className={`rounded-full w-8 h-8 flex items-center justify-center ${
+            esPasoActual
               ? "bg-orange-100 text-orange-600 border-2 border-orange-500"
               : esPasoCompletado
                 ? "bg-orange-500 text-white"
                 : "bg-gray-100 text-gray-400"
-            }`}
+          }`}
         >
           {esPasoCompletado ? <CheckCircle className="w-4 h-4" /> : icono}
         </div>
@@ -735,6 +776,49 @@ const ReparacionesPage = () => {
                       <h3 className="text-lg font-medium text-orange-600 flex items-center gap-2">
                         <User className="h-5 w-5" /> Datos del Cliente
                       </h3>
+
+                      {/* Selección de punto de venta */}
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+                        <Label htmlFor="puntoVenta" className="text-blue-700 font-medium mb-2 block">
+                          Punto de Venta <span className="text-red-500">*</span>
+                        </Label>
+                        <div className="relative">
+                          {cargandoPuntosVenta ? (
+                            <div className="flex items-center space-x-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                              <span className="text-sm text-blue-600">Cargando puntos de venta...</span>
+                            </div>
+                          ) : (
+                            <Select value={puntoVentaSeleccionado} onValueChange={setPuntoVentaSeleccionado}>
+                              <SelectTrigger className="w-full border-blue-200 focus:ring-blue-500">
+                                <SelectValue placeholder="Seleccione un punto de venta" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {puntosVenta.map((punto) => (
+                                  <SelectItem key={punto.id} value={punto.id.toString()}>
+                                    {punto.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                        {puntoVentaSeleccionado && (
+                          <div className="mt-2">
+                            <Badge
+                              variant="outline"
+                              className={`flex items-center gap-1 ${
+                                obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                                  ? "border-orange-300 bg-orange-50 text-orange-700"
+                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              }`}
+                            >
+                              <MapPin className="h-3.5 w-3.5" />
+                              Punto de venta: {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
 
                       {/* Sección de búsqueda de cliente */}
                       <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
@@ -1135,6 +1219,23 @@ const ReparacionesPage = () => {
                                 {equipo.imei && <p className="text-gray-700">IMEI: {equipo.imei}</p>}
                                 {equipo.password && <p className="text-gray-700">Contraseña: {equipo.password}</p>}
                               </div>
+
+                              <div className="bg-gray-50 p-4 rounded-lg">
+                                <h4 className="font-medium flex items-center mb-2 text-orange-600">
+                                  <MapPin className="w-4 h-4 mr-2" /> Punto de Venta
+                                </h4>
+                                <Badge
+                                  variant="outline"
+                                  className={`${
+                                    obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                                      : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                  }`}
+                                >
+                                  <MapPin className="h-3.5 w-3.5 mr-1" />
+                                  {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
+                                </Badge>
+                              </div>
                             </div>
 
                             <div className="bg-gray-50 p-4 rounded-lg">
@@ -1222,14 +1323,16 @@ const ReparacionesPage = () => {
                                             <div
                                               key={metodo.id}
                                               onClick={() => handleMetodoPago(metodo.id)}
-                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${pago.metodo === metodo.id
+                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                                pago.metodo === metodo.id
                                                   ? "border-orange-500 bg-orange-50"
                                                   : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
-                                                }`}
+                                              }`}
                                             >
                                               <div
-                                                className={`p-3 rounded-full ${pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
-                                                  }`}
+                                                className={`p-3 rounded-full ${
+                                                  pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
+                                                }`}
                                               >
                                                 {metodo.id === "efectivo" && (
                                                   <Banknote
@@ -1288,10 +1391,11 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Saldo actual:</span>
                                                     <div
-                                                      className={`font-medium ${Number(cuentaCorriente.saldo) > 0
+                                                      className={`font-medium ${
+                                                        Number(cuentaCorriente.saldo) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                        }`}
+                                                      }`}
                                                     >
                                                       {formatearPrecio(Number(cuentaCorriente.saldo))}
                                                     </div>
@@ -1310,17 +1414,18 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Nuevo saldo proyectado:</span>
                                                     <div
-                                                      className={`font-medium ${(
+                                                      className={`font-medium ${
+                                                        (
                                                           Number(cuentaCorriente.saldo) +
-                                                          Number(convertirANumero(pago.monto))
+                                                            Number(convertirANumero(pago.monto))
                                                         ) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                        }`}
+                                                      }`}
                                                     >
                                                       {formatearPrecio(
                                                         Number(cuentaCorriente.saldo) +
-                                                        Number(convertirANumero(pago.monto)),
+                                                          Number(convertirANumero(pago.monto)),
                                                       )}
                                                     </div>
                                                   </div>
@@ -1329,7 +1434,7 @@ const ReparacionesPage = () => {
                                                 {cuentaCorriente.limiteCredito > 0 &&
                                                   pago.monto &&
                                                   cuentaCorriente.saldo + convertirANumero(pago.monto) >
-                                                  cuentaCorriente.limiteCredito && (
+                                                    cuentaCorriente.limiteCredito && (
                                                     <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-center">
                                                       <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
                                                       <span className="text-sm">
@@ -1499,13 +1604,17 @@ const ReparacionesPage = () => {
                     horaActual={horaActual}
                     cliente={cliente}
                     equipo={equipo}
+                    puntoVenta={{
+                      id: puntoVentaSeleccionado,
+                      nombre: obtenerNombrePuntoVenta(puntoVentaSeleccionado),
+                    }}
                     total={calcularTotal()}
                     pago={
                       pago.realizaPago
                         ? {
-                          ...pago,
-                          nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-                        }
+                            ...pago,
+                            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+                          }
                         : null
                     }
                     formatearPrecio={formatearPrecio}

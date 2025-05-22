@@ -76,6 +76,26 @@ export const createReparacion = async (reparacionData) => {
   }
 }
 
+// Obtener todos los puntos de venta
+export const getPuntosVenta = async () => {
+  try {
+    const response = await fetch(`${API_URL}/puntos-venta`, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al obtener puntos de venta")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getPuntosVenta:", error)
+    throw error
+  }
+}
+
 // Actualizar una reparación existente
 export const updateReparacion = async (id, reparacionData) => {
   try {
