@@ -2,7 +2,7 @@
 
 import { DialogFooter } from "@/components/ui/dialog"
 
-import { useState, useEffect, useContext, useCallback } from "react"
+import { useState, useEffect, useContext, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
@@ -13,14 +13,13 @@ import {
   Smartphone,
   PenToolIcon as Tool,
   Edit,
-  Check,
-  X,
   Loader2,
   Trash2,
   Plus,
   Save,
   CheckCircle,
   Clock,
+  DollarSign,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -35,7 +34,7 @@ import { searchProductos } from "../services/productosService"
 import { getVentasEquipos } from "../services/ventasEquiposService"
 import { getNotas, createNota, deleteNota, toggleNotaCompletada } from "../services/notasService"
 import { getReparaciones } from "../services/reparacionesService"
-import { getTipoCambio } from "../services/tipoCambioService"
+import { getTipoCambio, setTipoCambio } from "../services/tipoCambioService"
 import { useNavigate } from "react-router-dom"
 import { DollarContext } from "@/context/DollarContext"
 import ReparacionesPendientes from "@/components/ReparacionesPedientes"
@@ -48,8 +47,11 @@ export default function Home() {
   const [username, setUsername] = useState("Usuario")
   const [userInitials, setUserInitials] = useState("US")
   const { dollarPrice, updateDollarPrice, loading: loadingDollar } = useContext(DollarContext)
-  const [editingDollar, setEditingDollar] = useState(false)
-  const [tempDollarPrice, setTempDollarPrice] = useState(dollarPrice)
+
+  // Nuevo estado para el diálogo de edición del dólar
+  const [isDollarDialogOpen, setIsDollarDialogOpen] = useState(false)
+  const [newDollarPrice, setNewDollarPrice] = useState("")
+  const newDollarInputRef = useRef(null)
 
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -81,7 +83,6 @@ export default function Home() {
       const price = await getTipoCambio()
       if (price > 0) {
         updateDollarPrice(price)
-        setTempDollarPrice(price)
       }
     } catch (error) {
       console.error("Error al obtener el precio del dólar:", error)
@@ -92,6 +93,15 @@ export default function Home() {
   useEffect(() => {
     fetchDollarPrice()
   }, [fetchDollarPrice])
+
+  // Efecto para enfocar el input cuando se abre el diálogo
+  useEffect(() => {
+    if (isDollarDialogOpen && newDollarInputRef.current) {
+      setTimeout(() => {
+        newDollarInputRef.current.focus()
+      }, 100)
+    }
+  }, [isDollarDialogOpen])
 
   // Función para cargar las reparaciones pendientes
   const fetchReparacionesPendientes = useCallback(async () => {
@@ -318,19 +328,25 @@ export default function Home() {
     setShowResults(false)
   }
 
-  // Función para guardar el precio del dólar
+  // Función para abrir el diálogo de edición del dólar
+  const openDollarDialog = () => {
+    setNewDollarPrice("")
+    setIsDollarDialogOpen(true)
+  }
+
+  // Función para guardar el nuevo precio del dólar
   const saveDollarPrice = async () => {
     setIsLoading(true)
     try {
       // Verificar si el campo está vacío
-      if (tempDollarPrice.trim() === "") {
+      if (!newDollarPrice || newDollarPrice.trim() === "") {
         toast.error("Por favor ingresa un valor válido")
         setIsLoading(false)
         return
       }
 
       // Convertir a número
-      const numericValue = Number.parseFloat(tempDollarPrice)
+      const numericValue = Number.parseFloat(newDollarPrice)
 
       // Validar que sea un número válido mayor que cero
       if (isNaN(numericValue) || numericValue <= 0) {
@@ -339,8 +355,15 @@ export default function Home() {
         return
       }
 
+      // Llamar directamente al servicio para actualizar el precio
+      await setTipoCambio(numericValue)
+
+      // Actualizar el contexto
       await updateDollarPrice(numericValue)
-      setEditingDollar(false)
+
+      // Cerrar el diálogo
+      setIsDollarDialogOpen(false)
+
       toast.success("Precio del dólar actualizado correctamente")
     } catch (error) {
       console.error("Error al actualizar el dólar:", error)
@@ -348,12 +371,6 @@ export default function Home() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // Función para cancelar la edición del precio del dólar
-  const cancelDollarEdit = () => {
-    setTempDollarPrice(dollarPrice)
-    setEditingDollar(false)
   }
 
   // Función para navegar a las diferentes secciones
@@ -522,60 +539,12 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <div>
                 <p className="text-xs font-medium text-gray-100">Precio del Dólar</p>
-                {editingDollar ? (
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs text-gray-300">Actual: ${dollarPrice.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        placeholder="Nuevo precio"
-                        value={tempDollarPrice}
-                        onChange={(e) => {
-                          // Solo permitir números y punto decimal
-                          const value = e.target.value.replace(/[^0-9.]/g, "")
-                          // Permitir solo un punto decimal
-                          const parts = value.split(".")
-                          if (parts.length > 2) {
-                            return
-                          }
-                          // Limitar a 2 decimales
-                          if (parts[1] && parts[1].length > 2) {
-                            return
-                          }
-                          setTempDollarPrice(value)
-                        }}
-                        className="w-24 h-8 text-sm bg-gray-300"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            saveDollarPrice()
-                          }
-                        }}
-                      />
-                      <Button size="icon" variant="ghost" onClick={saveDollarPrice} className="h-7 w-7">
-                        <Check className="h-3.5 w-3.5 text-green-600" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={cancelDollarEdit} className="h-7 w-7">
-                        <X className="h-3.5 w-3.5 text-red-600" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
-                    <Button
-                      size="icon"
-                      onClick={() => {
-                        setEditingDollar(true)
-                        setTempDollarPrice("") // Limpiar el campo al iniciar la edición
-                      }}
-                      className="h-7 w-7 bg-[#131321] hover:bg-[#131321]"
-                    >
-                      <Edit className="h-3.5 w-3.5 text-gray-100" />
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
+                  <Button size="icon" onClick={openDollarDialog} className="h-7 w-7 bg-[#131321] hover:bg-[#131321]">
+                    <Edit className="h-3.5 w-3.5 text-gray-100" />
+                  </Button>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -880,6 +849,72 @@ export default function Home() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo para editar el precio del dólar */}
+      <Dialog open={isDollarDialogOpen} onOpenChange={setIsDollarDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-orange-600">Actualizar Precio del Dólar</DialogTitle>
+            <DialogDescription>
+              Ingresa el nuevo precio del dólar. El valor actual es ${dollarPrice.toFixed(2)}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-4">
+              <div className="bg-orange-100 p-3 rounded-full">
+                <DollarSign className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <label htmlFor="new-dollar-price" className="text-sm font-medium text-gray-700">
+                  Nuevo precio del dólar
+                </label>
+                <Input
+                  id="new-dollar-price"
+                  ref={newDollarInputRef}
+                  type="text"
+                  placeholder="Ingresa el nuevo precio"
+                  value={newDollarPrice}
+                  onChange={(e) => {
+                    // Solo permitir números y punto decimal
+                    const value = e.target.value.replace(/[^0-9.]/g, "")
+                    // Permitir solo un punto decimal
+                    const parts = value.split(".")
+                    if (parts.length > 2) {
+                      return
+                    }
+                    // Limitar a 2 decimales
+                    if (parts[1] && parts[1].length > 2) {
+                      return
+                    }
+                    setNewDollarPrice(value)
+                  }}
+                  className="mt-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      saveDollarPrice()
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setIsDollarDialogOpen(false)}
+              className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
+            >
+              Cancelar
+            </Button>
+            <Button onClick={saveDollarPrice} className="bg-orange-600 hover:bg-orange-700">
+              {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Actualizar Precio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de detalles del producto */}
       <Dialog open={isSearchDialogOpen} onOpenChange={setIsSearchDialogOpen}>
