@@ -28,6 +28,8 @@ import {
   X,
   AlertCircle,
   MapPin,
+  Package,
+  PlusCircle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -41,6 +43,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 // Importar servicios
 import { createReparacion, getPuntosVenta } from "@/services/reparacionesService"
@@ -48,6 +51,7 @@ import { searchClientes, createCliente } from "@/services/clientesService"
 import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { printTicket } from "@/services/ticketPrinterService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
+import { getRepuestos, searchRepuestos } from "@/services/repuestosService" // Importar servicio de repuestos
 
 // Importar componentes
 import TicketThermal from "@/components/tickets/TicketThermal"
@@ -125,6 +129,14 @@ const ReparacionesPage = () => {
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
   const [cargandoPuntosVenta, setCargandoPuntosVenta] = useState(false)
+
+  // Estados para el modal de repuestos
+  const [showRepuestosModal, setShowRepuestosModal] = useState(false)
+  const [repuestos, setRepuestos] = useState([])
+  const [filteredRepuestos, setFilteredRepuestos] = useState([])
+  const [searchRepuestoTerm, setSearchRepuestoTerm] = useState("")
+  const [cargandoRepuestos, setCargandoRepuestos] = useState(false)
+  const [repuestoSeleccionadoIndex, setRepuestoSeleccionadoIndex] = useState(null)
 
   // Referencia para imprimir
   const ticketRef = useRef()
@@ -288,6 +300,67 @@ const ReparacionesPage = () => {
 
     return () => clearTimeout(timeoutId)
   }, [busquedaCliente, cliente.id])
+
+  // Efecto para buscar repuestos cuando cambia el término de búsqueda
+  useEffect(() => {
+    const buscarRepuestos = async () => {
+      if (searchRepuestoTerm.length < 2) {
+        setFilteredRepuestos(repuestos)
+        return
+      }
+
+      try {
+        const resultados = await searchRepuestos({ query: searchRepuestoTerm })
+        setFilteredRepuestos(resultados)
+      } catch (error) {
+        console.error("Error al buscar repuestos:", error)
+        toast.error("Error al buscar repuestos", { position: "bottom-right" })
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      if (showRepuestosModal) {
+        buscarRepuestos()
+      }
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchRepuestoTerm, showRepuestosModal, repuestos])
+
+  // Cargar repuestos cuando se abre el modal
+  const handleOpenRepuestosModal = async (index) => {
+    setRepuestoSeleccionadoIndex(index)
+    setCargandoRepuestos(true)
+    setSearchRepuestoTerm("")
+
+    try {
+      const data = await getRepuestos()
+      setRepuestos(data)
+      setFilteredRepuestos(data)
+      setShowRepuestosModal(true)
+    } catch (error) {
+      console.error("Error al cargar repuestos:", error)
+      toast.error("Error al cargar repuestos", { position: "bottom-right" })
+    } finally {
+      setCargandoRepuestos(false)
+    }
+  }
+
+  // Seleccionar un repuesto y agregarlo a la reparación
+  const seleccionarRepuesto = (repuesto) => {
+    if (repuestoSeleccionadoIndex === null) return
+
+    const nuevasReparaciones = [...reparaciones]
+    nuevasReparaciones[repuestoSeleccionadoIndex] = {
+      descripcion: `${repuesto.nombre}`,
+      precio: repuesto.stock > 0 ? repuesto.precio || "0" : "0",
+    }
+
+    setReparaciones(nuevasReparaciones)
+    setShowRepuestosModal(false)
+
+    toast.success(`Repuesto "${repuesto.nombre}" agregado`, { position: "bottom-right" })
+  }
 
   // Calcular el total de las reparaciones
   const calcularTotal = () => {
@@ -1112,17 +1185,30 @@ const ReparacionesPage = () => {
                         <h3 className="text-lg font-medium text-orange-600 flex items-center gap-2">
                           <Wrench className="h-5 w-5" /> Detalles de la Reparación
                         </h3>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={agregarReparacion}
-                          className="flex items-center gap-1 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-200 hover:text-orange-600"
-                          data-tooltip-id="agregar-tooltip"
-                          data-tooltip-content="Agregar otra reparación"
-                        >
-                          <Plus className="h-4 w-4" /> Agregar
-                        </Button>
-                        <ReactTooltip id="agregar-tooltip" />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenRepuestosModal(null)}
+                            className="flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                            data-tooltip-id="repuestos-tooltip"
+                            data-tooltip-content="Ver catálogo de repuestos"
+                          >
+                            <Package className="h-4 w-4" /> Repuestos
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={agregarReparacion}
+                            className="flex items-center gap-1 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-200 hover:text-orange-600"
+                            data-tooltip-id="agregar-tooltip"
+                            data-tooltip-content="Agregar otra reparación"
+                          >
+                            <Plus className="h-4 w-4" /> Agregar
+                          </Button>
+                          <ReactTooltip id="agregar-tooltip" />
+                          <ReactTooltip id="repuestos-tooltip" />
+                        </div>
                       </div>
 
                       <div className="space-y-4">
@@ -1134,8 +1220,18 @@ const ReparacionesPage = () => {
                             className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end border p-4 rounded-lg bg-orange-50"
                           >
                             <div className="md:col-span-7 space-y-2">
-                              <Label htmlFor={`descripcion-${index}`}>
-                                Descripción <span className="text-red-500">*</span>
+                              <Label htmlFor={`descripcion-${index}`} className="flex justify-between">
+                                <span>
+                                  Descripción <span className="text-red-500">*</span>
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenRepuestosModal(index)}
+                                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                >
+                                  <Package className="h-3 w-3 mr-1" /> Buscar repuesto
+                                </Button>
                               </Label>
                               <Input
                                 id={`descripcion-${index}`}
@@ -1625,6 +1721,115 @@ const ReparacionesPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Repuestos */}
+      <Dialog open={showRepuestosModal} onOpenChange={setShowRepuestosModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+          <DialogHeader className="px-6 py-4 bg-[#131321] text-white border-b">
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2 text-orange-600">
+              <Package size={20} /> Catálogo de Repuestos
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Busque y seleccione repuestos para agregar a la reparación
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Buscar repuestos por nombre..."
+                value={searchRepuestoTerm}
+                onChange={(e) => setSearchRepuestoTerm(e.target.value)}
+                className="pl-9 pr-4 border-gray-200 focus-visible:ring-orange-500"
+              />
+              {searchRepuestoTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                  onClick={() => setSearchRepuestoTerm("")}
+                >
+                  <X className="h-4 w-4 text-gray-400" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="max-h-[calc(90vh-180px)] overflow-y-auto">
+            {cargandoRepuestos ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 text-orange-500 animate-spin mb-2" />
+                <p className="text-gray-500">Cargando repuestos...</p>
+              </div>
+            ) : filteredRepuestos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Package className="h-12 w-12 text-gray-300 mb-2" />
+                <p className="text-gray-500 font-medium">No se encontraron repuestos</p>
+                <p className="text-gray-400 text-sm">Intente con otra búsqueda</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                {filteredRepuestos.map((repuesto) => (
+                  <div
+                    key={repuesto.id}
+                    className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white"
+                  >
+                    <div className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-medium text-gray-800">{repuesto.nombre}</h3>
+                        <Badge
+                          variant={repuesto.stock > 0 ? "outline" : "destructive"}
+                          className={
+                            repuesto.stock > 0
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-red-100 text-red-700 border-red-200"
+                          }
+                        >
+                          {repuesto.stock > 0 ? `Stock: ${repuesto.stock}` : "Sin stock"}
+                        </Badge>
+                      </div>
+
+                      <div className="text-sm text-gray-500 mb-3">{repuesto.descripcion || "Sin descripción"}</div>
+
+                      <div className="flex items-center justify-between">
+                        <Badge
+                          variant="outline"
+                          className={`${
+                            repuesto.pointOfSale === "Tala"
+                              ? "border-orange-300 bg-orange-50 text-orange-700"
+                              : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                          }`}
+                        >
+                          <MapPin className="h-3 w-3 mr-1" />
+                          {repuesto.pointOfSale || "No asignado"}
+                        </Badge>
+
+                        <Button
+                          size="sm"
+                          onClick={() => seleccionarRepuesto(repuesto)}
+                          disabled={repuestoSeleccionadoIndex === null}
+                          className="bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5 mr-1" /> Seleccionar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t flex justify-between items-center bg-gray-50">
+            <div className="text-sm text-gray-500">{filteredRepuestos.length} repuestos encontrados</div>
+            <Button variant="outline" onClick={() => setShowRepuestosModal(false)}>
+              Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
