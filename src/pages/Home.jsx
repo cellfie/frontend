@@ -20,6 +20,8 @@ import {
   CheckCircle,
   Clock,
   DollarSign,
+  Wifi,
+  WifiOff,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,7 +36,7 @@ import { searchProductos } from "../services/productosService"
 import { getVentasEquipos } from "../services/ventasEquiposService"
 import { getNotas, createNota, deleteNota, toggleNotaCompletada } from "../services/notasService"
 import { getReparaciones } from "../services/reparacionesService"
-import { getTipoCambio, setTipoCambio, formatNumberARS } from "../services/tipoCambioService"
+import { setTipoCambio, formatNumberARS, syncPendingUpdates, parseNumberARS } from "../services/tipoCambioService"
 import { useNavigate } from "react-router-dom"
 import { DollarContext } from "@/context/DollarContext"
 import ReparacionesPendientes from "@/components/ReparacionesPedientes"
@@ -46,7 +48,13 @@ export default function Home() {
   const [showResults, setShowResults] = useState(false)
   const [username, setUsername] = useState("Usuario")
   const [userInitials, setUserInitials] = useState("US")
-  const { dollarPrice, updateDollarPrice, loading: loadingDollar } = useContext(DollarContext)
+  const {
+    dollarPrice,
+    updateDollarPrice,
+    loading: loadingDollar,
+    isOffline,
+    refreshDollarPrice,
+  } = useContext(DollarContext)
 
   // Estado para el diálogo de edición del dólar
   const [isDollarDialogOpen, setIsDollarDialogOpen] = useState(false)
@@ -78,22 +86,32 @@ export default function Home() {
     trendUp: true,
   })
 
-  // Función para cargar el precio del dólar directamente desde la API
-  const fetchDollarPrice = useCallback(async () => {
-    try {
-      const price = await getTipoCambio()
-      if (price > 0) {
-        updateDollarPrice(price)
-      }
-    } catch (error) {
-      console.error("Error al obtener el precio del dólar:", error)
-    }
-  }, [updateDollarPrice])
-
-  // Efecto para cargar el precio del dólar al iniciar
+  // Monitorear el estado de la conexión y sincronizar cuando vuelve
   useEffect(() => {
-    fetchDollarPrice()
-  }, [fetchDollarPrice])
+    const handleOnline = () => {
+      toast.success("Conexión restablecida", {
+        position: "bottom-right",
+        autoClose: 2000,
+      })
+
+      // Intentar sincronizar actualizaciones pendientes
+      syncPendingUpdates().then((value) => {
+        if (value) {
+          toast.info("Sincronizando cambios pendientes...", {
+            position: "bottom-right",
+            autoClose: 2000,
+          })
+          refreshDollarPrice()
+        }
+      })
+    }
+
+    window.addEventListener("online", handleOnline)
+
+    return () => {
+      window.removeEventListener("online", handleOnline)
+    }
+  }, [refreshDollarPrice])
 
   // Efecto para enfocar el input cuando se abre el diálogo
   useEffect(() => {
@@ -343,45 +361,54 @@ export default function Home() {
     setIsUpdatingDollar(true)
 
     try {
-      // Limpiar el valor ingresado (remover separadores de miles y cambiar coma por punto)
-      const cleanValue = newDollarPrice
-        .replace(/\./g, "") // Remover puntos (separadores de miles)
-        .replace(",", ".") // Cambiar coma por punto decimal
-        .trim()
+      // Parsear el valor ingresado
+      const numericValue = parseNumberARS(newDollarPrice)
 
-      if (!cleanValue || cleanValue === "") {
-        toast.error("Por favor ingresa un valor válido")
-        return
-      }
-
-      const numericValue = Number.parseFloat(cleanValue)
-
-      if (isNaN(numericValue) || numericValue <= 0) {
+      if (numericValue <= 0) {
         toast.error("El valor debe ser un número mayor que cero")
+        setIsUpdatingDollar(false)
         return
       }
 
       console.log("Actualizando tipo de cambio a:", numericValue)
 
-      // Llamar al servicio para actualizar el precio
-      const response = await setTipoCambio(numericValue)
+      // Actualizar primero en el contexto (esto lo guarda localmente)
+      await updateDollarPrice(numericValue)
 
-      if (response.success) {
-        // Actualizar el contexto con el nuevo valor
-        await updateDollarPrice(numericValue)
+      // Cerrar el diálogo
+      setIsDollarDialogOpen(false)
 
-        // Cerrar el diálogo
-        setIsDollarDialogOpen(false)
+      // Intentar actualizar en el servidor si estamos online
+      if (!isOffline) {
+        try {
+          const response = await setTipoCambio(numericValue)
 
-        toast.success("Precio del dólar actualizado correctamente", {
-          position: "bottom-right",
-          autoClose: 2000,
-        })
-
-        console.log("Tipo de cambio actualizado exitosamente")
+          if (response.localOnly) {
+            toast.info("Precio del dólar actualizado localmente. Se sincronizará cuando se restablezca la conexión.", {
+              position: "bottom-right",
+              autoClose: 4000,
+            })
+          } else {
+            toast.success("Precio del dólar actualizado correctamente", {
+              position: "bottom-right",
+              autoClose: 2000,
+            })
+          }
+        } catch (error) {
+          console.error("Error al actualizar en el servidor:", error)
+          toast.info("Precio del dólar actualizado localmente. Se sincronizará cuando se restablezca la conexión.", {
+            position: "bottom-right",
+            autoClose: 4000,
+          })
+        }
       } else {
-        throw new Error(response.message || "Error en la respuesta del servidor")
+        toast.info("Precio del dólar actualizado localmente. Se sincronizará cuando se restablezca la conexión.", {
+          position: "bottom-right",
+          autoClose: 4000,
+        })
       }
+
+      console.log("Tipo de cambio actualizado exitosamente")
     } catch (error) {
       console.error("Error al actualizar el dólar:", error)
       toast.error(error.message || "No se pudo actualizar el dólar", {
@@ -557,7 +584,14 @@ export default function Home() {
           >
             <div className="flex items-center gap-2">
               <div>
-                <p className="text-xs font-medium text-gray-100">Precio del Dólar</p>
+                <p className="text-xs font-medium text-gray-100 flex items-center gap-1">
+                  Precio del Dólar
+                  {isOffline ? (
+                    <WifiOff className="h-3 w-3 text-orange-400" />
+                  ) : (
+                    <Wifi className="h-3 w-3 text-green-400" />
+                  )}
+                </p>
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-bold text-orange-600">${formatNumberARS(dollarPrice)}</span>
                   <Button
@@ -885,6 +919,14 @@ export default function Home() {
             <DialogTitle className="text-orange-600">Actualizar Precio del Dólar</DialogTitle>
             <DialogDescription>
               Ingresa el nuevo precio del dólar. El valor actual es ${formatNumberARS(dollarPrice)}.
+              {isOffline && (
+                <div className="mt-2 flex items-center gap-2 text-amber-600">
+                  <WifiOff className="h-4 w-4" />
+                  <span>
+                    Modo sin conexión: El cambio se guardará localmente y se sincronizará cuando vuelva la conexión.
+                  </span>
+                </div>
+              )}
             </DialogDescription>
           </DialogHeader>
 
