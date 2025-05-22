@@ -39,6 +39,10 @@ import { useNavigate } from "react-router-dom"
 import { DollarContext } from "@/context/DollarContext"
 import ReparacionesPendientes from "@/components/ReparacionesPedientes"
 
+// Variable para controlar el tiempo entre actualizaciones del dólar
+let lastDollarUpdateTime = 0
+const MIN_UPDATE_INTERVAL = 5000 // 5 segundos mínimo entre actualizaciones
+
 export default function Home() {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
@@ -48,9 +52,10 @@ export default function Home() {
   const [userInitials, setUserInitials] = useState("US")
   const { dollarPrice, updateDollarPrice, loading: loadingDollar } = useContext(DollarContext)
 
-  // Nuevo estado para el diálogo de edición del dólar
+  // Estado para el diálogo de edición del dólar
   const [isDollarDialogOpen, setIsDollarDialogOpen] = useState(false)
   const [newDollarPrice, setNewDollarPrice] = useState("")
+  const [isUpdatingDollar, setIsUpdatingDollar] = useState(false)
   const newDollarInputRef = useRef(null)
 
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false)
@@ -336,12 +341,25 @@ export default function Home() {
 
   // Función para guardar el nuevo precio del dólar
   const saveDollarPrice = async () => {
+    // Si ya está en proceso de actualización, no hacer nada
+    if (isUpdatingDollar) return
+
+    // Verificar si ha pasado suficiente tiempo desde la última actualización
+    const now = Date.now()
+    if (now - lastDollarUpdateTime < MIN_UPDATE_INTERVAL) {
+      toast.info("Por favor, espera unos segundos antes de actualizar nuevamente el precio")
+      return
+    }
+
     setIsLoading(true)
+    setIsUpdatingDollar(true)
+
     try {
       // Verificar si el campo está vacío
       if (!newDollarPrice || newDollarPrice.trim() === "") {
         toast.error("Por favor ingresa un valor válido")
         setIsLoading(false)
+        setIsUpdatingDollar(false)
         return
       }
 
@@ -352,11 +370,24 @@ export default function Home() {
       if (isNaN(numericValue) || numericValue <= 0) {
         toast.error("El valor debe ser un número mayor que cero")
         setIsLoading(false)
+        setIsUpdatingDollar(false)
         return
       }
 
+      // Verificar si el nuevo valor es igual al valor actual
+      if (Math.abs(numericValue - dollarPrice) < 0.001) {
+        toast.info("El tipo de cambio ya tiene ese valor")
+        setIsDollarDialogOpen(false)
+        setIsLoading(false)
+        setIsUpdatingDollar(false)
+        return
+      }
+
+      // Actualizar el tiempo de la última actualización
+      lastDollarUpdateTime = now
+
       // Llamar directamente al servicio para actualizar el precio
-      await setTipoCambio(numericValue)
+      const response = await setTipoCambio(numericValue)
 
       // Actualizar el contexto
       await updateDollarPrice(numericValue)
@@ -367,9 +398,15 @@ export default function Home() {
       toast.success("Precio del dólar actualizado correctamente")
     } catch (error) {
       console.error("Error al actualizar el dólar:", error)
-      toast.error("No se pudo actualizar el dólar")
+      toast.error(error.message || "No se pudo actualizar el dólar")
     } finally {
       setIsLoading(false)
+      setIsUpdatingDollar(false)
+
+      // Esperar un tiempo adicional antes de permitir otra actualización
+      setTimeout(() => {
+        setIsUpdatingDollar(false)
+      }, 5000)
     }
   }
 
@@ -541,7 +578,12 @@ export default function Home() {
                 <p className="text-xs font-medium text-gray-100">Precio del Dólar</p>
                 <div className="flex items-center gap-2">
                   <span className="text-lg font-bold text-orange-600">${dollarPrice.toFixed(2)}</span>
-                  <Button size="icon" onClick={openDollarDialog} className="h-7 w-7 bg-[#131321] hover:bg-[#131321]">
+                  <Button
+                    size="icon"
+                    onClick={openDollarDialog}
+                    className="h-7 w-7 bg-[#131321] hover:bg-[#131321]"
+                    disabled={isUpdatingDollar}
+                  >
                     <Edit className="h-3.5 w-3.5 text-gray-100" />
                   </Button>
                 </div>
@@ -851,7 +893,15 @@ export default function Home() {
       </Tabs>
 
       {/* Diálogo para editar el precio del dólar */}
-      <Dialog open={isDollarDialogOpen} onOpenChange={setIsDollarDialogOpen}>
+      <Dialog
+        open={isDollarDialogOpen}
+        onOpenChange={(open) => {
+          // Solo permitir cerrar el diálogo si no está en proceso de actualización
+          if (!isUpdatingDollar || !open) {
+            setIsDollarDialogOpen(open)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-orange-600">Actualizar Precio del Dólar</DialogTitle>
@@ -891,10 +941,11 @@ export default function Home() {
                   }}
                   className="mt-1"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (e.key === "Enter" && !isUpdatingDollar) {
                       saveDollarPrice()
                     }
                   }}
+                  disabled={isUpdatingDollar}
                 />
               </div>
             </div>
@@ -905,10 +956,15 @@ export default function Home() {
               variant="outline"
               onClick={() => setIsDollarDialogOpen(false)}
               className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
+              disabled={isUpdatingDollar}
             >
               Cancelar
             </Button>
-            <Button onClick={saveDollarPrice} className="bg-orange-600 hover:bg-orange-700">
+            <Button
+              onClick={saveDollarPrice}
+              className="bg-orange-600 hover:bg-orange-700"
+              disabled={isLoading || isUpdatingDollar}
+            >
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Actualizar Precio
             </Button>

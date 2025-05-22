@@ -1,5 +1,9 @@
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
+// Variable para controlar el tiempo entre solicitudes
+let lastUpdateTime = 0
+const MIN_UPDATE_INTERVAL = 5000 // 5 segundos mínimo entre actualizaciones
+
 export const getTipoCambio = async () => {
   try {
     const res = await fetch(`${API_URL}/tipo-cambio`, {
@@ -21,6 +25,12 @@ export const getTipoCambio = async () => {
 
 export const setTipoCambio = async (valor, notas = "") => {
   try {
+    // Verificar si ha pasado suficiente tiempo desde la última actualización
+    const now = Date.now()
+    if (now - lastUpdateTime < MIN_UPDATE_INTERVAL) {
+      throw new Error("Por favor, espera unos segundos antes de actualizar nuevamente el tipo de cambio.")
+    }
+
     // Asegurar que el valor es un número y tiene máximo 2 decimales
     const numericValue = Number.parseFloat(Number.parseFloat(valor).toFixed(2))
 
@@ -28,12 +38,15 @@ export const setTipoCambio = async (valor, notas = "") => {
       throw new Error("El valor debe ser un número mayor a cero")
     }
 
+    // Actualizar el tiempo de la última solicitud
+    lastUpdateTime = now
+
     const res = await fetch(`${API_URL}/tipo-cambio`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         valor: numericValue,
-        notas: notas 
+        notas: notas,
       }),
       credentials: "include",
     })
@@ -43,28 +56,16 @@ export const setTipoCambio = async (valor, notas = "") => {
       throw new Error(errorData.message || "Error al actualizar el tipo de cambio")
     }
 
-    return await res.json()
+    const data = await res.json()
+
+    // Si no hubo cambio, informamos pero no es un error
+    if (data.noChange) {
+      console.log("El tipo de cambio ya tiene ese valor.")
+    }
+
+    return data
   } catch (error) {
     console.error("Error en setTipoCambio:", error)
     throw error
-  }
-}
-
-// Nueva función para obtener el historial de tipos de cambio
-export const getHistorialTipoCambio = async (limit = 10, offset = 0) => {
-  try {
-    const res = await fetch(`${API_URL}/tipo-cambio/historial?limit=${limit}&offset=${offset}`, {
-      credentials: "include",
-    })
-
-    if (!res.ok) {
-      console.warn("Error al obtener el historial de tipo de cambio.")
-      return { data: [], pagination: { total: 0, limit, offset } }
-    }
-
-    return await res.json()
-  } catch (error) {
-    console.error("Error en getHistorialTipoCambio:", error)
-    return { data: [], pagination: { total: 0, limit, offset } }
   }
 }
