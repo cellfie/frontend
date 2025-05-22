@@ -1,3 +1,5 @@
+"use client"
+
 import { Search, Plus, Package, MapPin, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,7 +44,7 @@ export const RepuestoHeader = ({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
               type="text"
-              placeholder="Buscar por nombre, código, marca o modelo..."
+              placeholder="Buscar por nombre o descripción..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 w-full pr-8"
@@ -78,7 +80,7 @@ export const RepuestoHeader = ({
                 ))}
               </SelectContent>
             </Select>
-           
+
             <Button onClick={onAddClick} size="sm" className="whitespace-nowrap bg-orange-600 hover:bg-orange-700">
               <Plus className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Agregar</span>

@@ -1,4 +1,4 @@
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Obtener todos los repuestos
 export const getRepuestos = async () => {
@@ -47,8 +47,6 @@ export const searchRepuestos = async (params = {}) => {
     const queryParams = new URLSearchParams()
 
     if (params.query) queryParams.append("query", params.query)
-    if (params.marca) queryParams.append("marca", params.marca)
-    if (params.modelo) queryParams.append("modelo", params.modelo)
     if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
     if (params.min_stock !== undefined) queryParams.append("min_stock", params.min_stock)
     if (params.max_stock !== undefined) queryParams.append("max_stock", params.max_stock)
@@ -77,12 +75,9 @@ export const createRepuesto = async (repuestoData) => {
   try {
     // Adaptar los datos del frontend al formato que espera el backend
     const backendData = {
-      codigo: repuestoData.code,
       nombre: repuestoData.name,
-      marca: repuestoData.marca,
-      modelo: repuestoData.modelo,
       descripcion: repuestoData.description || "",
-      punto_venta_id: Number(repuestoData.punto_venta_id), // Usar directamente el ID del punto de venta
+      punto_venta_id: Number(repuestoData.punto_venta_id),
       stock: repuestoData.stock,
     }
 
@@ -117,10 +112,7 @@ export const updateRepuesto = async (id, repuestoData) => {
 
     // Adaptar los datos del frontend al formato que espera el backend
     const backendData = {
-      codigo: repuestoData.code,
       nombre: repuestoData.name,
-      marca: repuestoData.marca,
-      modelo: repuestoData.modelo,
       descripcion: repuestoData.description || "",
       punto_venta_id: repuestoActual.punto_venta_id, // Mantener el punto de venta original
       stock: repuestoData.stock,
@@ -174,9 +166,6 @@ export const adaptRepuestoToFrontend = (repuesto) => {
   return {
     id: repuesto.id,
     name: repuesto.nombre,
-    code: repuesto.codigo,
-    marca: repuesto.marca,
-    modelo: repuesto.modelo,
     description: repuesto.descripcion,
     stock: repuesto.stock || 0,
     pointOfSale: repuesto.punto_venta,

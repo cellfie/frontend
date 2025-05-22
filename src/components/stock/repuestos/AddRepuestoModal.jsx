@@ -20,9 +20,6 @@ export const AddRepuestoModal = ({
 }) => {
   const [formData, setFormData] = useState({
     name: "",
-    code: "",
-    marca: "",
-    modelo: "",
     description: "",
     stock: "",
     punto_venta_id: "",
@@ -40,9 +37,6 @@ export const AddRepuestoModal = ({
 
         const newFormData = {
           name: repuesto.name || "",
-          code: repuesto.code || "",
-          marca: repuesto.marca || "",
-          modelo: repuesto.modelo || "",
           description: repuesto.description || "",
           stock: repuesto.stock?.toString() || "",
           punto_venta_id: punto_venta_id,
@@ -61,9 +55,6 @@ export const AddRepuestoModal = ({
 
         setFormData({
           name: "",
-          code: "",
-          marca: "",
-          modelo: "",
           description: "",
           stock: "",
           punto_venta_id: defaultPuntoVenta.toString(),
@@ -86,8 +77,6 @@ export const AddRepuestoModal = ({
   const validateForm = () => {
     const newErrors = {}
     if (!formData.name.trim()) newErrors.name = "El nombre es requerido"
-    if (!formData.code.trim()) newErrors.code = "El código es requerido"
-    if (!formData.marca.trim()) newErrors.marca = "La marca es requerida"
 
     const stock = Number.parseInt(formData.stock)
     if (isNaN(stock) || stock < 0) {
@@ -179,8 +168,8 @@ export const AddRepuestoModal = ({
               </div>
             )}
 
-            <div className="grid grid-cols-4 gap-x-3 gap-y-3">
-              <div className="col-span-4">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+              <div className="col-span-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-xs font-medium text-gray-500 flex items-center">
                     <Package className="h-3.5 w-3.5 mr-1 text-gray-400" /> INFORMACIÓN DEL REPUESTO
@@ -188,8 +177,8 @@ export const AddRepuestoModal = ({
                 </div>
               </div>
 
-              {/* Nombre y Código en la primera fila */}
-              <div className="space-y-1 col-span-3">
+              {/* Nombre */}
+              <div className="space-y-1 col-span-2">
                 <Label htmlFor="name" className="text-sm">
                   Nombre <span className="text-red-500">*</span>
                 </Label>
@@ -206,55 +195,7 @@ export const AddRepuestoModal = ({
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="code" className="text-sm">
-                  Código <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="code"
-                  name="code"
-                  value={formData.code}
-                  onChange={handleChange}
-                  maxLength={23}
-                  className={
-                    errors.code
-                      ? "border-red-500 focus-visible:ring-red-500"
-                      : "border-orange-200 focus-visible:ring-orange-500"
-                  }
-                />
-              </div>
-
-              {/* Marca, Modelo, Stock y Punto de Venta en la misma fila */}
-              <div className="space-y-1">
-                <Label htmlFor="marca" className="text-sm">
-                  Marca <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="marca"
-                  name="marca"
-                  value={formData.marca}
-                  onChange={handleChange}
-                  className={
-                    errors.marca
-                      ? "border-red-500 focus-visible:ring-red-500"
-                      : "border-orange-200 focus-visible:ring-orange-500"
-                  }
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="modelo" className="text-sm">
-                  Modelo
-                </Label>
-                <Input
-                  id="modelo"
-                  name="modelo"
-                  value={formData.modelo}
-                  onChange={handleChange}
-                  className="border-orange-200 focus-visible:ring-orange-500"
-                />
-              </div>
-
+              {/* Stock y Punto de Venta */}
               <div className="space-y-1">
                 <Label htmlFor="stock" className="text-sm">
                   Stock <span className="text-red-500">*</span>
@@ -329,8 +270,8 @@ export const AddRepuestoModal = ({
                 )}
               </div>
 
-              {/* Descripción en la última fila */}
-              <div className="space-y-1 col-span-4">
+              {/* Descripción */}
+              <div className="space-y-1 col-span-2">
                 <Label htmlFor="description" className="text-sm">
                   Descripción
                 </Label>
@@ -339,7 +280,7 @@ export const AddRepuestoModal = ({
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
-                  rows={2}
+                  rows={3}
                   className="resize-none border-orange-200 focus-visible:ring-orange-500"
                 />
               </div>
