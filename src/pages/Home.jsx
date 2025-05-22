@@ -39,10 +39,6 @@ import { useNavigate } from "react-router-dom"
 import { DollarContext } from "@/context/DollarContext"
 import ReparacionesPendientes from "@/components/ReparacionesPedientes"
 
-// Variable para controlar el tiempo entre actualizaciones del dólar
-let lastDollarUpdateTime = 0
-const MIN_UPDATE_INTERVAL = 5000 // 5 segundos mínimo entre actualizaciones
-
 export default function Home() {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState("")
@@ -335,7 +331,7 @@ export default function Home() {
 
   // Función para abrir el diálogo de edición del dólar
   const openDollarDialog = () => {
-    setNewDollarPrice("")
+    setNewDollarPrice(dollarPrice.toString())
     setIsDollarDialogOpen(true)
   }
 
@@ -343,13 +339,6 @@ export default function Home() {
   const saveDollarPrice = async () => {
     // Si ya está en proceso de actualización, no hacer nada
     if (isUpdatingDollar) return
-
-    // Verificar si ha pasado suficiente tiempo desde la última actualización
-    const now = Date.now()
-    if (now - lastDollarUpdateTime < MIN_UPDATE_INTERVAL) {
-      toast.info("Por favor, espera unos segundos antes de actualizar nuevamente el precio")
-      return
-    }
 
     setIsLoading(true)
     setIsUpdatingDollar(true)
@@ -374,18 +363,6 @@ export default function Home() {
         return
       }
 
-      // Verificar si el nuevo valor es igual al valor actual
-      if (Math.abs(numericValue - dollarPrice) < 0.001) {
-        toast.info("El tipo de cambio ya tiene ese valor")
-        setIsDollarDialogOpen(false)
-        setIsLoading(false)
-        setIsUpdatingDollar(false)
-        return
-      }
-
-      // Actualizar el tiempo de la última actualización
-      lastDollarUpdateTime = now
-
       // Llamar directamente al servicio para actualizar el precio
       await setTipoCambio(numericValue)
 
@@ -402,11 +379,6 @@ export default function Home() {
     } finally {
       setIsLoading(false)
       setIsUpdatingDollar(false)
-
-      // Esperar un tiempo adicional antes de permitir otra actualización
-      setTimeout(() => {
-        setIsUpdatingDollar(false)
-      }, 5000)
     }
   }
 
@@ -513,19 +485,16 @@ export default function Home() {
     // Crear la fecha a partir del string
     const date = new Date(dateString)
 
-    // Ajustar la zona horaria (restar 3 horas para Argentina)
-    const localDate = new Date(date.getTime() - 3 * 60 * 60 * 1000)
-
     // Formatear la fecha (día/mes/año)
-    const formattedDate = localDate.toLocaleDateString("es-AR", {
+    const formattedDate = date.toLocaleDateString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     })
 
     // Formatear la hora (solo horas y minutos)
-    const hours = String(localDate.getHours()).padStart(2, "0")
-    const minutes = String(localDate.getMinutes()).padStart(2, "0")
+    const hours = String(date.getHours()).padStart(2, "0")
+    const minutes = String(date.getMinutes()).padStart(2, "0")
     const formattedTime = `${hours}:${minutes}`
 
     return `${formattedDate} ${formattedTime}`
