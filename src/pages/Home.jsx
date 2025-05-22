@@ -387,7 +387,7 @@ export default function Home() {
       lastDollarUpdateTime = now
 
       // Llamar directamente al servicio para actualizar el precio
-      const response = await setTipoCambio(numericValue)
+      await setTipoCambio(numericValue)
 
       // Actualizar el contexto
       await updateDollarPrice(numericValue)
@@ -513,16 +513,19 @@ export default function Home() {
     // Crear la fecha a partir del string
     const date = new Date(dateString)
 
+    // Ajustar la zona horaria (restar 3 horas para Argentina)
+    const localDate = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+
     // Formatear la fecha (día/mes/año)
-    const formattedDate = date.toLocaleDateString("es-AR", {
+    const formattedDate = localDate.toLocaleDateString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     })
 
     // Formatear la hora (solo horas y minutos)
-    const hours = String(date.getHours()).padStart(2, "0")
-    const minutes = String(date.getMinutes()).padStart(2, "0")
+    const hours = String(localDate.getHours()).padStart(2, "0")
+    const minutes = String(localDate.getMinutes()).padStart(2, "0")
     const formattedTime = `${hours}:${minutes}`
 
     return `${formattedDate} ${formattedTime}`

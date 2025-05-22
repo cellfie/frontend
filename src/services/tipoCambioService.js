@@ -20,6 +20,13 @@ export const getTipoCambio = async () => {
 }
 
 export const setTipoCambio = async (valor, notas = "") => {
+  // Variable estática para controlar el tiempo entre actualizaciones
+  if (setTipoCambio.lastUpdateTime && Date.now() - setTipoCambio.lastUpdateTime < 5000) {
+    throw new Error("Por favor, espera unos segundos antes de actualizar nuevamente el precio")
+  }
+
+  // Actualizar el tiempo de la última actualización
+  setTipoCambio.lastUpdateTime = Date.now()
   try {
     // Asegurar que el valor es un número y tiene máximo 2 decimales
     const numericValue = Number.parseFloat(Number.parseFloat(valor).toFixed(2))
@@ -31,9 +38,9 @@ export const setTipoCambio = async (valor, notas = "") => {
     const res = await fetch(`${API_URL}/tipo-cambio`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         valor: numericValue,
-        notas: notas 
+        notas: notas,
       }),
       credentials: "include",
     })
@@ -49,4 +56,3 @@ export const setTipoCambio = async (valor, notas = "") => {
     throw error
   }
 }
-
