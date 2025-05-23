@@ -1064,20 +1064,22 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   <Button
                     variant={filtroEstado === "todos" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("todos")}
-                    className={`text-xs h-9 px-2 ${filtroEstado === "todos"
-                      ? "bg-orange-600 hover:bg-orange-700"
-                      : "border-gray-200 hover:bg-gray-50"
-                      }`}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "todos"
+                        ? "bg-orange-600 hover:bg-orange-700"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
                   >
                     Todos
                   </Button>
                   <Button
                     variant={filtroEstado === "pendiente" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("pendiente")}
-                    className={`text-xs h-9 px-2 ${filtroEstado === "pendiente"
-                      ? "bg-orange-500 hover:bg-orange-600"
-                      : "border-orange-200 text-orange-600 hover:bg-orange-50"
-                      }`}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "pendiente"
+                        ? "bg-orange-500 hover:bg-orange-600"
+                        : "border-orange-200 text-orange-600 hover:bg-orange-50"
+                    }`}
                   >
                     Pendientes
                   </Button>
@@ -1096,30 +1098,33 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   <Button
                     variant={filtroEstado === "terminada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("terminada")}
-                    className={`text-xs h-9 px-2 ${filtroEstado === "terminada"
-                      ? "bg-blue-500 hover:bg-blue-600"
-                      : "border-blue-200 text-blue-600 hover:bg-blue-50"
-                      }`}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "terminada"
+                        ? "bg-blue-500 hover:bg-blue-600"
+                        : "border-blue-200 text-blue-600 hover:bg-blue-50"
+                    }`}
                   >
                     Terminadas
                   </Button>
                   <Button
                     variant={filtroEstado === "entregada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("entregada")}
-                    className={`text-xs h-9 px-2 ${filtroEstado === "entregada"
-                      ? "bg-green-500 hover:bg-green-600"
-                      : "border-green-200 text-green-600 hover:bg-green-50"
-                      }`}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "entregada"
+                        ? "bg-green-500 hover:bg-green-600"
+                        : "border-green-200 text-green-600 hover:bg-green-50"
+                    }`}
                   >
                     Entregadas
                   </Button>
                   <Button
                     variant={filtroEstado === "cancelada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("cancelada")}
-                    className={`text-xs h-9 px-2 ${filtroEstado === "cancelada"
-                      ? "bg-red-500 hover:bg-red-600"
-                      : "border-red-200 text-red-600 hover:bg-red-50"
-                      }`}
+                    className={`text-xs h-9 px-2 ${
+                      filtroEstado === "cancelada"
+                        ? "bg-red-500 hover:bg-red-600"
+                        : "border-red-200 text-red-600 hover:bg-red-50"
+                    }`}
                   >
                     Canceladas
                   </Button>
@@ -1266,20 +1271,22 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                           <div className="relative pt-1">
                             <div className="overflow-hidden h-2 text-xs flex rounded-full bg-gray-100">
                               <div
-                                className={`${reparacion.estado === "cancelada"
-                                  ? "bg-red-500"
-                                  : estaPagadaCompletamente(reparacion)
-                                    ? "bg-green-500"
-                                    : estadoColor.bg
-                                  } rounded-full h-2 transition-all duration-500 ease-in-out`}
+                                className={`${
+                                  reparacion.estado === "cancelada"
+                                    ? "bg-red-500"
+                                    : estaPagadaCompletamente(reparacion)
+                                      ? "bg-green-500"
+                                      : estadoColor.bg
+                                } rounded-full h-2 transition-all duration-500 ease-in-out`}
                                 style={{
-                                  width: `${calcularTotal(reparacion) > 0
-                                    ? Math.min(
-                                      100,
-                                      (calcularTotalPagado(reparacion) / calcularTotal(reparacion)) * 100,
-                                    )
-                                    : 0
-                                    }%`,
+                                  width: `${
+                                    calcularTotal(reparacion) > 0
+                                      ? Math.min(
+                                          100,
+                                          (calcularTotalPagado(reparacion) / calcularTotal(reparacion)) * 100,
+                                        )
+                                      : 0
+                                  }%`,
                                 }}
                               ></div>
                             </div>
@@ -1648,33 +1655,35 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                               <span className="text-[10px] sm:text-xs font-medium text-gray-500">
                                 {calcularTotal(currentReparacion) > 0
                                   ? Math.min(
-                                    100,
-                                    Math.round(
-                                      (calcularTotalPagado(currentReparacion) / calcularTotal(currentReparacion)) *
                                       100,
-                                    ),
-                                  )
+                                      Math.round(
+                                        (calcularTotalPagado(currentReparacion) / calcularTotal(currentReparacion)) *
+                                          100,
+                                      ),
+                                    )
                                   : 0}
                                 %
                               </span>
                             </div>
                             <div className="overflow-hidden h-1.5 sm:h-2 text-xs flex rounded-full bg-gray-100">
                               <div
-                                className={`${currentReparacion.estado === "cancelada"
-                                  ? "bg-red-500"
-                                  : estaPagadaCompletamente(currentReparacion)
-                                    ? "bg-green-500"
-                                    : "bg-orange-500"
-                                  } rounded-full h-1.5 sm:h-2 transition-all duration-500 ease-in-out`}
+                                className={`${
+                                  currentReparacion.estado === "cancelada"
+                                    ? "bg-red-500"
+                                    : estaPagadaCompletamente(currentReparacion)
+                                      ? "bg-green-500"
+                                      : "bg-orange-500"
+                                } rounded-full h-1.5 sm:h-2 transition-all duration-500 ease-in-out`}
                                 style={{
-                                  width: `${calcularTotal(currentReparacion) > 0
-                                    ? Math.min(
-                                      100,
-                                      (calcularTotalPagado(currentReparacion) / calcularTotal(currentReparacion)) *
-                                      100,
-                                    )
-                                    : 0
-                                    }%`,
+                                  width: `${
+                                    calcularTotal(currentReparacion) > 0
+                                      ? Math.min(
+                                          100,
+                                          (calcularTotalPagado(currentReparacion) / calcularTotal(currentReparacion)) *
+                                            100,
+                                        )
+                                      : 0
+                                  }%`,
                                 }}
                               ></div>
                             </div>
@@ -1702,18 +1711,19 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
                                   {/* Círculo indicador con color según tipo de acción */}
                                   <div
-                                    className={`absolute left-[-30px] top-0 w-6 h-6 rounded-full flex items-center justify-center ${accion.tipo === "creacion"
-                                      ? "bg-blue-100"
-                                      : accion.tipo === "terminada"
-                                        ? "bg-green-100"
-                                        : accion.tipo === "entregada"
-                                          ? "bg-purple-100"
-                                          : accion.tipo === "cancelada"
-                                            ? "bg-red-100"
-                                            : accion.tipo === "pago"
-                                              ? "bg-amber-100"
-                                              : "bg-gray-100"
-                                      }`}
+                                    className={`absolute left-[-30px] top-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                                      accion.tipo === "creacion"
+                                        ? "bg-blue-100"
+                                        : accion.tipo === "terminada"
+                                          ? "bg-green-100"
+                                          : accion.tipo === "entregada"
+                                            ? "bg-purple-100"
+                                            : accion.tipo === "cancelada"
+                                              ? "bg-red-100"
+                                              : accion.tipo === "pago"
+                                                ? "bg-amber-100"
+                                                : "bg-gray-100"
+                                    }`}
                                   >
                                     {accion.tipo === "creacion" && <Plus className="h-3 w-3 text-blue-600" />}
                                     {accion.tipo === "terminada" && <CheckCircle className="h-3 w-3 text-green-600" />}
@@ -2062,14 +2072,16 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                           <div
                             key={metodo.id}
                             onClick={() => setNuevoPago({ ...nuevoPago, metodo_pago: metodo.id })}
-                            className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border-2 cursor-pointer transition-all ${nuevoPago.metodo_pago === metodo.id
-                              ? "border-orange-500 bg-orange-50"
-                              : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
-                              }`}
+                            className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                              nuevoPago.metodo_pago === metodo.id
+                                ? "border-orange-500 bg-orange-50"
+                                : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
+                            }`}
                           >
                             <div
-                              className={`p-1.5 sm:p-2 rounded-full ${nuevoPago.metodo_pago === metodo.id ? "bg-orange-100" : "bg-gray-100"
-                                }`}
+                              className={`p-1.5 sm:p-2 rounded-full ${
+                                nuevoPago.metodo_pago === metodo.id ? "bg-orange-100" : "bg-gray-100"
+                              }`}
                             >
                               {metodo.id === "efectivo" && (
                                 <Banknote
@@ -2137,12 +2149,13 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                               <div className="col-span-2">
                                 <span className="text-gray-500 block">Saldo proyectado:</span>
                                 <span
-                                  className={`font-medium ${cuentaCorriente.limite_credito > 0 &&
+                                  className={`font-medium ${
+                                    cuentaCorriente.limite_credito > 0 &&
                                     Number(cuentaCorriente.saldo) + convertirANumero(nuevoPago.monto) >
-                                    cuentaCorriente.limite_credito
-                                    ? "text-red-600"
-                                    : "text-blue-600"
-                                    }`}
+                                      cuentaCorriente.limite_credito
+                                      ? "text-red-600"
+                                      : "text-blue-600"
+                                  }`}
                                 >
                                   {formatearPrecio(Number(cuentaCorriente.saldo) + convertirANumero(nuevoPago.monto))}
                                 </span>
@@ -2151,7 +2164,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
                             {cuentaCorriente.limite_credito > 0 &&
                               Number(cuentaCorriente.saldo) + convertirANumero(nuevoPago.monto) >
-                              cuentaCorriente.limite_credito && (
+                                cuentaCorriente.limite_credito && (
                                 <div className="bg-red-100 p-2 sm:p-3 rounded-lg border border-red-200 mt-2">
                                   <div className="flex items-start gap-1 sm:gap-2">
                                     <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -2235,12 +2248,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
             <Button type="button" variant="outline" onClick={() => setShowCancelModal(false)}>
               Cancelar
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={cargandoAccion}
-              onClick={confirmCancelRepair}
-            >
+            <Button type="button" variant="destructive" disabled={cargandoAccion} onClick={confirmCancelRepair}>
               {cargandoAccion ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2261,6 +2269,8 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
         onConfirm={handleRepuestosConfirm}
         reparacionId={currentReparacion?.id}
         puntoVentaId={currentReparacion?.puntoVenta?.id}
+        puntoVentaNombre={currentReparacion?.puntoVenta?.nombre}
+        formatearPrecio={formatearPrecio}
       />
     </div>
   )
