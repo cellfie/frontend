@@ -160,14 +160,18 @@ const ReparacionesPage = () => {
   const formatearPrecio = (valor) => {
     if (valor === null || valor === undefined || valor === "") return "$ 0,00"
 
+    // Asegurarse de que el valor sea un número
     let numero = valor
 
     if (typeof valor === "string") {
+      // Eliminar el símbolo de moneda y los separadores de miles, y cambiar la coma por punto para la conversión
       numero = Number.parseFloat(valor.replace(/\$ /g, "").replace(/\./g, "").replace(",", "."))
     }
 
+    // Verificar si es un número válido
     if (isNaN(numero)) return "$ 0,00"
 
+    // Formatear el número usando Intl.NumberFormat
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
@@ -180,7 +184,9 @@ const ReparacionesPage = () => {
   const convertirANumero = (valorFormateado) => {
     if (!valorFormateado) return 0
 
+    // Si es un string, quitar el formato
     if (typeof valorFormateado === "string") {
+      // Eliminar el símbolo de moneda y los separadores de miles, y cambiar la coma por punto para la conversión
       const numeroLimpio = valorFormateado.replace(/\$ /g, "").replace(/\./g, "").replace(",", ".")
       return Number.parseFloat(numeroLimpio)
     }
@@ -355,16 +361,19 @@ const ReparacionesPage = () => {
       return
     }
 
+    // Asegurarse de que el precio sea un número
+    const precioNumerico = Number.parseFloat(repuesto.precio) || 0
+
     const nuevasReparaciones = [...reparaciones]
     nuevasReparaciones[repuestoSeleccionadoIndex] = {
       descripcion: `${repuesto.nombre}${repuesto.descripcion ? ` - ${repuesto.descripcion}` : ""}`,
-      precio: repuesto.precio || 0,
+      precio: precioNumerico,
     }
 
     setReparaciones(nuevasReparaciones)
     setShowRepuestosModal(false)
 
-    toast.success(`Repuesto "${repuesto.nombre}" agregado con precio ${formatearPrecio(repuesto.precio)}`, {
+    toast.success(`Repuesto "${repuesto.nombre}" agregado con precio ${formatearPrecio(precioNumerico)}`, {
       position: "bottom-right",
     })
   }
@@ -372,7 +381,13 @@ const ReparacionesPage = () => {
   // Calcular el total de las reparaciones
   const calcularTotal = () => {
     return reparaciones.reduce((total, rep) => {
-      return total + convertirANumero(rep.precio)
+      // Asegurarse de que el precio sea un número
+      const precio =
+        typeof rep.precio === "string"
+          ? Number.parseFloat(rep.precio.replace(/\$ /g, "").replace(/\./g, "").replace(",", "."))
+          : Number.parseFloat(rep.precio) || 0
+
+      return total + precio
     }, 0)
   }
 
