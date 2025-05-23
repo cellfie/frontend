@@ -664,12 +664,12 @@ const ReparacionesPage = () => {
         })),
         pago: pago.realizaPago
           ? {
-              realizaPago: true,
-              monto: convertirANumero(pago.monto),
-              metodo: pago.metodo,
-              // Agregar referencia para cuenta corriente
-              referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
-            }
+            realizaPago: true,
+            monto: convertirANumero(pago.monto),
+            metodo: pago.metodo,
+            // Agregar referencia para cuenta corriente
+            referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
+          }
           : null,
         notas: "",
         punto_venta_id: Number(puntoVentaSeleccionado),
@@ -741,9 +741,9 @@ const ReparacionesPage = () => {
         total: calcularTotal(),
         pago: pago.realizaPago
           ? {
-              ...pago,
-              nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-            }
+            ...pago,
+            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+          }
           : null,
       }
 
@@ -783,18 +783,16 @@ const ReparacionesPage = () => {
 
     return (
       <div
-        className={`flex items-center ${
-          esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
-        } gap-2 relative`}
+        className={`flex items-center ${esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
+          } gap-2 relative`}
       >
         <div
-          className={`rounded-full w-8 h-8 flex items-center justify-center ${
-            esPasoActual
+          className={`rounded-full w-8 h-8 flex items-center justify-center ${esPasoActual
               ? "bg-orange-100 text-orange-600 border-2 border-orange-500"
               : esPasoCompletado
                 ? "bg-orange-500 text-white"
                 : "bg-gray-100 text-gray-400"
-          }`}
+            }`}
         >
           {esPasoCompletado ? <CheckCircle className="w-4 h-4" /> : icono}
         </div>
@@ -880,11 +878,10 @@ const ReparacionesPage = () => {
                           <div className="mt-2">
                             <Badge
                               variant="outline"
-                              className={`flex items-center gap-1 ${
-                                obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                              className={`flex items-center gap-1 ${obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
                                   ? "border-orange-300 bg-orange-50 text-orange-700"
                                   : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                              }`}
+                                }`}
                             >
                               <MapPin className="h-3.5 w-3.5" />
                               Punto de venta: {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
@@ -1322,11 +1319,10 @@ const ReparacionesPage = () => {
                                 </h4>
                                 <Badge
                                   variant="outline"
-                                  className={`${
-                                    obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                                  className={`${obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
                                       ? "border-orange-300 bg-orange-50 text-orange-700"
                                       : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                  }`}
+                                    }`}
                                 >
                                   <MapPin className="h-3.5 w-3.5 mr-1" />
                                   {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
@@ -1419,16 +1415,14 @@ const ReparacionesPage = () => {
                                             <div
                                               key={metodo.id}
                                               onClick={() => handleMetodoPago(metodo.id)}
-                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                                pago.metodo === metodo.id
+                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${pago.metodo === metodo.id
                                                   ? "border-orange-500 bg-orange-50"
                                                   : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
-                                              }`}
+                                                }`}
                                             >
                                               <div
-                                                className={`p-3 rounded-full ${
-                                                  pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
-                                                }`}
+                                                className={`p-3 rounded-full ${pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
+                                                  }`}
                                               >
                                                 {metodo.id === "efectivo" && (
                                                   <Banknote
@@ -1487,11 +1481,10 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Saldo actual:</span>
                                                     <div
-                                                      className={`font-medium ${
-                                                        Number(cuentaCorriente.saldo) > 0
+                                                      className={`font-medium ${Number(cuentaCorriente.saldo) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                      }`}
+                                                        }`}
                                                     >
                                                       {formatearPrecio(Number(cuentaCorriente.saldo))}
                                                     </div>
@@ -1510,18 +1503,17 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Nuevo saldo proyectado:</span>
                                                     <div
-                                                      className={`font-medium ${
-                                                        (
+                                                      className={`font-medium ${(
                                                           Number(cuentaCorriente.saldo) +
-                                                            Number(convertirANumero(pago.monto))
+                                                          Number(convertirANumero(pago.monto))
                                                         ) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                      }`}
+                                                        }`}
                                                     >
                                                       {formatearPrecio(
                                                         Number(cuentaCorriente.saldo) +
-                                                          Number(convertirANumero(pago.monto)),
+                                                        Number(convertirANumero(pago.monto)),
                                                       )}
                                                     </div>
                                                   </div>
@@ -1530,7 +1522,7 @@ const ReparacionesPage = () => {
                                                 {cuentaCorriente.limiteCredito > 0 &&
                                                   pago.monto &&
                                                   cuentaCorriente.saldo + convertirANumero(pago.monto) >
-                                                    cuentaCorriente.limiteCredito && (
+                                                  cuentaCorriente.limiteCredito && (
                                                     <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-center">
                                                       <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
                                                       <span className="text-sm">
@@ -1708,9 +1700,9 @@ const ReparacionesPage = () => {
                     pago={
                       pago.realizaPago
                         ? {
-                            ...pago,
-                            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-                          }
+                          ...pago,
+                          nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+                        }
                         : null
                     }
                     formatearPrecio={formatearPrecio}
@@ -1770,54 +1762,26 @@ const ReparacionesPage = () => {
                 <p className="text-gray-400 text-sm">Intente con otra búsqueda</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-                {filteredRepuestos.map((repuesto) => (
-                  <div
-                    key={repuesto.id}
-                    className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white"
-                  >
-                    <div className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-medium text-gray-800">{repuesto.nombre}</h3>
-                        <Badge
-                          variant={repuesto.stock > 0 ? "outline" : "destructive"}
-                          className={
-                            repuesto.stock > 0
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-red-100 text-red-700 border-red-200"
-                          }
-                        >
+              <div className="p-4 overflow-y-auto">
+                <ul className="space-y-4">
+                  {filteredRepuestos.map((repuesto) => (
+                    <li key={repuesto.id} className="border-b pb-2">
+                      <div className="font-medium text-gray-800">{repuesto.nombre}</div>
+                      <div className="text-sm text-gray-500">{repuesto.descripcion || "Sin descripción"}</div>
+                      <div className="text-sm">
+                        <span className={repuesto.stock > 0 ? "text-green-700" : "text-red-700"}>
                           {repuesto.stock > 0 ? `Stock: ${repuesto.stock}` : "Sin stock"}
+                        </span>
+                      </div>
+                      <div>
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <MapPin className="h-4 w-4 text-gray-500" />
+                          {repuesto.punto_venta || "No asignado"}
                         </Badge>
                       </div>
-
-                      <div className="text-sm text-gray-500 mb-3">{repuesto.descripcion || "Sin descripción"}</div>
-
-                      <div className="flex items-center justify-between">
-                        <Badge
-                          variant="outline"
-                          className={`${
-                            repuesto.pointOfSale === "Tala"
-                              ? "border-orange-300 bg-orange-50 text-orange-700"
-                              : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                          }`}
-                        >
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {repuesto.pointOfSale || "No asignado"}
-                        </Badge>
-
-                        <Button
-                          size="sm"
-                          onClick={() => seleccionarRepuesto(repuesto)}
-                          disabled={repuestoSeleccionadoIndex === null}
-                          className="bg-orange-600 hover:bg-orange-700 text-white"
-                        >
-                          <PlusCircle className="h-3.5 w-3.5 mr-1" /> Seleccionar
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>
