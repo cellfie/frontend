@@ -26,6 +26,8 @@ import {
   Save,
   Calendar,
   Tag,
+  Ban,
+  AlertTriangle,
   CreditCardIcon,
   Info,
   MapPin,
@@ -41,6 +43,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { NumericFormat } from "react-number-format"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // Importar servicios
@@ -1061,22 +1064,20 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   <Button
                     variant={filtroEstado === "todos" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("todos")}
-                    className={`text-xs h-9 px-2 ${
-                      filtroEstado === "todos"
-                        ? "bg-orange-600 hover:bg-orange-700"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
+                    className={`text-xs h-9 px-2 ${filtroEstado === "todos"
+                      ? "bg-orange-600 hover:bg-orange-700"
+                      : "border-gray-200 hover:bg-gray-50"
+                      }`}
                   >
                     Todos
                   </Button>
                   <Button
                     variant={filtroEstado === "pendiente" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("pendiente")}
-                    className={`text-xs h-9 px-2 ${
-                      filtroEstado === "pendiente"
-                        ? "bg-orange-500 hover:bg-orange-600"
-                        : "border-orange-200 text-orange-600 hover:bg-orange-50"
-                    }`}
+                    className={`text-xs h-9 px-2 ${filtroEstado === "pendiente"
+                      ? "bg-orange-500 hover:bg-orange-600"
+                      : "border-orange-200 text-orange-600 hover:bg-orange-50"
+                      }`}
                   >
                     Pendientes
                   </Button>
@@ -1095,33 +1096,30 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   <Button
                     variant={filtroEstado === "terminada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("terminada")}
-                    className={`text-xs h-9 px-2 ${
-                      filtroEstado === "terminada"
-                        ? "bg-blue-500 hover:bg-blue-600"
-                        : "border-blue-200 text-blue-600 hover:bg-blue-50"
-                    }`}
+                    className={`text-xs h-9 px-2 ${filtroEstado === "terminada"
+                      ? "bg-blue-500 hover:bg-blue-600"
+                      : "border-blue-200 text-blue-600 hover:bg-blue-50"
+                      }`}
                   >
                     Terminadas
                   </Button>
                   <Button
                     variant={filtroEstado === "entregada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("entregada")}
-                    className={`text-xs h-9 px-2 ${
-                      filtroEstado === "entregada"
-                        ? "bg-green-500 hover:bg-green-600"
-                        : "border-green-200 text-green-600 hover:bg-green-50"
-                    }`}
+                    className={`text-xs h-9 px-2 ${filtroEstado === "entregada"
+                      ? "bg-green-500 hover:bg-green-600"
+                      : "border-green-200 text-green-600 hover:bg-green-50"
+                      }`}
                   >
                     Entregadas
                   </Button>
                   <Button
                     variant={filtroEstado === "cancelada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("cancelada")}
-                    className={`text-xs h-9 px-2 ${
-                      filtroEstado === "cancelada"
-                        ? "bg-red-500 hover:bg-red-600"
-                        : "border-red-200 text-red-600 hover:bg-red-50"
-                    }`}
+                    className={`text-xs h-9 px-2 ${filtroEstado === "cancelada"
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "border-red-200 text-red-600 hover:bg-red-50"
+                      }`}
                   >
                     Canceladas
                   </Button>
@@ -1268,22 +1266,20 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                           <div className="relative pt-1">
                             <div className="overflow-hidden h-2 text-xs flex rounded-full bg-gray-100">
                               <div
-                                className={`${
-                                  reparacion.estado === "cancelada"
-                                    ? "bg-red-500"
-                                    : estaPagadaCompletamente(reparacion)
-                                      ? "bg-green-500"
-                                      : estadoColor.bg
-                                } rounded-full h-2 transition-all duration-500 ease-in-out`}
+                                className={`${reparacion.estado === "cancelada"
+                                  ? "bg-red-500"
+                                  : estaPagadaCompletamente(reparacion)
+                                    ? "bg-green-500"
+                                    : estadoColor.bg
+                                  } rounded-full h-2 transition-all duration-500 ease-in-out`}
                                 style={{
-                                  width: `${
-                                    calcularTotal(reparacion) > 0
-                                      ? Math.min(
-                                          100,
-                                          (calcularTotalPagado(reparacion) / calcularTotal(reparacion)) * 100,
-                                        )
-                                      : 0
-                                  }%`,
+                                  width: `${calcularTotal(reparacion) > 0
+                                    ? Math.min(
+                                      100,
+                                      (calcularTotalPagado(reparacion) / calcularTotal(reparacion)) * 100,
+                                    )
+                                    : 0
+                                    }%`,
                                 }}
                               ></div>
                             </div>
@@ -1625,341 +1621,640 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                           </div>
                         </div>
                       )}
+
+                      {/* Resumen financiero */}
+                      <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+                          Resumen Financiero
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                          <div className="bg-gray-50 p-2 sm:p-4 rounded-lg">
+                            <span className="text-[10px] sm:text-xs text-gray-500 block">Total</span>
+                            <span className="text-sm sm:text-lg font-semibold text-orange-600">
+                              {formatearPrecio(calcularTotal(currentReparacion))}
+                            </span>
+                          </div>
+                          <div className="bg-gray-50 p-2 sm:p-4 rounded-lg">
+                            <span className="text-[10px] sm:text-xs text-gray-500 block">Pagado</span>
+                            <span className="text-sm sm:text-lg font-semibold text-green-600">
+                              {formatearPrecio(calcularTotalPagado(currentReparacion))}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-2 sm:mt-3">
+                          <div className="relative pt-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] sm:text-xs font-medium text-gray-500">Progreso de pago</span>
+                              <span className="text-[10px] sm:text-xs font-medium text-gray-500">
+                                {calcularTotal(currentReparacion) > 0
+                                  ? Math.min(
+                                    100,
+                                    Math.round(
+                                      (calcularTotalPagado(currentReparacion) / calcularTotal(currentReparacion)) *
+                                      100,
+                                    ),
+                                  )
+                                  : 0}
+                                %
+                              </span>
+                            </div>
+                            <div className="overflow-hidden h-1.5 sm:h-2 text-xs flex rounded-full bg-gray-100">
+                              <div
+                                className={`${currentReparacion.estado === "cancelada"
+                                  ? "bg-red-500"
+                                  : estaPagadaCompletamente(currentReparacion)
+                                    ? "bg-green-500"
+                                    : "bg-orange-500"
+                                  } rounded-full h-1.5 sm:h-2 transition-all duration-500 ease-in-out`}
+                                style={{
+                                  width: `${calcularTotal(currentReparacion) > 0
+                                    ? Math.min(
+                                      100,
+                                      (calcularTotalPagado(currentReparacion) / calcularTotal(currentReparacion)) *
+                                      100,
+                                    )
+                                    : 0
+                                    }%`,
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </TabsContent>
-
                   <TabsContent value="historial" className="p-4 sm:p-6 pt-3 sm:pt-4 m-0">
                     <div className="space-y-4 sm:space-y-6">
-                      {currentReparacion.historialAcciones && currentReparacion.historialAcciones.length > 0 ? (
-                        <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
-                          <h3 className="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2 mb-2 sm:mb-3">
-                            <Info className="h-3 w-3 sm:h-4 sm:w-4" /> Historial de Acciones
-                          </h3>
-                          <div className="space-y-1 sm:space-y-2">
-                            <table className="w-full text-xs sm:text-sm">
-                              <thead className="border-b border-gray-200">
-                                <tr>
-                                  <th className="text-left pb-1 sm:pb-2 text-gray-600 font-medium">Fecha</th>
-                                  <th className="text-left pb-1 sm:pb-2 text-gray-600 font-medium">Acción</th>
-                                  <th className="text-left pb-1 sm:pb-2 text-gray-600 font-medium">Usuario</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {currentReparacion.historialAcciones.map((accion, index) => (
-                                  <tr key={index} className="border-b border-gray-200">
-                                    <td className="py-1 sm:py-2">{formatearFecha(accion.fecha)}</td>
-                                    <td className="py-1 sm:py-2">{accion.accion}</td>
-                                    <td className="py-1 sm:py-2">{accion.usuario}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                      <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2 mb-3 sm:mb-4">
+                          <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> Historial de Acciones
+                        </h3>
+
+                        {currentReparacion.historialAcciones && currentReparacion.historialAcciones.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="relative">
+                              {currentReparacion.historialAcciones.map((accion, index) => (
+                                <div key={index} className="mb-4 ml-6 relative">
+                                  {/* Línea vertical conectora */}
+                                  {index < currentReparacion.historialAcciones.length - 1 && (
+                                    <div className="absolute left-[-24px] top-6 bottom-[-12px] w-0.5 bg-gray-200"></div>
+                                  )}
+
+                                  {/* Círculo indicador con color según tipo de acción */}
+                                  <div
+                                    className={`absolute left-[-30px] top-0 w-6 h-6 rounded-full flex items-center justify-center ${accion.tipo === "creacion"
+                                      ? "bg-blue-100"
+                                      : accion.tipo === "terminada"
+                                        ? "bg-green-100"
+                                        : accion.tipo === "entregada"
+                                          ? "bg-purple-100"
+                                          : accion.tipo === "cancelada"
+                                            ? "bg-red-100"
+                                            : accion.tipo === "pago"
+                                              ? "bg-amber-100"
+                                              : "bg-gray-100"
+                                      }`}
+                                  >
+                                    {accion.tipo === "creacion" && <Plus className="h-3 w-3 text-blue-600" />}
+                                    {accion.tipo === "terminada" && <CheckCircle className="h-3 w-3 text-green-600" />}
+                                    {accion.tipo === "entregada" && (
+                                      <ExternalLink className="h-3 w-3 text-purple-600" />
+                                    )}
+                                    {accion.tipo === "cancelada" && <Ban className="h-3 w-3 text-red-600" />}
+                                    {accion.tipo === "pago" && <DollarSign className="h-3 w-3 text-amber-600" />}
+                                    {accion.tipo === "edicion" && <Edit className="h-3 w-3 text-gray-600" />}
+                                  </div>
+
+                                  <div className="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200">
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <p className="text-xs sm:text-sm font-medium text-gray-800">
+                                          {accion.tipo === "creacion" && "Reparación creada"}
+                                          {accion.tipo === "terminada" && "Marcada como terminada"}
+                                          {accion.tipo === "entregada" && "Marcada como entregada"}
+                                          {accion.tipo === "cancelada" && "Reparación cancelada"}
+                                          {accion.tipo === "pago" && "Pago registrado"}
+                                          {accion.tipo === "edicion" && "Reparación editada"}
+                                        </p>
+                                        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
+                                          Por:{" "}
+                                          <span className="font-medium">{accion.usuario || "Usuario desconocido"}</span>
+                                        </p>
+                                      </div>
+                                      <span className="text-[10px] sm:text-xs text-gray-500">
+                                        {formatearFecha(accion.fecha)} {accion.hora || ""}
+                                      </span>
+                                    </div>
+
+                                    {accion.detalles && (
+                                      <p className="text-[10px] sm:text-xs text-gray-600 mt-1 border-t border-gray-200 pt-1">
+                                        {accion.detalles}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm text-center">
-                          <div className="flex flex-col items-center justify-center py-4 sm:py-6">
-                            <Info className="h-6 w-6 sm:h-8 sm:w-8 text-gray-300 mb-2" />
-                            <h3 className="text-xs sm:text-sm font-medium text-gray-500">
-                              No hay historial registrado
-                            </h3>
-                            <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
-                              No se han realizado acciones en esta reparación
-                            </p>
+                        ) : (
+                          <div className="text-center py-6">
+                            <FileText className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No hay historial de acciones disponible</p>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </TabsContent>
                 </div>
-
-                <CardFooter className="flex justify-end items-center p-4 sm:p-6 border-t">
-                  <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
-                    Cerrar
-                  </Button>
-                </CardFooter>
               </Tabs>
+
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t">
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {/* Botones de acción */}
+                  {(currentReparacion.estado === "pendiente" || currentReparacion.estado === "terminada") && (
+                    <Button
+                      onClick={() => {
+                        setShowDetailsModal(false)
+                        setTimeout(() => handleCancelRepair(currentReparacion), 300)
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+                    >
+                      <Ban className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Cancelar Reparación
+                    </Button>
+                  )}
+
+                  {currentReparacion.estado === "pendiente" && (
+                    <Button
+                      onClick={() => {
+                        setShowDetailsModal(false)
+                        setTimeout(() => completeRepair(), 300)
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+                    >
+                      <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Marcar como Terminada
+                    </Button>
+                  )}
+
+                  {calcularSaldoPendiente(currentReparacion) > 0 && currentReparacion.estado !== "cancelada" && (
+                    <Button
+                      onClick={() => {
+                        setShowDetailsModal(false)
+                        setTimeout(() => handlePayment(currentReparacion), 300)
+                      }}
+                      className="bg-green-600 hover:bg-green-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+                    >
+                      <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Registrar Pago
+                    </Button>
+                  )}
+
+                  {currentReparacion.estado === "terminada" && calcularSaldoPendiente(currentReparacion) <= 0 && (
+                    <Button
+                      onClick={() => {
+                        setShowDetailsModal(false)
+                        setTimeout(() => marcarComoEntregada(currentReparacion.id), 300)
+                      }}
+                      className="bg-green-600 hover:bg-green-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+                    >
+                      <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Marcar como Entregada
+                    </Button>
+                  )}
+                </div>
+              </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
 
-          {cargandoAccion && (
-            <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
+      {/* Modal de edición */}
+      <Dialog
+        open={showEditModal}
+        onOpenChange={(open) => {
+          if (!open) setShowEditModal(false)
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden p-0 sm:max-w-lg md:max-w-2xl lg:max-w-4xl rounded-xl">
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 border-b">
+            <div className="flex justify-between items-center w-full">
+              <DialogTitle className="flex items-center gap-2 text-gray-800 text-base sm:text-lg">
+                <Edit className="h-4 w-4 sm:h-5 sm:w-5" /> Editar Reparación
+              </DialogTitle>
             </div>
-          )}
+            {currentReparacion && (
+              <div className="flex items-center gap-2 mt-1">
+                <Badge
+                  className={`${estadoColors[currentReparacion.estado]?.badge || estadoColors.pendiente.badge} flex items-center gap-1 text-xs`}
+                >
+                  {obtenerNombreEstado(currentReparacion.estado)}
+                </Badge>
+                <span className="text-xs sm:text-sm">
+                  Ticket #{currentReparacion.numeroTicket} - {formatearFecha(currentReparacion.fechaIngreso)}
+                </span>
+              </div>
+            )}
+          </DialogHeader>
+
+          <div className="max-h-[calc(70vh-180px)] sm:max-h-[calc(95vh-180px)] overflow-y-auto">
+            <div className="p-4 sm:p-6 pt-3 sm:pt-4">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+                  <div className="flex justify-between items-center mb-2 sm:mb-3">
+                    <h3 className="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Wrench className="h-3 w-3 sm:h-4 sm:w-4" /> Editar Detalles de Reparación
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={agregarDetalleReparacion}
+                      className="h-6 sm:h-8 text-[10px] sm:text-xs border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg"
+                    >
+                      <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" /> Agregar
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 sm:space-y-3">
+                    {detallesEditados.map((detalle, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-12 gap-1 sm:gap-2 items-center bg-white p-2 sm:p-3 rounded-lg border border-gray-200 shadow-sm"
+                      >
+                        <div className="col-span-7">
+                          <Label htmlFor={`descripcion-${index}`} className="sr-only">
+                            Descripción
+                          </Label>
+                          <Input
+                            id={`descripcion-${index}`}
+                            value={detalle.descripcion}
+                            onChange={(e) => handleDetalleChange(index, "descripcion", e.target.value)}
+                            placeholder="Descripción de la reparación"
+                            className="border-gray-200 rounded-lg focus-visible:ring-orange-500 text-xs sm:text-sm h-8 sm:h-10"
+                          />
+                        </div>
+                        <div className="col-span-4">
+                          <Label htmlFor={`precio-${index}`} className="sr-only">
+                            Precio
+                          </Label>
+                          <NumericFormat
+                            id={`precio-${index}`}
+                            value={detalle.precio}
+                            onValueChange={(values) => {
+                              const { value } = values
+                              handleDetalleChange(index, "precio", value)
+                            }}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            prefix="$ "
+                            decimalScale={2}
+                            placeholder="$ 0,00"
+                            className="w-full px-3 py-2 border rounded-lg border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 text-xs sm:text-sm h-8 sm:h-10"
+                          />
+                        </div>
+                        <div className="col-span-1 flex justify-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => eliminarDetalleReparacion(index)}
+                            className="h-6 w-6 sm:h-8 sm:w-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 sm:mt-4 flex justify-end">
+                    <div className="bg-orange-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-orange-200 text-xs sm:text-sm font-medium text-orange-600">
+                      Total:{" "}
+                      {formatearPrecio(
+                        detallesEditados.reduce((sum, d) => {
+                          const precio = convertirANumero(d.precio)
+                          return sum + precio
+                        }, 0),
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2 mb-2 sm:mb-3">
+                    <FileText className="h-3 w-3 sm:h-4 sm:w-4" /> Observaciones del Técnico
+                  </h3>
+                  <Textarea
+                    value={observacionTecnico}
+                    onChange={(e) => setObservacionTecnico(e.target.value)}
+                    placeholder="Ingrese observaciones o notas sobre la reparación"
+                    className="min-h-[80px] sm:min-h-[120px] border-gray-200 rounded-lg focus-visible:ring-orange-500 text-xs sm:text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t">
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditModal(false)}
+                className="rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={guardarCambiosReparacion}
+                disabled={guardandoCambios}
+                className="bg-orange-600 hover:bg-orange-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+              >
+                {guardandoCambios ? (
+                  <>
+                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" /> Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Guardar Cambios
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Modal de pago */}
-      <Dialog open={showPaymentModal} onOpenChange={(open) => setShowPaymentModal(open)}>
-        <DialogContent className="max-w-md rounded-xl">
-          <DialogHeader>
-            <DialogTitle>Registrar Pago</DialogTitle>
-            <DialogDescription>Ingrese el monto del pago y seleccione el método de pago.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="monto" className="text-right">
-                Monto
-              </Label>
-              <div className="col-span-3">
-                <Input
-                  id="monto"
-                  type="text"
-                  value={nuevoPago.monto}
-                  onChange={(e) => {
-                    // Permitir solo números y la coma como separador decimal
-                    const value = e.target.value.replace(/[^0-9,]/g, "")
-
-                    // Asegurarse de que solo haya una coma
-                    const comaCount = (value.match(/,/g) || []).length
-                    if (comaCount > 1) return
-
-                    setNuevoPago({ ...nuevoPago, monto: value })
-                  }}
-                />
-              </div>
+      <Dialog
+        open={showPaymentModal}
+        onOpenChange={(open) => {
+          if (!open) setShowPaymentModal(false)
+        }}
+      >
+        <DialogContent className="max-w-md p-0 rounded-xl">
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 border-b">
+            <div className="flex justify-between items-center w-full">
+              <DialogTitle className="flex items-center gap-2 text-gray-800 text-base sm:text-lg">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" /> Registrar Pago
+              </DialogTitle>
             </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="metodo_pago" className="text-right">
-                Método de Pago
-              </Label>
-              <div className="col-span-3">
-                <select
-                  id="metodo_pago"
-                  className="flex h-10 w-full rounded-md border border-gray-200 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={nuevoPago.metodo_pago}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, metodo_pago: e.target.value })}
-                >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="tarjeta">Tarjeta</option>
-                  <option value="transferencia">Transferencia</option>
-                  {currentReparacion?.cliente?.id && cuentaCorriente?.activo && (
-                    <option value="cuentaCorriente">Cuenta Corriente</option>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {nuevoPago.metodo_pago === "cuentaCorriente" && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-blue-700 flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium">Pago con Cuenta Corriente</p>
-                  {cargandoCuentaCorriente ? (
-                    <p className="text-sm">Cargando información...</p>
-                  ) : cuentaCorriente ? (
-                    <>
-                      <p className="text-sm">Saldo actual: {formatearPrecio(cuentaCorriente.saldo)}</p>
-                      {cuentaCorriente.limite_credito > 0 && (
-                        <p className="text-sm">Límite de crédito: {formatearPrecio(cuentaCorriente.limite_credito)}</p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm">No se pudo cargar la información de la cuenta corriente.</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <CardFooter className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowPaymentModal(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" onClick={handleSavePago} disabled={cargandoAccion}>
-              {cargandoAccion ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                "Guardar Pago"
-              )}
-            </Button>
-          </CardFooter>
-
-          {cargandoAccion && (
-            <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de confirmación para marcar como completada */}
-      <AlertDialog open={showCompleteModal} onOpenChange={setShowCompleteModal}>
-        <AlertDialogContent className="max-w-md rounded-xl">
-          <AlertDialogTitle>Marcar como Terminada</AlertDialogTitle>
-          <AlertDialogDescription>
-            ¿Está seguro de que desea marcar esta reparación como terminada?
-          </AlertDialogDescription>
-
-          <CardFooter className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowCompleteModal(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" onClick={completeRepair} disabled={cargandoAccion}>
-              {cargandoAccion ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                "Confirmar"
-              )}
-            </Button>
-          </CardFooter>
-
-          {cargandoAccion && (
-            <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
-            </div>
-          )}
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Modal de edición de reparación */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-2xl rounded-xl">
-          <DialogHeader>
-            <DialogTitle>Editar Reparación</DialogTitle>
-            <DialogDescription>
-              Modifique los detalles de la reparación y las observaciones del técnico.
+            <DialogDescription className="text-xs sm:text-sm">
+              Ingrese los detalles del pago para la reparación
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <h3 className="text-sm font-medium text-gray-700">Detalles de la Reparación</h3>
-            <div className="space-y-3">
-              {detallesEditados.map((detalle, index) => (
-                <div key={index} className="grid grid-cols-2 gap-4 items-center">
-                  <Input
-                    type="text"
-                    placeholder="Descripción"
-                    value={detalle.descripcion}
-                    onChange={(e) => handleDetalleChange(index, "descripcion", e.target.value)}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="text"
-                      placeholder="Precio"
-                      value={detalle.precio}
-                      onChange={(e) => {
-                        // Permitir solo números y la coma como separador decimal
-                        const value = e.target.value.replace(/[^0-9,]/g, "")
+          {currentReparacion && (
+            <div className="max-h-[calc(70vh-180px)] overflow-y-auto">
+              <div className="px-4 sm:px-6 py-3 sm:py-4">
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="bg-white p-3 sm:p-4 rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+                    <div className="flex justify-between mb-1 sm:mb-2">
+                      <span className="text-xs sm:text-sm text-gray-500">Cliente:</span>
+                      <span className="text-xs sm:text-sm font-medium">{currentReparacion.cliente?.nombre}</span>
+                    </div>
+                    <div className="flex justify-between mb-1 sm:mb-2">
+                      <span className="text-xs sm:text-sm text-gray-500">Equipo:</span>
+                      <span className="text-xs sm:text-sm font-medium">
+                        {currentReparacion.equipo?.marca} {currentReparacion.equipo?.modelo}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-1 sm:mb-2">
+                      <span className="text-xs sm:text-sm text-gray-500">Total:</span>
+                      <span className="text-xs sm:text-sm font-medium">
+                        {formatearPrecio(calcularTotal(currentReparacion))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-1 sm:mb-2">
+                      <span className="text-xs sm:text-sm text-gray-500">Pagado:</span>
+                      <span className="text-xs sm:text-sm font-medium">
+                        {formatearPrecio(calcularTotalPagado(currentReparacion))}
+                      </span>
+                    </div>
+                    <Separator className="my-1.5 sm:my-2" />
+                    <div className="flex justify-between">
+                      <span className="text-xs sm:text-sm font-medium text-orange-600">Saldo pendiente:</span>
+                      <span className="text-xs sm:text-sm font-medium text-orange-600">
+                        {formatearPrecio(calcularSaldoPendiente(currentReparacion))}
+                      </span>
+                    </div>
+                  </div>
 
-                        // Asegurarse de que solo haya una coma
-                        const comaCount = (value.match(/,/g) || []).length
-                        if (comaCount > 1) return
+                  <div className="space-y-2 sm:space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="monto-pago" className="text-xs sm:text-sm text-gray-700">
+                        Monto a pagar
+                      </Label>
+                      <NumericFormat
+                        id="monto-pago"
+                        value={nuevoPago.monto}
+                        onValueChange={(values) => {
+                          const { value } = values
+                          setNuevoPago({ ...nuevoPago, monto: value })
+                        }}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        prefix="$ "
+                        decimalScale={2}
+                        placeholder="$ 0,00"
+                        className="w-full px-3 py-2 border rounded-lg border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 text-xs sm:text-sm h-8 sm:h-10"
+                      />
+                    </div>
 
-                        handleDetalleChange(index, "precio", value)
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => eliminarDetalleReparacion(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="space-y-1">
+                      <Label className="text-xs sm:text-sm text-gray-700">Método de pago</Label>
+                      <div className="grid grid-cols-2 gap-2 mt-1 sm:mt-2">
+                        {metodosPago.map((metodo) => (
+                          <div
+                            key={metodo.id}
+                            onClick={() => setNuevoPago({ ...nuevoPago, metodo_pago: metodo.id })}
+                            className={`flex flex-col items-center justify-center p-2 sm:p-3 rounded-lg border-2 cursor-pointer transition-all ${nuevoPago.metodo_pago === metodo.id
+                              ? "border-orange-500 bg-orange-50"
+                              : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
+                              }`}
+                          >
+                            <div
+                              className={`p-1.5 sm:p-2 rounded-full ${nuevoPago.metodo_pago === metodo.id ? "bg-orange-100" : "bg-gray-100"
+                                }`}
+                            >
+                              {metodo.id === "efectivo" && (
+                                <Banknote
+                                  className={`w-4 h-4 sm:w-5 sm:h-5 ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                                />
+                              )}
+                              {metodo.id === "tarjeta" && (
+                                <CreditCard
+                                  className={`w-4 h-4 sm:w-5 sm:h-5 ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                                />
+                              )}
+                              {metodo.id === "transferencia" && (
+                                <ArrowDownToLine
+                                  className={`w-4 h-4 sm:w-5 sm:h-5 ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                                />
+                              )}
+                              {metodo.id === "cuentaCorriente" && (
+                                <CreditCardIcon
+                                  className={`w-4 h-4 sm:w-5 sm:h-5 ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                                />
+                              )}
+                            </div>
+                            <span
+                              className={`text-xs sm:text-sm mt-1 font-medium ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                            >
+                              {metodo.nombre}
+                              {metodo.id === "cuentaCorriente" && !currentReparacion.cliente?.id && (
+                                <span className="block text-red-500 text-[8px] sm:text-[10px]">(Requiere cliente)</span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Información de cuenta corriente */}
+                    {nuevoPago.metodo_pago === "cuentaCorriente" && currentReparacion.cliente?.id && (
+                      <div className="mt-2 sm:mt-4 bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-200">
+                        {cargandoCuentaCorriente ? (
+                          <div className="flex items-center justify-center py-2">
+                            <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-blue-600 mr-2" />
+                            <span className="text-xs sm:text-sm text-blue-600">
+                              Cargando información de cuenta corriente...
+                            </span>
+                          </div>
+                        ) : cuentaCorriente ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <Info className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
+                              <h4 className="text-xs sm:text-sm font-medium text-blue-700">
+                                Información de Cuenta Corriente
+                              </h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                              <div>
+                                <span className="text-gray-500 block">Saldo actual:</span>
+                                <span className="font-medium">{formatearPrecio(Number(cuentaCorriente.saldo))}</span>
+                              </div>
+                              {cuentaCorriente.limite_credito > 0 && (
+                                <div>
+                                  <span className="text-gray-500 block">Límite de crédito:</span>
+                                  <span className="font-medium">{formatearPrecio(cuentaCorriente.limite_credito)}</span>
+                                </div>
+                              )}
+                              <div className="col-span-2">
+                                <span className="text-gray-500 block">Saldo proyectado:</span>
+                                <span
+                                  className={`font-medium ${cuentaCorriente.limite_credito > 0 &&
+                                    Number(cuentaCorriente.saldo) + convertirANumero(nuevoPago.monto) >
+                                    cuentaCorriente.limite_credito
+                                    ? "text-red-600"
+                                    : "text-blue-600"
+                                    }`}
+                                >
+                                  {formatearPrecio(Number(cuentaCorriente.saldo) + convertirANumero(nuevoPago.monto))}
+                                </span>
+                              </div>
+                            </div>
+
+                            {cuentaCorriente.limite_credito > 0 &&
+                              Number(cuentaCorriente.saldo) + convertirANumero(nuevoPago.monto) >
+                              cuentaCorriente.limite_credito && (
+                                <div className="bg-red-100 p-2 sm:p-3 rounded-lg border border-red-200 mt-2">
+                                  <div className="flex items-start gap-1 sm:gap-2">
+                                    <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                    <p className="text-[10px] sm:text-xs text-red-700">
+                                      El monto excede el límite de crédito del cliente. Considere reducir el monto o
+                                      usar otro método de pago.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-3">
+                            <Info className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400 mb-2" />
+                            <p className="text-xs sm:text-sm text-blue-500">
+                              No se encontró información de cuenta corriente
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
-              <Button type="button" variant="outline" onClick={agregarDetalleReparacion}>
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar Detalle
-              </Button>
-            </div>
+              </div>
 
-            <Separator />
-
-            <div className="space-y-2">
-              <Label htmlFor="observacion_tecnico">Observaciones del Técnico</Label>
-              <Textarea
-                id="observacion_tecnico"
-                placeholder="Ingrese las observaciones del técnico"
-                value={observacionTecnico}
-                onChange={(e) => setObservacionTecnico(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <CardFooter className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowEditModal(false)}>
-              Cancelar
-            </Button>
-            <Button type="button" onClick={guardarCambiosReparacion} disabled={guardandoCambios}>
-              {guardandoCambios ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Guardar Cambios
-                </>
-              )}
-            </Button>
-          </CardFooter>
-
-          {guardandoCambios && (
-            <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t">
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPaymentModal(false)}
+                    className="rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSavePago}
+                    disabled={cargandoAccion}
+                    className="bg-orange-600 hover:bg-orange-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+                  >
+                    {cargandoAccion ? (
+                      <>
+                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" /> Registrando...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Registrar Pago
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Modal de confirmación para cancelar reparación */}
+      {/* Modal de confirmación de cancelación */}
       <AlertDialog open={showCancelModal} onOpenChange={setShowCancelModal}>
         <AlertDialogContent className="max-w-md rounded-xl">
           <AlertDialogTitle>Cancelar Reparación</AlertDialogTitle>
           <AlertDialogDescription>
-            {hasPagosCuentaCorriente
-              ? "¿Está seguro de que desea cancelar esta reparación? Se revertirán los cargos en cuenta corriente."
-              : "¿Está seguro de que desea cancelar esta reparación?"}
+            ¿Está seguro de que desea cancelar esta reparación? Esta acción no se puede deshacer.
+            {hasPagosCuentaCorriente && (
+              <p className="mt-2 text-red-500">
+                <AlertTriangle className="inline-block h-4 w-4 mr-1 align-middle" />
+                Esta reparación tiene pagos registrados en cuenta corriente. Al cancelar, se revertirán los cargos.
+              </p>
+            )}
           </AlertDialogDescription>
-
-          <div className="grid gap-4 py-4">
-            <Label htmlFor="motivo_cancelacion">Motivo de Cancelación</Label>
+          <div className="grid gap-2">
+            <Label htmlFor="motivo-cancelacion">Motivo de cancelación</Label>
             <Textarea
-              id="motivo_cancelacion"
+              id="motivo-cancelacion"
               placeholder="Ingrese el motivo de la cancelación"
               value={motivoCancelacion}
               onChange={(e) => setMotivoCancelacion(e.target.value)}
+              className="border-gray-200 rounded-lg focus-visible:ring-orange-500 text-xs sm:text-sm"
             />
           </div>
-
-          <CardFooter className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowCancelModal(false)}>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button type="button" variant="outline" onClick={() => setShowCancelModal(false)}>
               Cancelar
             </Button>
-            <Button type="button" variant="destructive" onClick={confirmCancelRepair} disabled={cargandoAccion}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={cargandoAccion}
+              onClick={confirmCancelRepair}
+            >
               {cargandoAccion ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Cancelando...
                 </>
               ) : (
                 "Confirmar Cancelación"
               )}
             </Button>
-          </CardFooter>
-
-          {cargandoAccion && (
-            <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 text-violet-500 animate-spin" />
-            </div>
-          )}
+          </div>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Repuestos Modal */}
+      {/* Modal de selección de repuestos */}
       <RepuestosSeleccionModal
         open={showRepuestosModal}
         onOpenChange={setShowRepuestosModal}
