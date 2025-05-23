@@ -59,11 +59,9 @@ import {
 } from "@/services/reparacionesService"
 import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
+import { descontarRepuestosInventario } from "@/services/repuestosService"
 import { useAuth } from "@/context/AuthContext"
 import RepuestosSeleccionModal from "./RepuestosSeleccionModal"
-
-// Add the API_URL constant at the top of the file (after imports)
-const API_URL = "https://api.sistemacellfierm22.site/api"
 
 const ReparacionesPendientes = ({ showHeader = true }) => {
   const { currentUser } = useAuth()
@@ -779,18 +777,8 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
           cantidad: repuesto.cantidad,
         }))
 
-        // Enviar al backend para descontar del inventario
-        await fetch(`${API_URL}/repuestos/descontar`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            reparacion_id: currentReparacion.id,
-            repuestos: repuestosData,
-          }),
-          credentials: "include",
-        })
+        // Usar la función del servicio para descontar del inventario
+        await descontarRepuestosInventario(currentReparacion.id, repuestosData)
       }
 
       toast.success("Reparación marcada como terminada", { position: "bottom-right" })
@@ -1323,7 +1311,10 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => completeRepair()}
+                            onClick={() => {
+                              setCurrentReparacion(reparacion)
+                              completeRepair()
+                            }}
                             className={`${estadoColors.terminada.border} ${estadoColors.terminada.light} ${estadoColors.terminada.text} hover:bg-blue-100 px-3 h-9 rounded-lg`}
                           >
                             <CheckCircle className="h-4 w-4 mr-1.5" /> Terminar
@@ -2225,7 +2216,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   </Button>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </DialogContent>
       </Dialog>

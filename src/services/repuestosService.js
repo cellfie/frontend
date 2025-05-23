@@ -163,6 +163,91 @@ export const deleteRepuesto = async (id) => {
   }
 }
 
+// Actualizar inventario de repuesto
+export const actualizarInventario = async (repuestoId, puntoVentaId, cantidad) => {
+  try {
+    const response = await fetch(`${API_URL}/repuestos/inventario`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repuesto_id: repuestoId,
+        punto_venta_id: puntoVentaId,
+        cantidad: cantidad,
+      }),
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al actualizar inventario")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en actualizarInventario:", error)
+    throw error
+  }
+}
+
+// Descontar repuestos del inventario
+export const descontarRepuestosInventario = async (reparacionId, repuestos) => {
+  try {
+    const response = await fetch(`${API_URL}/repuestos/descontar`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        reparacion_id: reparacionId,
+        repuestos: repuestos,
+      }),
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al descontar repuestos del inventario")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en descontarRepuestosInventario:", error)
+    throw error
+  }
+}
+
+// Obtener historial de movimientos de inventario
+export const getHistorialInventario = async (params = {}) => {
+  try {
+    // Construir la URL con los parámetros de búsqueda
+    const queryParams = new URLSearchParams()
+
+    if (params.repuesto_id) queryParams.append("repuesto_id", params.repuesto_id)
+    if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
+    if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
+    if (params.fecha_fin) queryParams.append("fecha_fin", params.fecha_fin)
+
+    const url = `${API_URL}/repuestos/historial?${queryParams.toString()}`
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al obtener historial de inventario")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getHistorialInventario:", error)
+    throw error
+  }
+}
+
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptRepuestoToFrontend = (repuesto) => {
   return {
