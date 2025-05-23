@@ -59,9 +59,7 @@ import {
 } from "@/services/reparacionesService"
 import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
-import { descontarRepuestosInventario } from "@/services/repuestosService"
 import { useAuth } from "@/context/AuthContext"
-import RepuestosSeleccionModal from "./RepuestosSeleccionModal"
 
 const ReparacionesPendientes = ({ showHeader = true }) => {
   const { currentUser } = useAuth()
@@ -113,10 +111,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
   // Referencia para el contenedor de tarjetas
   const cardsContainerRef = useRef(null)
-
-  // Add state for repuestos modal and selected repuestos
-  const [showRepuestosModal, setShowRepuestosModal] = useState(false)
-  const [repuestosSeleccionados, setRepuestosSeleccionados] = useState([])
 
   // Cargar reparaciones al iniciar - solo si es admin
   useEffect(() => {
@@ -514,10 +508,162 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
   }
 
   // Abrir modal para marcar como completada
+  const handleMarkAsComplete = async (reparacion) => {
+    try {
+      setCargandoAccion(true)
+      // Obtener la información completa de la reparación
+      const reparacionCompleta = await getReparacionById(reparacion.id)
+      const reparacionFormateada = adaptReparacionToFrontend(reparacionCompleta)
+
+      setCurrentReparacion(reparacionFormateada)
+      setShowCompleteModal(true)
+    } catch (error) {
+      console.error("Error al obtener detalles de la reparación:", error)
+      toast.error("Error al cargar los detalles de la reparación", { position: "bottom-right" })
+    } finally {
+      setCargandoAccion(false)
+    }
+  }
+
+  // Abrir modal para cancelar reparación
+  const handleCancelRepair = async (reparacion) => {
+    try {
+      setCargandoAccion(true)
+      // Obtener la información completa de la reparación
+      const reparacionCompleta = await getReparacionById(reparacion.id)
+      const reparacionFormateada = adaptReparacionToFrontend(reparacionCompleta)
+
+      // Verificar si tiene pagos con cuenta corriente
+      const pagosCuentaCorriente = reparacionFormateada.pagos.some((pago) => pago.metodoPago === "cuentaCorriente")
+      setHasPagosCuentaCorriente(pagosCuentaCorriente)
+
+      setCurrentReparacion(reparacionFormateada)
+      setMotivoCancelacion("")
+      setShowCancelModal(true)
+    } catch (error) {
+      console.error("Error al obtener detalles de la reparación:", error)
+      toast.error("Error al cargar los detalles de la reparación", { position: "bottom-right" })
+    } finally {
+      setCargandoAccion(false)
+    }
+  }
+
+  // Abrir modal para editar reparación
+  const handleEditRepair = () => {
+    if (!currentReparacion) return
+
+    // Inicializar los detalles editados con los actuales
+    setDetallesEditados([...currentReparacion.detalles])
+    setObservacionTecnico(currentReparacion.notas || "")
+    setShowEditModal(true)
+  }
+
+  // Agregar un nuevo detalle de reparación
+  const agregarDetalleReparacion = () => {
+    setDetallesEditados([
+      ...detallesEditados,
+      {
+        id: `temp-${Date.now()}`, // ID temporal para nuevos detalles
+        descripcion: "",
+        precio: "0",
+        completado: false,
+      },
+    ])
+  }
+
+  // Eliminar un detalle de reparación
+  const eliminarDetalleReparacion = (index) => {
+    if (detallesEditados.length <= 1) {
+      toast.error("Debe haber al menos un detalle de reparación", { position: "bottom-right" })
+      return
+    }
+
+    const nuevosDetalles = [...detallesEditados]
+    nuevosDetalles.splice(index, 1)
+    setDetallesEditados(nuevosDetalles)
+  }
+
+  // Manejar cambios en los detalles de reparación
+  const handleDetalleChange = (index, campo, valor) => {
+    const nuevosDetalles = [...detallesEditados]
+    nuevosDetalles[index][campo] = valor
+    setDetallesEditados(nuevosDetalles)
+  }
+
+  // Guardar cambios en la reparación
+  const guardarCambiosReparacion = async () => {
+    // Validar que todos los detalles tengan descripción
+    const detallesValidos = detallesEditados.every((detalle) => detalle.descripcion.trim() !== "")
+    if (!detallesValidos) {
+      toast.error("Todos los detalles deben tener una descripción", { position: "bottom-right" })
+      return
+    }
+
+    try {
+      setGuardandoCambios(true)
+
+      // Preparar datos para enviar al backend
+      const datosActualizados = {
+        reparaciones: detallesEditados.map((detalle) => {
+          const precioConvertido = convertirANumero(detalle.precio)
+          return {
+            descripcion: detalle.descripcion,
+            precio: precioConvertido,
+          }
+        }),
+        notas: observacionTecnico,
+      }
+
+      // Enviar al backend
+      await updateReparacion(currentReparacion.id, datosActualizados)
+
+      // Recargar la reparación para ver los cambios
+      const reparacionActualizada = await getReparacionById(currentReparacion.id)
+      const reparacionFormateada = adaptReparacionToFrontend(reparacionActualizada)
+      setCurrentReparacion(reparacionFormateada)
+
+      // Recargar todas las reparaciones
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
+
+      // Cerrar el modal de edición
+      setShowEditModal(false)
+
+      toast.success("Reparación actualizada correctamente", { position: "bottom-right" })
+    } catch (error) {
+      console.error("Error al actualizar la reparación:", error)
+      toast.error("Error al actualizar la reparación", { position: "bottom-right" })
+    } finally {
+      setGuardandoCambios(false)
+    }
+  }
+
   // Marcar reparación como completada
   const completeRepair = async () => {
     if (!currentReparacion) return
-    setShowRepuestosModal(true)
+
+    try {
+      setCargandoAccion(true)
+      await updateEstadoReparacion(currentReparacion.id, "terminada")
+
+      toast.success("Reparación marcada como terminada", { position: "bottom-right" })
+      setShowCompleteModal(false)
+
+      // Recargar reparaciones
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else {
+        await buscarReparaciones()
+      }
+    } catch (error) {
+      console.error("Error al marcar como terminada:", error)
+      toast.error(error.message || "Error al marcar la reparación como terminada", { position: "bottom-right" })
+    } finally {
+      setCargandoAccion(false)
+    }
   }
   const calcularTotalPagadoCuentaCorriente = (reparacion) => {
     if (!reparacion.pagos || reparacion.pagos.length === 0) return 0
@@ -755,174 +901,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       light: "bg-red-50",
       badge: "bg-red-100 text-red-800 border-red-200",
     },
-  }
-
-  // Add the handleRepuestosConfirm function
-  const handleRepuestosConfirm = async (repuestos) => {
-    if (!currentReparacion) return
-
-    try {
-      setCargandoAccion(true)
-      setRepuestosSeleccionados(repuestos)
-
-      // Verificar que tenemos todos los datos necesarios
-      if (!currentReparacion.id) {
-        throw new Error("ID de reparación no disponible")
-      }
-
-      if (!currentReparacion.puntoVenta?.id) {
-        throw new Error("ID de punto de venta no disponible")
-      }
-
-      // Primero actualizar el estado de la reparación
-      await updateEstadoReparacion(currentReparacion.id, "terminada")
-
-      // Si hay repuestos seleccionados, descontar del inventario
-      if (repuestos && repuestos.length > 0) {
-        // Preparar los datos para la API
-        const repuestosData = repuestos.map((repuesto) => ({
-          id: repuesto.id,
-          punto_venta_id: currentReparacion.puntoVenta.id, // Asegurarnos de que no sea undefined
-          cantidad: Number.parseInt(repuesto.cantidad, 10), // Asegurarnos de que sea un número entero
-        }))
-
-        console.log("Datos de repuestos a descontar:", repuestosData)
-
-        try {
-          // Usar la función del servicio para descontar del inventario
-          await descontarRepuestosInventario(currentReparacion.id, repuestosData)
-
-          toast.info(`Se han descontado ${repuestos.length} tipos de repuestos del inventario`, {
-            position: "bottom-right",
-          })
-        } catch (error) {
-          console.error("Error al descontar repuestos:", error)
-          // Aunque falle el descuento, la reparación ya está marcada como terminada
-          toast.warning(
-            "La reparación se marcó como terminada, pero hubo un error al descontar los repuestos. Por favor, ajuste el inventario manualmente.",
-            {
-              position: "bottom-right",
-              autoClose: 7000,
-            },
-          )
-        }
-      }
-
-      toast.success("Reparación marcada como terminada", { position: "bottom-right" })
-
-      setShowRepuestosModal(false)
-      setShowCompleteModal(false)
-
-      // Recargar reparaciones
-      if (isAdmin) {
-        await cargarReparaciones()
-      } else {
-        await buscarReparaciones()
-      }
-    } catch (error) {
-      console.error("Error al marcar como terminada:", error)
-      toast.error(error.message || "Error al marcar la reparación como terminada", { position: "bottom-right" })
-
-      // Intentar revertir el cambio de estado si falló el descuento pero se cambió el estado
-      try {
-        await updateEstadoReparacion(currentReparacion.id, "pendiente")
-      } catch (revertError) {
-        console.error("Error al revertir estado:", revertError)
-      }
-    } finally {
-      setCargandoAccion(false)
-    }
-  }
-
-  const handleEditRepair = () => {
-    if (!currentReparacion) return
-
-    // Inicializar el estado de los detalles editados con los detalles actuales
-    setDetallesEditados(currentReparacion.detalles ? currentReparacion.detalles.map((d) => ({ ...d })) : [])
-
-    // Inicializar el estado de la observación del técnico
-    setObservacionTecnico(currentReparacion.notas || "")
-
-    // Abrir el modal de edición
-    setShowEditModal(true)
-  }
-
-  const handleCancelRepair = (reparacion) => {
-    if (!reparacion) return
-
-    // Verificar si hay pagos en cuenta corriente
-    const tienePagosCuentaCorriente = reparacion.pagos?.some((pago) => pago.metodoPago === "cuentaCorriente") || false
-    setHasPagosCuentaCorriente(tienePagosCuentaCorriente)
-
-    // Abrir el modal de cancelación
-    setShowCancelModal(true)
-  }
-
-  const agregarDetalleReparacion = () => {
-    // Agregar un nuevo detalle vacío al estado
-    setDetallesEditados([...detallesEditados, { descripcion: "", precio: "" }])
-  }
-
-  const handleDetalleChange = (index, field, value) => {
-    // Clonar el array de detalles editados
-    const nuevosDetalles = [...detallesEditados]
-
-    // Actualizar el campo del detalle en el índice especificado
-    nuevosDetalles[index][field] = value
-
-    // Actualizar el estado con el nuevo array de detalles
-    setDetallesEditados(nuevosDetalles)
-  }
-
-  const eliminarDetalleReparacion = (index) => {
-    // Clonar el array de detalles editados
-    const nuevosDetalles = [...detallesEditados]
-
-    // Eliminar el detalle en el índice especificado
-    nuevosDetalles.splice(index, 1)
-
-    // Actualizar el estado con el nuevo array de detalles
-    setDetallesEditados(nuevosDetalles)
-  }
-
-  const guardarCambiosReparacion = async () => {
-    if (!currentReparacion) return
-
-    try {
-      setGuardandoCambios(true)
-
-      // Preparar los datos para enviar al backend
-      const detallesParaBackend = detallesEditados.map((detalle) => ({
-        descripcion: detalle.descripcion,
-        precio: convertirANumero(detalle.precio),
-      }))
-
-      const datosActualizados = {
-        detalles: detallesParaBackend,
-        notas: observacionTecnico,
-      }
-
-      // Enviar la petición al backend para actualizar la reparación
-      await updateReparacion(currentReparacion.id, datosActualizados)
-
-      toast.success("Reparación actualizada correctamente", { position: "bottom-right" })
-      setShowEditModal(false)
-
-      // Recargar reparaciones
-      if (isAdmin) {
-        await cargarReparaciones()
-      } else {
-        await buscarReparaciones()
-      }
-
-      // Recargar detalles de la reparación
-      handleViewDetails(currentReparacion)
-    } catch (error) {
-      console.error("Error al actualizar la reparación:", error)
-      toast.error(error.message || "Error al actualizar la reparación", { position: "bottom-right" })
-    } finally {
-      setGuardandoCambios(false)
-    }
   }
 
   return (
@@ -1339,10 +1317,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setCurrentReparacion(reparacion)
-                              completeRepair()
-                            }}
+                            onClick={() => handleMarkAsComplete(reparacion)}
                             className={`${estadoColors.terminada.border} ${estadoColors.terminada.light} ${estadoColors.terminada.text} hover:bg-blue-100 px-3 h-9 rounded-lg`}
                           >
                             <CheckCircle className="h-4 w-4 mr-1.5" /> Terminar
@@ -1825,7 +1800,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     <Button
                       onClick={() => {
                         setShowDetailsModal(false)
-                        setTimeout(() => completeRepair(), 300)
+                        setTimeout(() => handleMarkAsComplete(currentReparacion), 300)
                       }}
                       className="bg-blue-600 hover:bg-blue-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
                     >
@@ -2205,11 +2180,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                               )}
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center justify-center py-3">
-                            <Info className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400 mb-2" />
-                            <p className="text-xs sm:text-sm text-blue-500">
-                              No se encontró información de cuenta corriente
-                            </p>
+                          <div className="flex items-center gap-1 sm:gap-2 py-2">
+                            <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-amber-600" />
+                            <span className="text-xs sm:text-sm text-amber-700">
+                              El cliente no tiene una cuenta corriente configurada. Se creará una nueva.
+                            </span>
                           </div>
                         )}
                       </div>
@@ -2217,89 +2192,225 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   </div>
                 </div>
               </div>
-
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t">
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowPaymentModal(false)}
-                    className="rounded-lg text-xs sm:text-sm h-9 sm:h-10"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleSavePago}
-                    disabled={cargandoAccion}
-                    className="bg-orange-600 hover:bg-orange-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
-                  >
-                    {cargandoAccion ? (
-                      <>
-                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" /> Registrando...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Registrar Pago
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
             </div>
           )}
+
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t">
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowPaymentModal(false)}
+                className="rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSavePago}
+                disabled={cargandoAccion}
+                className="bg-green-600 hover:bg-green-700 rounded-lg text-xs sm:text-sm h-9 sm:h-10"
+              >
+                {cargandoAccion ? (
+                  <>
+                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" /> Procesando...
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Registrar Pago
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de confirmación de cancelación */}
-      <AlertDialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+      {/* Modal para marcar como completada */}
+      <AlertDialog
+        open={showCompleteModal}
+        onOpenChange={(open) => {
+          if (!open) setShowCompleteModal(false)
+        }}
+      >
         <AlertDialogContent className="max-w-md rounded-xl">
-          <AlertDialogTitle>Cancelar Reparación</AlertDialogTitle>
-          <AlertDialogDescription>
-            ¿Está seguro de que desea cancelar esta reparación? Esta acción no se puede deshacer.
-            {hasPagosCuentaCorriente && (
-              <p className="mt-2 text-red-500">
-                <AlertTriangle className="inline-block h-4 w-4 mr-1 align-middle" />
-                Esta reparación tiene pagos registrados en cuenta corriente. Al cancelar, se revertirán los cargos.
-              </p>
-            )}
-          </AlertDialogDescription>
-          <div className="grid gap-2">
-            <Label htmlFor="motivo-cancelacion">Motivo de cancelación</Label>
-            <Textarea
-              id="motivo-cancelacion"
-              placeholder="Ingrese el motivo de la cancelación"
-              value={motivoCancelacion}
-              onChange={(e) => setMotivoCancelacion(e.target.value)}
-              className="border-gray-200 rounded-lg focus-visible:ring-orange-500 text-xs sm:text-sm"
-            />
+          <div className="flex justify-between items-center w-full mb-2">
+            <AlertDialogTitle className="flex items-center gap-2 text-blue-600">
+              <CheckCircle className="h-5 w-5" /> Marcar como Terminada
+            </AlertDialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowCompleteModal(false)}
+              className="h-8 w-8 rounded-full -mt-1 -mr-1"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button type="button" variant="outline" onClick={() => setShowCancelModal(false)}>
+          <AlertDialogDescription>
+            ¿Está seguro de marcar esta reparación como terminada? Esto indica que el trabajo técnico ha sido
+            finalizado.
+          </AlertDialogDescription>
+
+          {currentReparacion && (
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm my-4">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-500">Cliente:</span>
+                <span className="text-sm font-medium">{currentReparacion.cliente?.nombre}</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-500">Equipo:</span>
+                <span className="text-sm font-medium">
+                  {currentReparacion.equipo?.marca} {currentReparacion.equipo?.modelo}
+                </span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-500">Total:</span>
+                <span className="text-sm font-medium">{formatearPrecio(calcularTotal(currentReparacion))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Saldo pendiente:</span>
+                <span className="text-sm font-medium text-orange-600">
+                  {formatearPrecio(calcularSaldoPendiente(currentReparacion))}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={() => setShowCompleteModal(false)} className="rounded-lg">
               Cancelar
             </Button>
-            <Button type="button" variant="destructive" disabled={cargandoAccion} onClick={confirmCancelRepair}>
+            <Button
+              onClick={completeRepair}
+              disabled={cargandoAccion}
+              className="bg-blue-600 hover:bg-blue-700 rounded-lg"
+            >
               {cargandoAccion ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelando...
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Procesando...
                 </>
               ) : (
-                "Confirmar Cancelación"
+                <>
+                  <CheckCircle className="h-4 w-4 mr-1" /> Confirmar
+                </>
               )}
             </Button>
           </div>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Modal de selección de repuestos */}
-      <RepuestosSeleccionModal
-        open={showRepuestosModal}
-        onOpenChange={setShowRepuestosModal}
-        onConfirm={handleRepuestosConfirm}
-        reparacionId={currentReparacion?.id}
-        puntoVentaId={currentReparacion?.puntoVenta?.id}
-        puntoVentaNombre={currentReparacion?.puntoVenta?.nombre}
-        formatearPrecio={formatearPrecio}
-      />
+      {/* Modal para cancelar reparación */}
+      <AlertDialog
+        open={showCancelModal}
+        onOpenChange={(open) => {
+          if (!open) setShowCancelModal(false)
+        }}
+      >
+        <AlertDialogContent className="max-w-md rounded-xl">
+          <div className="flex justify-between items-center w-full mb-2">
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Ban className="h-5 w-5" /> Cancelar Reparación
+            </AlertDialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowCancelModal(false)}
+              className="h-8 w-8 rounded-full -mt-1 -mr-1"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <AlertDialogDescription>
+            ¿Está seguro de cancelar esta reparación? Esta acción no se puede deshacer.
+          </AlertDialogDescription>
+
+          {currentReparacion && (
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm my-4">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-500">Cliente:</span>
+                <span className="text-sm font-medium">{currentReparacion.cliente?.nombre}</span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-500">Equipo:</span>
+                <span className="text-sm font-medium">
+                  {currentReparacion.equipo?.marca} {currentReparacion.equipo?.modelo}
+                </span>
+              </div>
+              <div className="flex justify-between mb-2">
+                <span className="text-sm text-gray-500">Total:</span>
+                <span className="text-sm font-medium">{formatearPrecio(calcularTotal(currentReparacion))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Saldo pendiente:</span>
+                <span className="text-sm font-medium text-orange-600">
+                  {formatearPrecio(calcularSaldoPendiente(currentReparacion))}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {hasPagosCuentaCorriente && (
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 my-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-700">Atención: Pagos en cuenta corriente</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Esta reparación tiene pagos realizados con cuenta corriente. Al cancelarla, se revertirán los cargos
+                    en la cuenta corriente del cliente.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="motivo-cancelacion" className="text-gray-700">
+                Motivo de cancelación
+              </Label>
+              <Textarea
+                id="motivo-cancelacion"
+                value={motivoCancelacion}
+                onChange={(e) => setMotivoCancelacion(e.target.value)}
+                placeholder="Ingrese el motivo por el cual se cancela esta reparación"
+                className="min-h-[80px] border-red-200 focus-visible:ring-red-500 rounded-lg"
+              />
+            </div>
+
+            <div className="bg-red-50 p-4 rounded-xl border border-red-200 flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-red-700">
+                <p className="font-medium">Importante:</p>
+                <p>
+                  Al cancelar la reparación, el estado cambiará a "Cancelada" y no se podrá modificar ni procesar pagos
+                  adicionales.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={() => setShowCancelModal(false)} className="rounded-lg">
+              Volver
+            </Button>
+            <Button
+              onClick={confirmCancelRepair}
+              disabled={cargandoAccion}
+              className="bg-red-600 hover:bg-red-700 rounded-lg"
+            >
+              {cargandoAccion ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Procesando...
+                </>
+              ) : (
+                <>
+                  <Ban className="h-4 w-4 mr-1" /> Confirmar Cancelación
+                </>
+              )}
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
