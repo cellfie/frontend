@@ -192,8 +192,36 @@ export const actualizarInventario = async (repuestoId, puntoVentaId, cantidad) =
 }
 
 // Descontar repuestos del inventario
+// Mejorar la función descontarRepuestosInventario para un mejor manejo de errores
 export const descontarRepuestosInventario = async (reparacionId, repuestos) => {
   try {
+    // Validar los datos antes de enviarlos
+    if (!reparacionId) {
+      throw new Error("ID de reparación no proporcionado")
+    }
+
+    if (!Array.isArray(repuestos) || repuestos.length === 0) {
+      throw new Error("No se proporcionaron repuestos para descontar")
+    }
+
+    // Validar cada repuesto
+    repuestos.forEach((repuesto, index) => {
+      if (!repuesto.id) {
+        throw new Error(`Repuesto en posición ${index} no tiene ID`)
+      }
+      if (!repuesto.punto_venta_id) {
+        throw new Error(`Repuesto en posición ${index} no tiene punto de venta`)
+      }
+      if (!repuesto.cantidad || repuesto.cantidad <= 0) {
+        throw new Error(`Repuesto en posición ${index} tiene cantidad inválida`)
+      }
+    })
+
+    console.log("Enviando datos al backend:", {
+      reparacion_id: reparacionId,
+      repuestos: repuestos,
+    })
+
     const response = await fetch(`${API_URL}/repuestos/descontar`, {
       method: "POST",
       headers: {
@@ -208,6 +236,7 @@ export const descontarRepuestosInventario = async (reparacionId, repuestos) => {
 
     if (!response.ok) {
       const errorData = await response.json()
+      console.error("Respuesta de error del servidor:", errorData)
       throw new Error(errorData.message || "Error al descontar repuestos del inventario")
     }
 
@@ -217,6 +246,7 @@ export const descontarRepuestosInventario = async (reparacionId, repuestos) => {
     throw error
   }
 }
+
 
 // Obtener historial de movimientos de inventario
 export const getHistorialInventario = async (params = {}) => {

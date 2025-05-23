@@ -765,6 +765,15 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       setCargandoAccion(true)
       setRepuestosSeleccionados(repuestos)
 
+      // Verificar que tenemos todos los datos necesarios
+      if (!currentReparacion.id) {
+        throw new Error("ID de reparación no disponible")
+      }
+
+      if (!currentReparacion.puntoVenta?.id) {
+        throw new Error("ID de punto de venta no disponible")
+      }
+
       // Primero actualizar el estado de la reparación
       await updateEstadoReparacion(currentReparacion.id, "terminada")
 
@@ -773,21 +782,33 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
         // Preparar los datos para la API
         const repuestosData = repuestos.map((repuesto) => ({
           id: repuesto.id,
-          punto_venta_id: currentReparacion.puntoVenta?.id,
-          cantidad: repuesto.cantidad,
+          punto_venta_id: currentReparacion.puntoVenta.id, // Asegurarnos de que no sea undefined
+          cantidad: Number.parseInt(repuesto.cantidad, 10), // Asegurarnos de que sea un número entero
         }))
 
-        // Usar la función del servicio para descontar del inventario
-        await descontarRepuestosInventario(currentReparacion.id, repuestosData)
+        console.log("Datos de repuestos a descontar:", repuestosData)
+
+        try {
+          // Usar la función del servicio para descontar del inventario
+          await descontarRepuestosInventario(currentReparacion.id, repuestosData)
+
+          toast.info(`Se han descontado ${repuestos.length} tipos de repuestos del inventario`, {
+            position: "bottom-right",
+          })
+        } catch (error) {
+          console.error("Error al descontar repuestos:", error)
+          // Aunque falle el descuento, la reparación ya está marcada como terminada
+          toast.warning(
+            "La reparación se marcó como terminada, pero hubo un error al descontar los repuestos. Por favor, ajuste el inventario manualmente.",
+            {
+              position: "bottom-right",
+              autoClose: 7000,
+            },
+          )
+        }
       }
 
       toast.success("Reparación marcada como terminada", { position: "bottom-right" })
-
-      if (repuestos && repuestos.length > 0) {
-        toast.info(`Se han descontado ${repuestos.length} tipos de repuestos del inventario`, {
-          position: "bottom-right",
-        })
-      }
 
       setShowRepuestosModal(false)
       setShowCompleteModal(false)
@@ -801,6 +822,13 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     } catch (error) {
       console.error("Error al marcar como terminada:", error)
       toast.error(error.message || "Error al marcar la reparación como terminada", { position: "bottom-right" })
+
+      // Intentar revertir el cambio de estado si falló el descuento pero se cambió el estado
+      try {
+        await updateEstadoReparacion(currentReparacion.id, "pendiente")
+      } catch (revertError) {
+        console.error("Error al revertir estado:", revertError)
+      }
     } finally {
       setCargandoAccion(false)
     }
