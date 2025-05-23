@@ -42,7 +42,6 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 // Importar servicios
@@ -51,7 +50,7 @@ import { searchClientes, createCliente } from "@/services/clientesService"
 import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { printTicket } from "@/services/ticketPrinterService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
-import { getRepuestos, searchRepuestos } from "@/services/repuestosService" // Importar servicio de repuestos
+import { searchRepuestos } from "@/services/repuestosService"
 
 // Importar componentes
 import TicketThermal from "@/components/tickets/TicketThermal"
@@ -61,8 +60,8 @@ const ReparacionesPage = () => {
   const [cliente, setCliente] = useState({
     nombre: "",
     telefono: "",
-    dni: "", // Agregamos DNI
-    id: null, // Añadimos el ID para cuando se selecciona un cliente existente
+    dni: "",
+    id: null,
   })
 
   // Estado para los datos del equipo
@@ -113,7 +112,7 @@ const ReparacionesPage = () => {
   const [nuevoCliente, setNuevoCliente] = useState({
     nombre: "",
     telefono: "",
-    dni: "", // Agregamos DNI
+    dni: "",
   })
 
   // Estado para indicar si se realizó una búsqueda
@@ -161,18 +160,14 @@ const ReparacionesPage = () => {
   const formatearPrecio = (valor) => {
     if (valor === null || valor === undefined || valor === "") return "$ 0,00"
 
-    // Asegurarse de que el valor sea un número
     let numero = valor
 
     if (typeof valor === "string") {
-      // Eliminar el símbolo de moneda y los separadores de miles, y cambiar la coma por punto para la conversión
       numero = Number.parseFloat(valor.replace(/\$ /g, "").replace(/\./g, "").replace(",", "."))
     }
 
-    // Verificar si es un número válido
     if (isNaN(numero)) return "$ 0,00"
 
-    // Formatear el número usando Intl.NumberFormat
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
@@ -185,9 +180,7 @@ const ReparacionesPage = () => {
   const convertirANumero = (valorFormateado) => {
     if (!valorFormateado) return 0
 
-    // Si es un string, quitar el formato
     if (typeof valorFormateado === "string") {
-      // Eliminar el símbolo de moneda y los separadores de miles, y cambiar la coma por punto para la conversión
       const numeroLimpio = valorFormateado.replace(/\$ /g, "").replace(/\./g, "").replace(",", ".")
       return Number.parseFloat(numeroLimpio)
     }
@@ -199,10 +192,8 @@ const ReparacionesPage = () => {
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        // Cargar métodos de pago
         const metodos = await getMetodosPagoReparacion()
 
-        // Agregar el método de cuenta corriente si no existe
         const tieneCuentaCorriente = metodos.some((m) => m.id === "cuentaCorriente")
         if (!tieneCuentaCorriente) {
           metodos.push({ id: "cuentaCorriente", nombre: "Cuenta Corriente" })
@@ -210,12 +201,10 @@ const ReparacionesPage = () => {
 
         setMetodosPago(metodos)
 
-        // Cargar puntos de venta
         setCargandoPuntosVenta(true)
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
 
-        // Establecer punto de venta por defecto (si hay alguno)
         if (puntos.length > 0) {
           setPuntoVentaSeleccionado(puntos[1].id.toString())
         }
@@ -236,9 +225,7 @@ const ReparacionesPage = () => {
       if (pago.metodo === "cuentaCorriente" && cliente.id) {
         setVerificandoCuenta(true)
         try {
-          // Obtener la cuenta corriente del cliente
           const cuentaData = await getCuentaCorrienteByCliente(cliente.id)
-          // Asegurarse de que el saldo sea un número
           if (cuentaData) {
             cuentaData.saldo = Number(cuentaData.saldo)
             cuentaData.limiteCredito = Number(cuentaData.limiteCredito)
@@ -261,7 +248,6 @@ const ReparacionesPage = () => {
 
   // Efecto para buscar clientes cuando cambia la búsqueda
   useEffect(() => {
-    // Si ya hay un cliente seleccionado, no hacer nada
     if (cliente.id !== null) {
       return
     }
@@ -310,7 +296,10 @@ const ReparacionesPage = () => {
       }
 
       try {
-        const resultados = await searchRepuestos({ query: searchRepuestoTerm })
+        const resultados = await searchRepuestos({
+          query: searchRepuestoTerm,
+          punto_venta_id: puntoVentaSeleccionado,
+        })
         setFilteredRepuestos(resultados)
       } catch (error) {
         console.error("Error al buscar repuestos:", error)
@@ -325,16 +314,24 @@ const ReparacionesPage = () => {
     }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [searchRepuestoTerm, showRepuestosModal, repuestos])
+  }, [searchRepuestoTerm, showRepuestosModal, repuestos, puntoVentaSeleccionado])
 
   // Cargar repuestos cuando se abre el modal
   const handleOpenRepuestosModal = async (index) => {
+    if (!puntoVentaSeleccionado) {
+      toast.error("Debe seleccionar un punto de venta primero", { position: "bottom-right" })
+      return
+    }
+
     setRepuestoSeleccionadoIndex(index)
     setCargandoRepuestos(true)
     setSearchRepuestoTerm("")
 
     try {
-      const data = await getRepuestos()
+      // Filtrar repuestos por punto de venta seleccionado
+      const data = await searchRepuestos({
+        punto_venta_id: puntoVentaSeleccionado,
+      })
       setRepuestos(data)
       setFilteredRepuestos(data)
       setShowRepuestosModal(true)
@@ -350,16 +347,26 @@ const ReparacionesPage = () => {
   const seleccionarRepuesto = (repuesto) => {
     if (repuestoSeleccionadoIndex === null) return
 
+    // Verificar que el repuesto pertenece al punto de venta seleccionado
+    if (repuesto.punto_venta_id?.toString() !== puntoVentaSeleccionado) {
+      toast.error("Este repuesto no pertenece al punto de venta seleccionado", {
+        position: "bottom-right",
+      })
+      return
+    }
+
     const nuevasReparaciones = [...reparaciones]
     nuevasReparaciones[repuestoSeleccionadoIndex] = {
-      descripcion: `${repuesto.nombre}`,
-      precio: repuesto.stock > 0 ? repuesto.precio || "0" : "0",
+      descripcion: `${repuesto.nombre}${repuesto.descripcion ? ` - ${repuesto.descripcion}` : ""}`,
+      precio: repuesto.precio || 0,
     }
 
     setReparaciones(nuevasReparaciones)
     setShowRepuestosModal(false)
 
-    toast.success(`Repuesto "${repuesto.nombre}" agregado`, { position: "bottom-right" })
+    toast.success(`Repuesto "${repuesto.nombre}" agregado con precio ${formatearPrecio(repuesto.precio)}`, {
+      position: "bottom-right",
+    })
   }
 
   // Calcular el total de las reparaciones
@@ -374,7 +381,6 @@ const ReparacionesPage = () => {
     const { value } = e.target
     setBusquedaCliente(value)
 
-    // Si se borra la búsqueda, resetear el estado
     if (value === "") {
       setBusquedaRealizada(false)
       setMostrarFormNuevoCliente(false)
@@ -393,7 +399,7 @@ const ReparacionesPage = () => {
       id: clienteSeleccionado.id,
       nombre: clienteSeleccionado.nombre,
       telefono: clienteSeleccionado.telefono || "",
-      dni: clienteSeleccionado.dni || "", // Agregamos DNI
+      dni: clienteSeleccionado.dni || "",
     })
     setBusquedaCliente(clienteSeleccionado.nombre)
     setMostrarResultadosBusqueda(false)
@@ -401,7 +407,6 @@ const ReparacionesPage = () => {
     setBusquedaRealizada(false)
     setClientesEncontrados([])
 
-    // Si el método de pago es cuenta corriente, verificar la cuenta
     if (pago.metodo === "cuentaCorriente") {
       verificarCuentaCorriente(clienteSeleccionado.id)
     }
@@ -414,7 +419,6 @@ const ReparacionesPage = () => {
     setVerificandoCuenta(true)
     try {
       const cuentaData = await getCuentaCorrienteByCliente(clienteId)
-      // Asegurarse de que el saldo sea un número
       if (cuentaData) {
         cuentaData.saldo = Number(cuentaData.saldo)
         cuentaData.limiteCredito = Number(cuentaData.limiteCredito)
@@ -434,7 +438,7 @@ const ReparacionesPage = () => {
     setNuevoCliente({
       nombre: busquedaCliente,
       telefono: "",
-      dni: "", // Agregamos DNI
+      dni: "",
     })
     setMostrarResultadosBusqueda(false)
   }
@@ -459,21 +463,20 @@ const ReparacionesPage = () => {
       const clienteCreado = await createCliente({
         nombre: nuevoCliente.nombre,
         telefono: nuevoCliente.telefono || null,
-        dni: nuevoCliente.dni || null, // Agregamos DNI
+        dni: nuevoCliente.dni || null,
       })
 
       setCliente({
         id: clienteCreado.id,
         nombre: clienteCreado.nombre,
         telefono: clienteCreado.telefono || "",
-        dni: clienteCreado.dni || "", // Agregamos DNI
+        dni: clienteCreado.dni || "",
       })
 
       setBusquedaCliente(clienteCreado.nombre)
       setMostrarFormNuevoCliente(false)
       setBusquedaRealizada(false)
 
-      // Si el método de pago es cuenta corriente, verificar la cuenta
       if (pago.metodo === "cuentaCorriente") {
         verificarCuentaCorriente(clienteCreado.id)
       }
@@ -493,7 +496,7 @@ const ReparacionesPage = () => {
       id: null,
       nombre: "",
       telefono: "",
-      dni: "", // Agregamos DNI
+      dni: "",
     })
     setBusquedaCliente("")
     setBusquedaRealizada(false)
@@ -541,14 +544,12 @@ const ReparacionesPage = () => {
 
   // Avanzar al siguiente paso
   const avanzarPaso = () => {
-    // Validaciones según el paso actual
     if (pasoActual === 1) {
       if (!cliente.id && !mostrarFormNuevoCliente) {
         if (!busquedaCliente) {
           toast.error("Por favor busque y seleccione un cliente o cree uno nuevo", { position: "bottom-right" })
           return
         } else {
-          // Si hay texto en la búsqueda pero no se ha seleccionado un cliente, mostrar opción de crear
           mostrarAgregarCliente()
           return
         }
@@ -557,7 +558,6 @@ const ReparacionesPage = () => {
         return
       }
 
-      // Validar que se haya seleccionado un punto de venta
       if (!puntoVentaSeleccionado) {
         toast.error("Por favor seleccione un punto de venta", { position: "bottom-right" })
         return
@@ -591,25 +591,21 @@ const ReparacionesPage = () => {
   const prepararTicket = () => {
     const total = calcularTotal()
 
-    // Si el total es mayor a 0 y se ha marcado realizar pago pero el monto es 0 o vacío
     if (total > 0 && pago.realizaPago && (!pago.monto || convertirANumero(pago.monto) <= 0)) {
       toast.error("Debe ingresar un monto de pago mayor a 0", { position: "bottom-right" })
       return
     }
 
-    // Si el monto de pago es mayor al total
     if (pago.realizaPago && convertirANumero(pago.monto) > total) {
       toast.error("El monto de pago no puede ser mayor al total", { position: "bottom-right" })
       return
     }
 
-    // Validar si se seleccionó cuenta corriente pero no hay cliente
     if (pago.realizaPago && pago.metodo === "cuentaCorriente" && !cliente.id) {
       toast.error("Debe seleccionar un cliente para usar cuenta corriente", { position: "bottom-right" })
       return
     }
 
-    // Validar si la cuenta corriente está activa
     if (pago.realizaPago && pago.metodo === "cuentaCorriente") {
       if (!cuentaCorriente) {
         toast.error("El cliente no tiene una cuenta corriente configurada", { position: "bottom-right" })
@@ -621,7 +617,6 @@ const ReparacionesPage = () => {
         return
       }
 
-      // Validar límite de crédito
       const montoTotal = convertirANumero(pago.monto)
       const nuevoSaldo = cuentaCorriente.saldo + montoTotal
 
@@ -634,7 +629,6 @@ const ReparacionesPage = () => {
       }
     }
 
-    // Solo mostrar la vista previa del ticket
     setMostrarTicket(true)
   }
 
@@ -643,13 +637,12 @@ const ReparacionesPage = () => {
     setCargando(true)
 
     try {
-      // Preparar los datos para enviar al backend
       const datosReparacion = {
         cliente: {
-          id: cliente.id, // Si es null, el backend creará un nuevo cliente
+          id: cliente.id,
           nombre: cliente.nombre,
           telefono: cliente.telefono || null,
-          dni: cliente.dni || null, // Agregamos DNI
+          dni: cliente.dni || null,
         },
         equipo: {
           marca: equipo.marca,
@@ -664,27 +657,20 @@ const ReparacionesPage = () => {
         })),
         pago: pago.realizaPago
           ? {
-            realizaPago: true,
-            monto: convertirANumero(pago.monto),
-            metodo: pago.metodo,
-            // Agregar referencia para cuenta corriente
-            referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
-          }
+              realizaPago: true,
+              monto: convertirANumero(pago.monto),
+              metodo: pago.metodo,
+              referencia_tipo: pago.metodo === "cuentaCorriente" ? "reparacion" : null,
+            }
           : null,
         notas: "",
         punto_venta_id: Number(puntoVentaSeleccionado),
       }
 
-      // Enviar al backend
       const respuesta = await createReparacion(datosReparacion)
 
-      // Guardar el número de ticket
       setNumeroTicket(respuesta.numero_ticket)
-
-      // Marcar como registrada
       setReparacionRegistrada(true)
-
-      // No mostrar toast aquí, se mostrará cuando se complete la acción específica
 
       return respuesta
     } catch (error) {
@@ -716,18 +702,14 @@ const ReparacionesPage = () => {
 
       let ticketNumber = numeroTicket
 
-      // Si la reparación no está registrada, registrarla y obtener el número
       if (!reparacionRegistrada) {
         const respuesta = await registrarReparacion()
-        // respuesta.numero_ticket viene del backend
         ticketNumber = respuesta.numero_ticket
-        // Opcional: si quieres seguir usando estado para otros flujos
         setNumeroTicket(respuesta.numero_ticket)
       } else {
         toast.success("Ticket enviado a la impresora", { position: "bottom-right" })
       }
 
-      // Preparar datos para el ticket usando el número obtenido
       const ticketData = {
         numeroTicket: ticketNumber,
         fechaActual,
@@ -741,13 +723,12 @@ const ReparacionesPage = () => {
         total: calcularTotal(),
         pago: pago.realizaPago
           ? {
-            ...pago,
-            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-          }
+              ...pago,
+              nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+            }
           : null,
       }
 
-      // Imprimir usando el servicio
       await printTicket(ticketData)
     } catch (error) {
       console.error("Error al imprimir ticket:", error)
@@ -773,7 +754,6 @@ const ReparacionesPage = () => {
     setBusquedaRealizada(false)
     setMostrarFormNuevoCliente(false)
     setCuentaCorriente(null)
-    // No reiniciamos el punto de venta seleccionado para mantener la consistencia
   }
 
   // Renderizar los pasos del formulario
@@ -783,16 +763,18 @@ const ReparacionesPage = () => {
 
     return (
       <div
-        className={`flex items-center ${esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
-          } gap-2 relative`}
+        className={`flex items-center ${
+          esPasoActual || esPasoCompletado ? "text-orange-600" : "text-gray-400"
+        } gap-2 relative`}
       >
         <div
-          className={`rounded-full w-8 h-8 flex items-center justify-center ${esPasoActual
+          className={`rounded-full w-8 h-8 flex items-center justify-center ${
+            esPasoActual
               ? "bg-orange-100 text-orange-600 border-2 border-orange-500"
               : esPasoCompletado
                 ? "bg-orange-500 text-white"
                 : "bg-gray-100 text-gray-400"
-            }`}
+          }`}
         >
           {esPasoCompletado ? <CheckCircle className="w-4 h-4" /> : icono}
         </div>
@@ -848,51 +830,88 @@ const ReparacionesPage = () => {
                         <User className="h-5 w-5" /> Datos del Cliente
                       </h3>
 
-                      {/* Selección de punto de venta */}
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
-                        <Label htmlFor="puntoVenta" className="text-blue-700 font-medium mb-2 block">
-                          Punto de Venta <span className="text-red-500">*</span>
-                        </Label>
-                        <div className="relative">
-                          {cargandoPuntosVenta ? (
-                            <div className="flex items-center space-x-2">
-                              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                              <span className="text-sm text-blue-600">Cargando puntos de venta...</span>
-                            </div>
-                          ) : (
-                            <Select value={puntoVentaSeleccionado} onValueChange={setPuntoVentaSeleccionado}>
-                              <SelectTrigger className="w-full border-blue-200 focus:ring-blue-500">
-                                <SelectValue placeholder="Seleccione un punto de venta" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {puntosVenta.map((punto) => (
-                                  <SelectItem key={punto.id} value={punto.id.toString()}>
-                                    {punto.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
+                      {/* Selección de punto de venta mejorada */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 mb-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <MapPin className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-blue-900">Punto de Venta</h3>
+                            <p className="text-sm text-blue-600">
+                              Seleccione la ubicación donde se registra la reparación
+                            </p>
+                          </div>
                         </div>
-                        {puntoVentaSeleccionado && (
-                          <div className="mt-2">
-                            <Badge
-                              variant="outline"
-                              className={`flex items-center gap-1 ${obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
-                                  ? "border-orange-300 bg-orange-50 text-orange-700"
-                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
+
+                        {cargandoPuntosVenta ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-blue-600 mr-3" />
+                            <span className="text-blue-600">Cargando puntos de venta...</span>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {puntosVenta.map((punto) => (
+                              <div
+                                key={punto.id}
+                                onClick={() => setPuntoVentaSeleccionado(punto.id.toString())}
+                                className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                                  puntoVentaSeleccionado === punto.id.toString()
+                                    ? "border-blue-500 bg-blue-50 shadow-md"
+                                    : "border-gray-200 hover:border-blue-300 hover:bg-blue-25"
                                 }`}
-                            >
-                              <MapPin className="h-3.5 w-3.5" />
-                              Punto de venta: {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
-                            </Badge>
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className={`p-2 rounded-full ${
+                                        puntoVentaSeleccionado === punto.id.toString() ? "bg-blue-100" : "bg-gray-100"
+                                      }`}
+                                    >
+                                      <MapPin
+                                        className={`h-4 w-4 ${
+                                          puntoVentaSeleccionado === punto.id.toString()
+                                            ? "text-blue-600"
+                                            : "text-gray-500"
+                                        }`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <h4
+                                        className={`font-medium ${
+                                          puntoVentaSeleccionado === punto.id.toString()
+                                            ? "text-blue-900"
+                                            : "text-gray-700"
+                                        }`}
+                                      >
+                                        {punto.nombre}
+                                      </h4>
+                                      <p className="text-xs text-gray-500">Punto de venta</p>
+                                    </div>
+                                  </div>
+                                  {puntoVentaSeleccionado === punto.id.toString() && (
+                                    <CheckCircle className="h-5 w-5 text-blue-600" />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {!puntoVentaSeleccionado && (
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-600" />
+                              <span className="text-sm text-amber-700">
+                                Debe seleccionar un punto de venta para continuar
+                              </span>
+                            </div>
                           </div>
                         )}
                       </div>
 
                       {/* Sección de búsqueda de cliente */}
                       <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                        {/* Cliente seleccionado */}
                         {cliente.id ? (
                           <div className="bg-green-50 p-3 rounded-md border border-green-200 flex items-center justify-between">
                             <div>
@@ -1186,16 +1205,6 @@ const ReparacionesPage = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleOpenRepuestosModal(null)}
-                            className="flex items-center gap-1 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                            data-tooltip-id="repuestos-tooltip"
-                            data-tooltip-content="Ver catálogo de repuestos"
-                          >
-                            <Package className="h-4 w-4" /> Repuestos
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
                             onClick={agregarReparacion}
                             className="flex items-center gap-1 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-200 hover:text-orange-600"
                             data-tooltip-id="agregar-tooltip"
@@ -1204,7 +1213,6 @@ const ReparacionesPage = () => {
                             <Plus className="h-4 w-4" /> Agregar
                           </Button>
                           <ReactTooltip id="agregar-tooltip" />
-                          <ReactTooltip id="repuestos-tooltip" />
                         </div>
                       </div>
 
@@ -1225,9 +1233,10 @@ const ReparacionesPage = () => {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleOpenRepuestosModal(index)}
-                                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                  className="h-7 px-3 text-xs bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 rounded-full transition-all duration-200"
                                 >
-                                  <Package className="h-3 w-3 mr-1" /> Buscar repuesto
+                                  <Search className="h-3 w-3 mr-1" />
+                                  Buscar repuesto
                                 </Button>
                               </Label>
                               <Input
@@ -1319,10 +1328,11 @@ const ReparacionesPage = () => {
                                 </h4>
                                 <Badge
                                   variant="outline"
-                                  className={`${obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                                  className={`${
+                                    obtenerNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
                                       ? "border-orange-300 bg-orange-50 text-orange-700"
                                       : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                    }`}
+                                  }`}
                                 >
                                   <MapPin className="h-3.5 w-3.5 mr-1" />
                                   {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
@@ -1415,14 +1425,16 @@ const ReparacionesPage = () => {
                                             <div
                                               key={metodo.id}
                                               onClick={() => handleMetodoPago(metodo.id)}
-                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${pago.metodo === metodo.id
+                                              className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                                pago.metodo === metodo.id
                                                   ? "border-orange-500 bg-orange-50"
                                                   : "border-gray-200 hover:border-orange-300 hover:bg-orange-50/50"
-                                                }`}
+                                              }`}
                                             >
                                               <div
-                                                className={`p-3 rounded-full ${pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
-                                                  }`}
+                                                className={`p-3 rounded-full ${
+                                                  pago.metodo === metodo.id ? "bg-orange-100" : "bg-gray-100"
+                                                }`}
                                               >
                                                 {metodo.id === "efectivo" && (
                                                   <Banknote
@@ -1481,10 +1493,11 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Saldo actual:</span>
                                                     <div
-                                                      className={`font-medium ${Number(cuentaCorriente.saldo) > 0
+                                                      className={`font-medium ${
+                                                        Number(cuentaCorriente.saldo) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                        }`}
+                                                      }`}
                                                     >
                                                       {formatearPrecio(Number(cuentaCorriente.saldo))}
                                                     </div>
@@ -1503,17 +1516,18 @@ const ReparacionesPage = () => {
                                                   <div className="bg-white p-2 rounded border">
                                                     <span className="text-gray-500">Nuevo saldo proyectado:</span>
                                                     <div
-                                                      className={`font-medium ${(
+                                                      className={`font-medium ${
+                                                        (
                                                           Number(cuentaCorriente.saldo) +
-                                                          Number(convertirANumero(pago.monto))
+                                                            Number(convertirANumero(pago.monto))
                                                         ) > 0
                                                           ? "text-red-600"
                                                           : "text-green-600"
-                                                        }`}
+                                                      }`}
                                                     >
                                                       {formatearPrecio(
                                                         Number(cuentaCorriente.saldo) +
-                                                        Number(convertirANumero(pago.monto)),
+                                                          Number(convertirANumero(pago.monto)),
                                                       )}
                                                     </div>
                                                   </div>
@@ -1522,7 +1536,7 @@ const ReparacionesPage = () => {
                                                 {cuentaCorriente.limiteCredito > 0 &&
                                                   pago.monto &&
                                                   cuentaCorriente.saldo + convertirANumero(pago.monto) >
-                                                  cuentaCorriente.limiteCredito && (
+                                                    cuentaCorriente.limiteCredito && (
                                                     <div className="bg-red-100 text-red-700 p-2 rounded border border-red-200 flex items-center">
                                                       <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
                                                       <span className="text-sm">
@@ -1625,13 +1639,10 @@ const ReparacionesPage = () => {
                   onClick={async () => {
                     try {
                       setCargando(true)
-                      // Registrar la reparación si no está registrada
                       if (!reparacionRegistrada) {
                         await registrarReparacion()
                       }
-                      // Volver al inicio del formulario
                       reiniciarFormulario()
-                      // Solo mostrar un toast
                       toast.success("Reparación registrada correctamente", { position: "bottom-center" })
                     } catch (error) {
                       console.error("Error al registrar sin ticket:", error)
@@ -1657,7 +1668,6 @@ const ReparacionesPage = () => {
                   onClick={async () => {
                     try {
                       await handlePrintTicket()
-                      // Después de imprimir, volver al inicio sin mostrar toast adicional
                       setTimeout(() => {
                         reiniciarFormulario()
                       }, 1000)
@@ -1700,9 +1710,9 @@ const ReparacionesPage = () => {
                     pago={
                       pago.realizaPago
                         ? {
-                          ...pago,
-                          nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
-                        }
+                            ...pago,
+                            nombreMetodo: obtenerNombreMetodoPago(pago.metodo),
+                          }
                         : null
                     }
                     formatearPrecio={formatearPrecio}
@@ -1714,82 +1724,142 @@ const ReparacionesPage = () => {
         )}
       </AnimatePresence>
 
-      {/* Modal de Repuestos */}
+      {/* Modal de Repuestos Mejorado */}
       <Dialog open={showRepuestosModal} onOpenChange={setShowRepuestosModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
-          <DialogHeader className="px-6 py-4 bg-[#131321] text-white border-b">
-            <DialogTitle className="text-xl font-semibold flex items-center gap-2 text-orange-600">
-              <Package size={20} /> Catálogo de Repuestos
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0">
+          <DialogHeader className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              <Package size={20} /> Seleccionar Repuesto
             </DialogTitle>
-            <DialogDescription className="text-gray-300">
-              Busque y seleccione repuestos para agregar a la reparación
+            <DialogDescription className="text-blue-100">
+              Busque y seleccione un repuesto para agregar a la reparación
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-4 border-b">
+          {/* Barra de búsqueda mejorada */}
+          <div className="p-6 border-b bg-gray-50">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input
                 type="text"
-                placeholder="Buscar repuestos por nombre..."
+                placeholder="Buscar repuestos por nombre o descripción..."
                 value={searchRepuestoTerm}
                 onChange={(e) => setSearchRepuestoTerm(e.target.value)}
-                className="pl-9 pr-4 border-gray-200 focus-visible:ring-orange-500"
+                className="pl-12 pr-12 h-12 text-lg border-gray-200 focus-visible:ring-blue-500 rounded-xl"
               />
               {searchRepuestoTerm && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 rounded-full"
                   onClick={() => setSearchRepuestoTerm("")}
                 >
                   <X className="h-4 w-4 text-gray-400" />
                 </Button>
               )}
             </div>
-          </div>
 
-          <div className="max-h-[calc(90vh-180px)] overflow-y-auto">
-            {cargandoRepuestos ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 text-orange-500 animate-spin mb-2" />
-                <p className="text-gray-500">Cargando repuestos...</p>
-              </div>
-            ) : filteredRepuestos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Package className="h-12 w-12 text-gray-300 mb-2" />
-                <p className="text-gray-500 font-medium">No se encontraron repuestos</p>
-                <p className="text-gray-400 text-sm">Intente con otra búsqueda</p>
-              </div>
-            ) : (
-              <div className="p-4 overflow-y-auto">
-                <ul className="space-y-4">
-                  {filteredRepuestos.map((repuesto) => (
-                    <li key={repuesto.id} className="border-b pb-2">
-                      <div className="font-medium text-gray-800">{repuesto.nombre}</div>
-                      <div className="text-sm text-gray-500">{repuesto.descripcion || "Sin descripción"}</div>
-                      <div className="text-sm">
-                        <span className={repuesto.stock > 0 ? "text-green-700" : "text-red-700"}>
-                          {repuesto.stock > 0 ? `Stock: ${repuesto.stock}` : "Sin stock"}
-                        </span>
-                      </div>
-                      <div>
-                        <Badge variant="outline" className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4 text-gray-500" />
-                          {repuesto.punto_venta || "No asignado"}
-                        </Badge>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+            {puntoVentaSeleccionado && (
+              <div className="mt-3 flex items-center gap-2">
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  <MapPin className="h-3 w-3 mr-1" />
+                  Punto de venta: {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
+                </Badge>
+                <span className="text-sm text-gray-500">Solo se muestran repuestos de este punto de venta</span>
               </div>
             )}
           </div>
 
-          <div className="p-4 border-t flex justify-between items-center bg-gray-50">
-            <div className="text-sm text-gray-500">{filteredRepuestos.length} repuestos encontrados</div>
-            <Button variant="outline" onClick={() => setShowRepuestosModal(false)}>
-              Cerrar
+          {/* Lista de repuestos */}
+          <div className="max-h-[calc(90vh-240px)] overflow-y-auto">
+            {cargandoRepuestos ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
+                <p className="text-gray-500 text-lg">Cargando repuestos...</p>
+              </div>
+            ) : filteredRepuestos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Package className="h-16 w-16 text-gray-300 mb-4" />
+                <p className="text-gray-500 font-medium text-lg">No se encontraron repuestos</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {searchRepuestoTerm
+                    ? "Intente con otra búsqueda"
+                    : "No hay repuestos disponibles en este punto de venta"}
+                </p>
+              </div>
+            ) : (
+              <div className="p-6">
+                <div className="grid gap-4">
+                  {filteredRepuestos.map((repuesto) => (
+                    <div
+                      key={repuesto.id}
+                      onClick={() => seleccionarRepuesto(repuesto)}
+                      className="group p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer bg-white hover:bg-blue-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h4 className="font-semibold text-gray-900 group-hover:text-blue-900 text-lg">
+                                {repuesto.nombre}
+                              </h4>
+                              <p className="text-gray-600 text-sm mt-1">{repuesto.descripcion || "Sin descripción"}</p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xl font-bold text-gray-900">{formatearPrecio(repuesto.precio)}</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <Badge
+                                variant={repuesto.stock > 0 ? "default" : "destructive"}
+                                className={`${
+                                  repuesto.stock > 0
+                                    ? "bg-green-100 text-green-800 border-green-200"
+                                    : "bg-red-100 text-red-800 border-red-200"
+                                }`}
+                              >
+                                <Package className="h-3 w-3 mr-1" />
+                                {repuesto.stock > 0 ? `Stock: ${repuesto.stock}` : "Sin stock"}
+                              </Badge>
+
+                              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                {repuesto.punto_venta || "No asignado"}
+                              </Badge>
+                            </div>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                            >
+                              <PlusCircle className="h-4 w-4 mr-1" />
+                              Seleccionar
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer del modal */}
+          <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {filteredRepuestos.length} repuesto{filteredRepuestos.length !== 1 ? "s" : ""} encontrado
+              {filteredRepuestos.length !== 1 ? "s" : ""}
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowRepuestosModal(false)}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              Cancelar
             </Button>
           </div>
         </DialogContent>
