@@ -338,8 +338,15 @@ const ReparacionesPage = () => {
       const data = await searchRepuestos({
         punto_venta_id: puntoVentaSeleccionado,
       })
-      setRepuestos(data)
-      setFilteredRepuestos(data)
+
+      // Asegurarse de que los precios sean números
+      const repuestosConPreciosCorrectos = data.map((repuesto) => ({
+        ...repuesto,
+        precio: Number.parseFloat(repuesto.precio) || 0,
+      }))
+
+      setRepuestos(repuestosConPreciosCorrectos)
+      setFilteredRepuestos(repuestosConPreciosCorrectos)
       setShowRepuestosModal(true)
     } catch (error) {
       console.error("Error al cargar repuestos:", error)
@@ -1822,7 +1829,7 @@ const ReparacionesPage = () => {
                             </div>
                             <div className="text-right">
                               <div className="text-xl font-bold text-orange-600">
-                                {formatearPrecio(repuesto.precio)}
+                                {formatearPrecio(Number.parseFloat(repuesto.precio) || 0)}
                               </div>
                             </div>
                           </div>
