@@ -880,7 +880,7 @@ const ReparacionesPage = () => {
                                       <h4
                                         className={`font-medium ${
                                           puntoVentaSeleccionado === punto.id.toString()
-                                            ? "text-blue-900"
+                                            ? "text-blue-600"
                                             : "text-gray-700"
                                         }`}
                                       >
@@ -1727,11 +1727,11 @@ const ReparacionesPage = () => {
       {/* Modal de Repuestos Mejorado */}
       <Dialog open={showRepuestosModal} onOpenChange={setShowRepuestosModal}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0">
-          <DialogHeader className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+          <DialogHeader className="px-6 py-4 bg-[#131321] text-white">
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2 text-orange-600">
               <Package size={20} /> Seleccionar Repuesto
             </DialogTitle>
-            <DialogDescription className="text-blue-100">
+            <DialogDescription className="text-gray-300">
               Busque y seleccione un repuesto para agregar a la reparación
             </DialogDescription>
           </DialogHeader>
@@ -1745,7 +1745,7 @@ const ReparacionesPage = () => {
                 placeholder="Buscar repuestos por nombre o descripción..."
                 value={searchRepuestoTerm}
                 onChange={(e) => setSearchRepuestoTerm(e.target.value)}
-                className="pl-12 pr-12 h-12 text-lg border-gray-200 focus-visible:ring-blue-500 rounded-xl"
+                className="pl-12 pr-12 h-12 text-lg border-orange-200 focus-visible:ring-orange-500 rounded-xl"
               />
               {searchRepuestoTerm && (
                 <Button
@@ -1761,7 +1761,7 @@ const ReparacionesPage = () => {
 
             {puntoVentaSeleccionado && (
               <div className="mt-3 flex items-center gap-2">
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
                   <MapPin className="h-3 w-3 mr-1" />
                   Punto de venta: {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
                 </Badge>
@@ -1774,7 +1774,7 @@ const ReparacionesPage = () => {
           <div className="max-h-[calc(90vh-240px)] overflow-y-auto">
             {cargandoRepuestos ? (
               <div className="flex flex-col items-center justify-center py-16">
-                <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
+                <Loader2 className="h-10 w-10 text-orange-500 animate-spin mb-4" />
                 <p className="text-gray-500 text-lg">Cargando repuestos...</p>
               </div>
             ) : filteredRepuestos.length === 0 ? (
@@ -1794,19 +1794,21 @@ const ReparacionesPage = () => {
                     <div
                       key={repuesto.id}
                       onClick={() => seleccionarRepuesto(repuesto)}
-                      className="group p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer bg-white hover:bg-blue-50"
+                      className="group p-4 border border-gray-200 rounded-xl hover:border-orange-300 hover:shadow-md transition-all duration-200 cursor-pointer bg-white hover:bg-orange-50"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <h4 className="font-semibold text-gray-900 group-hover:text-blue-900 text-lg">
+                              <h4 className="font-semibold text-gray-900 group-hover:text-orange-900 text-lg">
                                 {repuesto.nombre}
                               </h4>
                               <p className="text-gray-600 text-sm mt-1">{repuesto.descripcion || "Sin descripción"}</p>
                             </div>
                             <div className="text-right">
-                              <div className="text-xl font-bold text-gray-900">{formatearPrecio(repuesto.precio)}</div>
+                              <div className="text-xl font-bold text-orange-600">
+                                {formatearPrecio(repuesto.precio)}
+                              </div>
                             </div>
                           </div>
 
@@ -1833,7 +1835,7 @@ const ReparacionesPage = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
                             >
                               <PlusCircle className="h-4 w-4 mr-1" />
                               Seleccionar
