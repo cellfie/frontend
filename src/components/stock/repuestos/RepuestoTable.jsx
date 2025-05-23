@@ -3,13 +3,23 @@
 import React from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import ReactTooltip from "react-tooltip"
-import { Edit, Trash, ChevronUp, ChevronDown, Package, Info, Box, MapPin } from "lucide-react"
+import { Edit, Trash, ChevronUp, ChevronDown, Package, Info, Box, MapPin, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Table, TableHeader, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+
+// Función para formatear el precio en formato de moneda argentina
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
 
 export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDelete, showDetails, toggleDetails }) => {
   if (isLoading) {
@@ -41,6 +51,7 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
             <TableRow className="border-b after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[1px] after:bg-border">
               <TableHead className="bg-white">Nombre</TableHead>
               <TableHead className="hidden md:table-cell bg-white">Descripción</TableHead>
+              <TableHead className="bg-white">Precio</TableHead>
               <TableHead className="bg-white">Stock</TableHead>
               <TableHead className="bg-white">Punto de Venta</TableHead>
               <TableHead className="text-right bg-white">Acciones</TableHead>
@@ -50,7 +61,7 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
           <TableBody>
             {repuestos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Package className="h-12 w-12 text-gray-300" />
                     <h3 className="text-lg font-medium text-gray-500">No hay repuestos disponibles</h3>
@@ -71,6 +82,9 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-sm text-gray-600 max-w-[300px] truncate">
                       {repuesto.description || "Sin descripción"}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium text-gray-700">{formatCurrency(repuesto.price)}</span>
                     </TableCell>
                     <TableCell>
                       <span className={repuesto.stock < 3 ? "text-red-600 font-medium" : "text-green-600 font-medium"}>
@@ -134,7 +148,7 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                   <AnimatePresence>
                     {showDetails === repuesto.id && (
                       <TableRow>
-                        <TableCell colSpan={5} className="p-0 border-0">
+                        <TableCell colSpan={6} className="p-0 border-0">
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
@@ -197,6 +211,12 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                                           </Badge>
                                         </div>
                                       </div>
+                                      <div className="space-y-1">
+                                        <div className="text-gray-500">Precio</div>
+                                        <div className="font-medium text-gray-700">
+                                          {formatCurrency(repuesto.price)}
+                                        </div>
+                                      </div>
                                       <div className="col-span-2 space-y-1">
                                         <div className="text-gray-500">Descripción</div>
                                         <div className="font-medium">{repuesto.description || "Sin descripción"}</div>
@@ -246,6 +266,17 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                                                     ? "Stock limitado"
                                                     : "Sin stock"}
                                             </Badge>
+                                          </div>
+                                        </div>
+
+                                        <Separator className="bg-[#131321]/10" />
+
+                                        <div>
+                                          <div className="text-gray-500 text-sm flex items-center gap-1">
+                                            <DollarSign size={14} /> Precio
+                                          </div>
+                                          <div className="font-medium text-gray-700">
+                                            {formatCurrency(repuesto.price)}
                                           </div>
                                         </div>
 

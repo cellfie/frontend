@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NumericFormat } from "react-number-format"
 
 export const AddRepuestoModal = ({
   isOpen,
@@ -23,6 +24,7 @@ export const AddRepuestoModal = ({
     description: "",
     stock: "",
     punto_venta_id: "",
+    price: "", // Agregamos el campo de precio
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
@@ -40,6 +42,7 @@ export const AddRepuestoModal = ({
           description: repuesto.description || "",
           stock: repuesto.stock?.toString() || "",
           punto_venta_id: punto_venta_id,
+          price: repuesto.price || 0, // Inicializamos el precio
         }
 
         console.log("Cargando datos del repuesto:", newFormData)
@@ -58,6 +61,7 @@ export const AddRepuestoModal = ({
           description: "",
           stock: "",
           punto_venta_id: defaultPuntoVenta.toString(),
+          price: "", // Inicializamos el precio vacío
         })
       }
     }
@@ -85,6 +89,17 @@ export const AddRepuestoModal = ({
     if (!formData.punto_venta_id) {
       newErrors.punto_venta_id = "El punto de venta es requerido"
     }
+
+    // Validar que el precio sea un número positivo y no exceda el límite
+    const price = formData.price
+    const PRECIO_MAXIMO = 99999999.99
+
+    if (isNaN(price) || price < 0) {
+      newErrors.price = "El precio debe ser un número no negativo"
+    } else if (price > PRECIO_MAXIMO) {
+      newErrors.price = `El precio no puede ser mayor a $99.999.999,99`
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -100,6 +115,7 @@ export const AddRepuestoModal = ({
         stock: Number.parseInt(formData.stock),
         id: repuesto?.id,
         punto_venta_id: Number(formData.punto_venta_id),
+        price: formData.price, // Enviamos el precio
       }
 
       console.log("Datos a enviar:", repuestoData)
@@ -195,8 +211,46 @@ export const AddRepuestoModal = ({
                 />
               </div>
 
-              {/* Stock y Punto de Venta en la misma fila */}
+              {/* Precio, Stock y Punto de Venta en la misma fila */}
               <div className="space-y-1 col-span-2">
+                <Label htmlFor="price" className="text-sm">
+                  Precio ($) <span className="text-red-500">*</span>
+                </Label>
+                <NumericFormat
+                  id="price"
+                  name="price"
+                  value={formData.price}
+                  onValueChange={(values) => {
+                    // Usamos el valor formateado directamente para evitar problemas de conversión
+                    const { floatValue } = values
+                    // Verificar si el valor excede el límite
+                    const PRECIO_MAXIMO = 99999999.99
+
+                    // Guardamos el valor numérico real, no el string formateado
+                    setFormData((prev) => ({ ...prev, price: floatValue }))
+
+                    // Mostrar error si excede el límite
+                    if (floatValue > PRECIO_MAXIMO) {
+                      setErrors((prev) => ({ ...prev, price: `El precio no puede ser mayor a $99.999.999,99` }))
+                    } else if (errors.price) {
+                      setErrors((prev) => ({ ...prev, price: "" }))
+                    }
+                  }}
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  prefix="$ "
+                  decimalScale={2}
+                  isAllowed={(values) => {
+                    const { floatValue } = values
+                    return floatValue === undefined || floatValue <= 99999999.99
+                  }}
+                  className={`w-full h-9 px-3 py-2 border rounded-md ${
+                    errors.price ? "border-red-500 focus-visible:ring-red-500" : "border-orange-200"
+                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2`}
+                />
+              </div>
+
+              <div className="space-y-1">
                 <Label htmlFor="stock" className="text-sm">
                   Stock <span className="text-red-500">*</span>
                 </Label>
@@ -217,7 +271,7 @@ export const AddRepuestoModal = ({
                 />
               </div>
 
-              <div className="space-y-1 col-span-2">
+              <div className="space-y-1">
                 <Label htmlFor="punto_venta_id" className="text-sm">
                   Punto de Venta <span className="text-red-500">*</span>
                 </Label>
