@@ -794,7 +794,7 @@ const HistorialVentasEquiposPage = () => {
                                 </Tooltip>
                               </TooltipProvider>
 
-                              {!venta.anulada && (currentUser?.rol === "admin" || currentUser?.rol === "empleado") && (
+                              {!venta.anulada && (currentUser?.role === "admin" || currentUser?.role === "empleado") && (
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
