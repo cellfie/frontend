@@ -7,22 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import ReactTooltip from "react-tooltip"
-import {
-  Search,
-  ShoppingBag,
-  Smartphone,
-  PenToolIcon as Tool,
-  Edit,
-  Loader2,
-  Trash2,
-  Plus,
-  Save,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  Wifi,
-  WifiOff,
-} from "lucide-react"
+import { Search, ShoppingBag, Smartphone, PenToolIcon as Tool, Edit, Loader2, Trash2, Plus, Save, CheckCircle, Clock, DollarSign, Wifi, WifiOff, X } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -46,6 +31,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("")
   const [searchResults, setSearchResults] = useState([])
   const [showResults, setShowResults] = useState(false)
+  const [showAllResults, setShowAllResults] = useState(false)
   const [username, setUsername] = useState("Usuario")
   const [userInitials, setUserInitials] = useState("US")
   const {
@@ -320,25 +306,32 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Efecto para la búsqueda
+  // Efecto mejorado para la búsqueda
   useEffect(() => {
     const fetchSearchResults = async () => {
-      if (searchTerm.length > 1) {
+      if (searchTerm.trim().length > 1) {
         try {
-          const results = await searchProductos({ query: searchTerm })
+          const results = await searchProductos({ query: searchTerm.trim() })
           setSearchResults(results)
           setShowResults(true)
+          setShowAllResults(false) // Reset al hacer nueva búsqueda
         } catch (error) {
           console.error("Error al buscar productos:", error)
           setSearchResults([])
           setShowResults(false)
         }
       } else {
+        // Limpiar completamente cuando no hay término de búsqueda
+        setSearchResults([])
         setShowResults(false)
+        setShowAllResults(false)
       }
     }
 
-    fetchSearchResults()
+    // Debounce para evitar muchas consultas
+    const timeoutId = setTimeout(fetchSearchResults, 300)
+    
+    return () => clearTimeout(timeoutId)
   }, [searchTerm])
 
   // Función para manejar la selección de un producto
@@ -346,6 +339,20 @@ export default function Home() {
     setSelectedProduct(product)
     setIsSearchDialogOpen(true)
     setShowResults(false)
+    setSearchTerm("") // Limpiar búsqueda al seleccionar
+  }
+
+  // Función para mostrar todos los resultados
+  const handleShowAllResults = () => {
+    setShowAllResults(true)
+  }
+
+  // Función para limpiar la búsqueda
+  const clearSearch = () => {
+    setSearchTerm("")
+    setSearchResults([])
+    setShowResults(false)
+    setShowAllResults(false)
   }
 
   // Función para abrir el diálogo de edición del dólar
@@ -537,6 +544,10 @@ export default function Home() {
     return `${formattedDate} ${formattedTime}`
   }
 
+  // Determinar qué productos mostrar
+  const displayedResults = showAllResults ? searchResults : searchResults.slice(0, 5)
+  const hasMoreResults = searchResults.length > 5 && !showAllResults
+
   return (
     <div className="container mx-auto p-4 max-w-7xl bg-gray-200">
       <ToastContainer />
@@ -613,7 +624,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Barra de búsqueda */}
+      {/* Barra de búsqueda mejorada */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -625,13 +636,23 @@ export default function Home() {
           <Input
             type="text"
             placeholder="Buscar productos"
-            className="pl-10 py-6 text-base bg-white "
+            className="pl-10 pr-10 py-6 text-base bg-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-gray-700"
+              onClick={clearSearch}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
-        {/* Resultados de búsqueda */}
+        {/* Resultados de búsqueda mejorados */}
         <AnimatePresence>
           {showResults && searchResults.length > 0 && (
             <motion.div
@@ -645,40 +666,64 @@ export default function Home() {
                   <Search className="h-3.5 w-3.5" />
                   {searchResults.length} resultados encontrados
                 </p>
-                {searchResults.slice(0, 5).map((product) => (
-                  <div
-                    key={product.id}
-                    className="px-3 py-2 hover:bg-gray-300 rounded-md cursor-pointer flex justify-between items-center"
-                    onClick={() => handleProductSelect(product)}
-                  >
-                    <div>
-                      <p className="font-medium">{product.nombre}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs py-0 h-5">
-                          {product.categoria || "Sin categoría"}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">Stock: {product.stock || 0}</span>
+                
+                {/* Contenedor con scroll para todos los resultados */}
+                <div className={`${showAllResults ? 'max-h-96 overflow-y-auto' : ''}`}>
+                  {displayedResults.map((product) => (
+                    <div
+                      key={product.id}
+                      className="px-3 py-2 hover:bg-gray-300 rounded-md cursor-pointer flex justify-between items-center"
+                      onClick={() => handleProductSelect(product)}
+                    >
+                      <div>
+                        <p className="font-medium">{product.nombre}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs py-0 h-5">
+                            {product.categoria || "Sin categoría"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">Stock: {product.stock || 0}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-[#0b0044]">${formatNumberARS(product.precio || 0)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {product.stock > 10 ? (
+                            <span className="text-green-600">Disponible</span>
+                          ) : product.stock > 0 ? (
+                            <span className="text-amber-600">Stock bajo</span>
+                          ) : (
+                            <span className="text-red-600">Sin stock</span>
+                          )}
+                        </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-[#0b0044]">${formatNumberARS(product.precio || 0)}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {product.stock > 10 ? (
-                          <span className="text-green-600">Disponible</span>
-                        ) : product.stock > 0 ? (
-                          <span className="text-amber-600">Stock bajo</span>
-                        ) : (
-                          <span className="text-red-600">Sin stock</span>
-                        )}
-                      </p>
-                    </div>
+                  ))}
+                </div>
+                
+                {/* Botón para mostrar más resultados */}
+                {hasMoreResults && (
+                  <div 
+                    className="text-sm text-center text-[#0b0044] p-2 border-t hover:bg-gray-100 cursor-pointer font-medium"
+                    onClick={handleShowAllResults}
+                  >
+                    Ver todos los {searchResults.length} productos
                   </div>
-                ))}
-                {searchResults.length > 5 && (
-                  <p className="text-sm text-center text-[#0b0044] p-2 border-t hover:bg-brand-50 cursor-pointer">
-                    + {searchResults.length - 5} productos más
-                  </p>
                 )}
+              </div>
+            </motion.div>
+          )}
+          
+          {/* Mensaje cuando no hay resultados */}
+          {showResults && searchResults.length === 0 && searchTerm.trim().length > 1 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute z-10 mt-2 w-full bg-white rounded-lg border shadow-lg"
+            >
+              <div className="p-4 text-center text-muted-foreground">
+                <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p>No se encontraron productos para "{searchTerm}"</p>
               </div>
             </motion.div>
           )}
@@ -982,7 +1027,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de detalles del producto */}
+      {/* Diálogo de detalles del producto - Solo información */}
       <Dialog open={isSearchDialogOpen} onOpenChange={setIsSearchDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1000,46 +1045,44 @@ export default function Home() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg">
+                <div className="p-4 rounded-lg bg-gray-50">
                   <p className="text-sm text-muted-foreground">Precio</p>
                   <p className="text-xl font-bold">${formatNumberARS(selectedProduct.precio || 0)}</p>
                 </div>
 
-                <div className="p-4 rounded-lg">
+                <div className="p-4 rounded-lg bg-gray-50">
                   <p className="text-sm text-muted-foreground">Stock</p>
                   <p className="text-xl font-bold">{selectedProduct.stock || 0} unidades</p>
                 </div>
               </div>
 
-              <div className="p-4 rounded-lg ">
+              <div className="p-4 rounded-lg bg-gray-50">
                 <p className="text-sm text-muted-foreground">Precio en Dólares</p>
                 <p className="text-xl font-bold">US$ {formatNumberARS((selectedProduct.precio || 0) / dollarPrice)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Basado en el tipo de cambio actual</p>
               </div>
+
+              {selectedProduct.descripcion && (
+                <div className="p-4 rounded-lg bg-gray-50">
+                  <p className="text-sm text-muted-foreground">Descripción</p>
+                  <p className="text-sm mt-1">{selectedProduct.descripcion}</p>
+                </div>
+              )}
+
+              <div className="p-4 rounded-lg bg-gray-50">
+                <p className="text-sm text-muted-foreground">Estado</p>
+                <p className="text-sm mt-1">
+                  {selectedProduct.stock > 10 ? (
+                    <span className="text-green-600 font-medium">✓ Disponible</span>
+                  ) : selectedProduct.stock > 0 ? (
+                    <span className="text-amber-600 font-medium">⚠ Stock bajo</span>
+                  ) : (
+                    <span className="text-red-600 font-medium">✗ Sin stock</span>
+                  )}
+                </p>
+              </div>
             </div>
           )}
-
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="outline"
-              onClick={() => setIsSearchDialogOpen(false)}
-              className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
-            >
-              Cerrar
-            </Button>
-            <Button
-              onClick={() => {
-                toast.success("Producto agregado a la venta", {
-                  position: "bottom-right",
-                  autoClose: 3000,
-                })
-                setIsSearchDialogOpen(false)
-              }}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              Agregar a Venta
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
