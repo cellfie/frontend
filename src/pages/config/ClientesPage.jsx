@@ -238,7 +238,7 @@ const ClientesPage = () => {
     setClientesFiltrados(filtrados)
   }
 
-  // Cargar detalle del cliente
+  // Cargar detalle del cliente - MEJORADO para mantener el foco
   const cargarDetalleCliente = async (clienteId) => {
     if (detalleClienteAbierto === clienteId) {
       setDetalleClienteAbierto(null)
@@ -247,7 +247,7 @@ const ClientesPage = () => {
     }
 
     try {
-      setCargando(true)
+      // NO usar setCargando aquí para mantener el foco en la lista
       const clienteDetallado = await getClienteById(clienteId)
       setClienteSeleccionado(adaptClienteToFrontend(clienteDetallado))
       setDetalleClienteAbierto(clienteId)
@@ -259,8 +259,6 @@ const ClientesPage = () => {
     } catch (error) {
       console.error("Error al obtener detalle del cliente:", error)
       toast.error("Error al obtener detalle del cliente")
-    } finally {
-      setCargando(false)
     }
   }
 
@@ -521,23 +519,21 @@ const ClientesPage = () => {
     }
   }
 
-  // Formatear fecha para mostrar
+  // Formatear fecha para mostrar - CORREGIDO para manejar zona horaria correctamente
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
     // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
 
-    // Ajustar la zona horaria (añadir 3 horas para compensar la diferencia)
-    const fechaAjustada = new Date(fecha.getTime() + 3 * 60 * 60 * 1000)
-
-    // Formatear la fecha ajustada
-    return fechaAjustada.toLocaleString("es-AR", {
+    // NO ajustar manualmente la zona horaria - dejar que JavaScript maneje la zona horaria local
+    return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "America/Argentina/Buenos_Aires" // Especificar la zona horaria de Argentina
     })
   }
 
