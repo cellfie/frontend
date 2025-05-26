@@ -519,21 +519,20 @@ const ClientesPage = () => {
     }
   }
 
-  // Formatear fecha para mostrar - CORREGIDO para manejar zona horaria correctamente
+  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
     // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
 
-    // NO ajustar manualmente la zona horaria - dejar que JavaScript maneje la zona horaria local
+    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "America/Argentina/Buenos_Aires" // Especificar la zona horaria de Argentina
     })
   }
 
