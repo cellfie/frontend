@@ -61,7 +61,7 @@ import DevolucionesList from "@/components/devoluciones/DevolucionesList"
 
 const HistorialVentasProductosPage = () => {
   const { currentUser } = useAuth()
- const isAdmin = currentUser?.role === "admin"
+  const isAdmin = currentUser?.role === "admin"
 
   const [ventas, setVentas] = useState([])
   const [ventasFiltradas, setVentasFiltradas] = useState([])
@@ -321,17 +321,15 @@ const HistorialVentasProductosPage = () => {
   }
 
   // Formatear fecha para mostrar
+  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
     // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
 
-    // Ajustar la zona horaria (añadir 3 horas para compensar la diferencia)
-    const fechaAjustada = new Date(fecha.getTime() + 3 * 60 * 60 * 1000)
-
-    // Formatear la fecha ajustada
-    return fechaAjustada.toLocaleString("es-AR", {
+    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
+    return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -754,9 +752,8 @@ const HistorialVentasProductosPage = () => {
                         {productos.map((producto) => (
                           <li
                             key={producto.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                              productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
-                            }`}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
+                              }`}
                             onClick={() => {
                               handleSeleccionarProducto(producto)
                               setBusquedaProducto(producto.nombre)
@@ -940,11 +937,10 @@ const HistorialVentasProductosPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={`font-normal ${
-                                venta.puntoVenta.nombre === "Tala"
+                              className={`font-normal ${venta.puntoVenta.nombre === "Tala"
                                   ? "border-orange-300 bg-orange-50 text-orange-700"
                                   : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                              }`}
+                                }`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
                               {venta.puntoVenta.nombre}
@@ -1064,11 +1060,10 @@ const HistorialVentasProductosPage = () => {
                                                   <span className="text-gray-500">Punto de venta:</span>
                                                   <Badge
                                                     variant="outline"
-                                                    className={`font-normal ${
-                                                      ventaSeleccionada.puntoVenta.nombre === "Tala"
+                                                    className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala"
                                                         ? "border-orange-300 bg-orange-50 text-orange-700"
                                                         : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                    }`}
+                                                      }`}
                                                   >
                                                     <MapPin className="h-3 w-3 mr-1" />
                                                     {ventaSeleccionada.puntoVenta.nombre}
@@ -1189,7 +1184,7 @@ const HistorialVentasProductosPage = () => {
                                                           <TableCell className="text-right font-medium">
                                                             {formatearPrecio(
                                                               (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
-                                                                detalle.precioConDescuento,
+                                                              detalle.precioConDescuento,
                                                             )}
                                                           </TableCell>
                                                         </TableRow>
