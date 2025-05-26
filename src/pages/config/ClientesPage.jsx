@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { Filter, UserPlus, Search, AlertCircle } from "lucide-react"
+import { Filter, UserPlus, Search, AlertCircle } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -602,7 +602,7 @@ const ClientesPage = () => {
           {isAdmin ? (
             <ClientesList.Filtros
               busqueda={busqueda}
-              setBusqueda={handleBusqueda}
+              setBusqueda={setBusqueda}
               mostrarSoloConCuenta={mostrarSoloConCuenta}
               setMostrarSoloConCuenta={setMostrarSoloConCuenta}
             />
