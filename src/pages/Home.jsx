@@ -7,7 +7,23 @@ import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import ReactTooltip from "react-tooltip"
-import { Search, ShoppingBag, Smartphone, PenToolIcon as Tool, Edit, Loader2, Trash2, Plus, Save, CheckCircle, Clock, DollarSign, Wifi, WifiOff, X } from 'lucide-react'
+import {
+  Search,
+  ShoppingBag,
+  Smartphone,
+  PenToolIcon as Tool,
+  Edit,
+  Loader2,
+  Trash2,
+  Plus,
+  Save,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -330,7 +346,7 @@ export default function Home() {
 
     // Debounce para evitar muchas consultas
     const timeoutId = setTimeout(fetchSearchResults, 300)
-    
+
     return () => clearTimeout(timeoutId)
   }, [searchTerm])
 
@@ -523,25 +539,21 @@ export default function Home() {
     }
   }
 
-  // Formatear fecha para mostrar
-  const formatDate = (dateString) => {
-    if (!dateString) return ""
+  // Función mejorada para formatear fecha - IGUAL QUE EN CLIENTES
+  const formatearFechaHora = (fechaString) => {
+    if (!fechaString) return ""
 
-    const date = new Date(dateString)
+    // Crear la fecha a partir del string
+    const fecha = new Date(fechaString)
 
-    // Formatear la fecha (día/mes/año)
-    const formattedDate = date.toLocaleDateString("es-AR", {
+    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
+    return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     })
-
-    // Formatear la hora (solo horas y minutos)
-    const hours = String(date.getHours()).padStart(2, "0")
-    const minutes = String(date.getMinutes()).padStart(2, "0")
-    const formattedTime = `${hours}:${minutes}`
-
-    return `${formattedDate} ${formattedTime}`
   }
 
   // Determinar qué productos mostrar
@@ -666,9 +678,9 @@ export default function Home() {
                   <Search className="h-3.5 w-3.5" />
                   {searchResults.length} resultados encontrados
                 </p>
-                
+
                 {/* Contenedor con scroll para todos los resultados */}
-                <div className={`${showAllResults ? 'max-h-96 overflow-y-auto' : ''}`}>
+                <div className={`${showAllResults ? "max-h-96 overflow-y-auto" : ""}`}>
                   {displayedResults.map((product) => (
                     <div
                       key={product.id}
@@ -699,10 +711,10 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Botón para mostrar más resultados */}
                 {hasMoreResults && (
-                  <div 
+                  <div
                     className="text-sm text-center text-[#0b0044] p-2 border-t hover:bg-gray-100 cursor-pointer font-medium"
                     onClick={handleShowAllResults}
                   >
@@ -712,7 +724,7 @@ export default function Home() {
               </div>
             </motion.div>
           )}
-          
+
           {/* Mensaje cuando no hay resultados */}
           {showResults && searchResults.length === 0 && searchTerm.trim().length > 1 && (
             <motion.div
@@ -919,12 +931,9 @@ export default function Home() {
                                 </Badge>
                               )}
                               <p className="text-xs text-muted-foreground">
-                                Agregado: {note.fecha_creacion_formatted || formatDate(note.fecha_creacion)}
+                                Agregado: {formatearFechaHora(note.fecha_creacion)}
                                 {note.completada && note.fecha_completada && (
-                                  <>
-                                    {" "}
-                                    • Completado: {note.fecha_completada_formatted || formatDate(note.fecha_completada)}
-                                  </>
+                                  <> • Completado: {formatearFechaHora(note.fecha_completada)}</>
                                 )}
                               </p>
                             </div>
