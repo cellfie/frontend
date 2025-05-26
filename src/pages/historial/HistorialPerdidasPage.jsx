@@ -261,11 +261,14 @@ const HistorialPerdidasPage = () => {
     if (!fecha) return null
     return fecha.toISOString().split("T")[0]
   }
-
-  // Formatear fecha para mostrar
+  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
+
+    // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
+
+    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
@@ -274,6 +277,7 @@ const HistorialPerdidasPage = () => {
       minute: "2-digit",
     })
   }
+
 
   // Limpiar filtros
   const limpiarFiltros = () => {
@@ -721,9 +725,8 @@ const HistorialPerdidasPage = () => {
                     <Button
                       type="button"
                       variant={nuevaPerdida.tipo === "producto" ? "default" : "outline"}
-                      className={`flex-1 h-8 text-xs rounded-none border-0 ${
-                        nuevaPerdida.tipo === "producto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
-                      }`}
+                      className={`flex-1 h-8 text-xs rounded-none border-0 ${nuevaPerdida.tipo === "producto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
+                        }`}
                       onClick={() => cambiarTipoPerdida("producto")}
                     >
                       <Package className="h-3 w-3 mr-1" /> Producto
@@ -731,9 +734,8 @@ const HistorialPerdidasPage = () => {
                     <Button
                       type="button"
                       variant={nuevaPerdida.tipo === "repuesto" ? "default" : "outline"}
-                      className={`flex-1 h-8 text-xs rounded-none border-0 ${
-                        nuevaPerdida.tipo === "repuesto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
-                      }`}
+                      className={`flex-1 h-8 text-xs rounded-none border-0 ${nuevaPerdida.tipo === "repuesto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
+                        }`}
                       onClick={() => cambiarTipoPerdida("repuesto")}
                     >
                       <Wrench className="h-3 w-3 mr-1" /> Repuesto
@@ -776,7 +778,7 @@ const HistorialPerdidasPage = () => {
 
                 {/* Mostrar el ítem seleccionado o el campo de búsqueda */}
                 {(nuevaPerdida.tipo === "producto" && nuevaPerdida.producto_id) ||
-                (nuevaPerdida.tipo === "repuesto" && nuevaPerdida.repuesto_id) ? (
+                  (nuevaPerdida.tipo === "repuesto" && nuevaPerdida.repuesto_id) ? (
                   <div className="flex items-center justify-between p-1.5 border rounded-md bg-gray-50 mt-1 text-sm">
                     <div className="flex items-center gap-1.5 truncate">
                       {nuevaPerdida.tipo === "producto" ? (

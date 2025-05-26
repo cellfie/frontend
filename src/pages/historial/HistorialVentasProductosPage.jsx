@@ -320,7 +320,6 @@ const HistorialVentasProductosPage = () => {
     return fecha.toISOString().split("T")[0]
   }
 
-  // Formatear fecha para mostrar
   // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""

@@ -200,17 +200,15 @@ const HistorialDevolucionesPage = () => {
     return fecha.toISOString().split("T")[0]
   }
 
-  // Formatear fecha para mostrar con ajuste de zona horaria
+  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear objeto Date a partir del string
+    // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
 
-    // Ajustar la zona horaria (agregar 3 horas)
-    const fechaAjustada = new Date(fecha.getTime() + 3 * 60 * 60 * 1000)
-
-    return fechaAjustada.toLocaleString("es-AR", {
+    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
+    return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -218,6 +216,7 @@ const HistorialDevolucionesPage = () => {
       minute: "2-digit",
     })
   }
+
 
   // Formatear precio para mostrar
   const formatearPrecio = (precio) => {
@@ -706,7 +705,7 @@ const HistorialDevolucionesPage = () => {
 
                                           <ScrollArea className="h-[200px] border rounded">
                                             {devolucionSeleccionada.productos_devueltos &&
-                                            devolucionSeleccionada.productos_devueltos.length > 0 ? (
+                                              devolucionSeleccionada.productos_devueltos.length > 0 ? (
                                               <div className="p-2 space-y-2">
                                                 {devolucionSeleccionada.productos_devueltos.map((producto, index) => (
                                                   <div
@@ -759,7 +758,7 @@ const HistorialDevolucionesPage = () => {
 
                                           <ScrollArea className="h-[200px] border rounded">
                                             {devolucionSeleccionada.productos_reemplazo &&
-                                            devolucionSeleccionada.productos_reemplazo.length > 0 ? (
+                                              devolucionSeleccionada.productos_reemplazo.length > 0 ? (
                                               <div className="p-2 space-y-2">
                                                 {devolucionSeleccionada.productos_reemplazo.map((producto, index) => (
                                                   <div
@@ -827,20 +826,19 @@ const HistorialDevolucionesPage = () => {
                                           <div>
                                             <div className="text-xs text-gray-600">Diferencia</div>
                                             <div
-                                              className={`text-base font-semibold ${
-                                                devolucionSeleccionada.diferencia > 0
+                                              className={`text-base font-semibold ${devolucionSeleccionada.diferencia > 0
                                                   ? "text-red-600"
                                                   : devolucionSeleccionada.diferencia < 0
                                                     ? "text-green-600"
                                                     : ""
-                                              }`}
+                                                }`}
                                             >
                                               {devolucionSeleccionada.diferencia > 0
                                                 ? `A pagar: ${formatearPrecio(devolucionSeleccionada.diferencia)}`
                                                 : devolucionSeleccionada.diferencia < 0
                                                   ? `A favor: ${formatearPrecio(
-                                                      Math.abs(devolucionSeleccionada.diferencia),
-                                                    )}`
+                                                    Math.abs(devolucionSeleccionada.diferencia),
+                                                  )}`
                                                   : "Sin diferencia"}
                                             </div>
                                           </div>
