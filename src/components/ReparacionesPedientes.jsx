@@ -10,7 +10,6 @@ import {
   Wrench,
   DollarSign,
   X,
-  ChevronDown,
   Banknote,
   CreditCard,
   ArrowDownToLine,
@@ -45,6 +44,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { NumericFormat } from "react-number-format"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DateRangePicker } from "@/lib/DatePickerWithRange"
 
 // Importar servicios
 import {
@@ -70,8 +70,13 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
   const [filteredReparaciones, setFilteredReparaciones] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filtroEstado, setFiltroEstado] = useState("todos")
-  const [ordenarPor, setOrdenarPor] = useState("fecha-reciente")
   const [busquedaRealizada, setBusquedaRealizada] = useState(false)
+
+  // Estados para el filtro de fechas
+  const [rangoFechas, setRangoFechas] = useState({
+    from: null,
+    to: null,
+  })
 
   // Estados para modales
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -115,6 +120,16 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
   // Cargar reparaciones al iniciar - solo si es admin
   useEffect(() => {
     if (isAdmin) {
+      // Configurar fechas por defecto para admin
+      const fechaFin = new Date()
+      const fechaInicio = new Date()
+      fechaInicio.setDate(fechaInicio.getDate() - 30)
+
+      setRangoFechas({
+        from: fechaInicio,
+        to: fechaFin,
+      })
+
       cargarReparaciones()
     } else {
       // Si es empleado, inicializar con lista vacía y quitar estado de carga
@@ -145,8 +160,17 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     try {
       setCargando(true)
 
+      // Preparar parámetros de búsqueda
+      const params = {}
+
+      // Agregar filtros de fecha si están configurados
+      if (rangoFechas?.from && rangoFechas?.to) {
+        params.fecha_inicio = formatearFecha(rangoFechas.from)
+        params.fecha_fin = formatearFecha(rangoFechas.to)
+      }
+
       // Cargar reparaciones
-      const reparacionesData = await getReparaciones()
+      const reparacionesData = await getReparaciones(params)
 
       // Procesar cada reparación
       const reparacionesFormateadas = reparacionesData.map((rep) => {
@@ -192,7 +216,16 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
     setCargando(true)
     try {
-      const reparacionesData = await getReparaciones()
+      // Preparar parámetros de búsqueda
+      const params = {}
+
+      // Agregar filtros de fecha si están configurados (solo para empleados)
+      if (!isAdmin && rangoFechas?.from && rangoFechas?.to) {
+        params.fecha_inicio = formatearFecha(rangoFechas.from)
+        params.fecha_fin = formatearFecha(rangoFechas.to)
+      }
+
+      const reparacionesData = await getReparaciones(params)
 
       // Filtrar por término de búsqueda
       const termino = searchTerm.toLowerCase()
@@ -261,19 +294,18 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       filtered = filtered.filter((rep) => rep.estado === filtroEstado)
     }
 
-    // Ordenar resultados
-    if (ordenarPor === "fecha-reciente") {
-      filtered.sort((a, b) => new Date(b.fechaIngreso) - new Date(a.fechaIngreso))
-    } else if (ordenarPor === "fecha-antigua") {
-      filtered.sort((a, b) => new Date(a.fechaIngreso) - new Date(b.fechaIngreso))
-    } else if (ordenarPor === "nombre-cliente") {
-      filtered.sort((a, b) => a.cliente?.nombre?.localeCompare(b.cliente?.nombre))
-    } else if (ordenarPor === "saldo-pendiente") {
-      filtered.sort((a, b) => calcularSaldoPendiente(b) - calcularSaldoPendiente(a))
-    }
+    // Ordenar por fecha más reciente
+    filtered.sort((a, b) => new Date(b.fechaIngreso) - new Date(a.fechaIngreso))
 
     setFilteredReparaciones(filtered)
-  }, [reparaciones, searchTerm, filtroEstado, ordenarPor, isAdmin])
+  }, [reparaciones, searchTerm, filtroEstado, isAdmin])
+
+  // Efecto para recargar reparaciones cuando cambia el rango de fechas (solo para admin)
+  useEffect(() => {
+    if (isAdmin && rangoFechas?.from && rangoFechas?.to) {
+      cargarReparaciones()
+    }
+  }, [rangoFechas, isAdmin])
 
   // Manejar la búsqueda para empleados
   const handleBusqueda = (e) => {
@@ -325,8 +357,14 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     return calcularSaldoPendiente(reparacion) <= 0
   }
 
-  // Formatear fecha
-  const formatearFecha = (fechaStr) => {
+  // Formatear fecha para el backend
+  const formatearFecha = (fecha) => {
+    if (!fecha) return null
+    return fecha.toISOString().split("T")[0]
+  }
+
+  // Formatear fecha para mostrar
+  const formatearFechaDisplay = (fechaStr) => {
     if (!fechaStr) return ""
     const fecha = new Date(fechaStr)
     return fecha.toLocaleDateString("es-ES", {
@@ -336,10 +374,20 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     })
   }
 
-  const formatearHora = (fechaStr) => {
-    if (!fechaStr) return ""
-    const fecha = new Date(fechaStr)
-    return fecha.toLocaleTimeString("es-ES", {
+  // Formatear fecha y hora con corrección de 3 horas
+  const formatearFechaHora = (fechaString) => {
+    if (!fechaString) return ""
+
+    const fecha = new Date(fechaString)
+    if (isNaN(fecha.getTime())) return ""
+
+    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
+
+    return fecha.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
@@ -996,6 +1044,14 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
           {/* Filtros - solo para administradores */}
           {isAdmin && (
             <>
+              {/* Filtro de fechas para administradores */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Filtrar por fecha</Label>
+                  <DateRangePicker date={rangoFechas} setDate={setRangoFechas} className="w-full" align="start" />
+                </div>
+              </div>
+
               {/* Vista de escritorio para los filtros - se oculta en móvil */}
               <div className="hidden md:flex gap-3 justify-between flex-wrap">
                 <Button
@@ -1051,17 +1107,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                 >
                   Canceladas
                 </Button>
-
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-1 border-gray-200 hover:bg-gray-50 ml-auto"
-                  onClick={() => setOrdenarPor(ordenarPor === "fecha-reciente" ? "fecha-antigua" : "fecha-reciente")}
-                >
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${ordenarPor === "fecha-antigua" ? "rotate-180" : ""}`}
-                  />
-                  <span className="truncate">Fecha</span>
-                </Button>
               </div>
 
               {/* Vista móvil para los filtros - se muestra solo en móvil */}
@@ -1090,18 +1135,6 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                     Pendientes
                   </Button>
                   <Button
-                    variant="outline"
-                    className="text-xs h-9 px-2 flex items-center justify-center gap-1 border-gray-200 hover:bg-gray-50"
-                    onClick={() => setOrdenarPor(ordenarPor === "fecha-reciente" ? "fecha-antigua" : "fecha-reciente")}
-                  >
-                    <ChevronDown
-                      className={`h-3 w-3 transition-transform ${ordenarPor === "fecha-antigua" ? "rotate-180" : ""}`}
-                    />
-                    <span className="truncate">Fecha</span>
-                  </Button>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
                     variant={filtroEstado === "terminada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("terminada")}
                     className={`text-xs h-9 px-2 ${
@@ -1112,6 +1145,8 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   >
                     Terminadas
                   </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <Button
                     variant={filtroEstado === "entregada" ? "default" : "outline"}
                     onClick={() => setFiltroEstado("entregada")}
@@ -1137,6 +1172,14 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                 </div>
               </div>
             </>
+          )}
+
+          {/* Filtro de fechas para empleados */}
+          {!isAdmin && (
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Filtrar por fecha (opcional)</Label>
+              <DateRangePicker date={rangoFechas} setDate={setRangoFechas} className="w-full" align="start" />
+            </div>
           )}
         </div>
       </div>
@@ -1219,7 +1262,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                             <Tag className="h-3 w-3 flex-shrink-0" />
                             <span>#{reparacion.numeroTicket}</span>
                             <Calendar className="h-3 w-3 ml-2 flex-shrink-0" />
-                            <span>{formatearFecha(reparacion.fechaIngreso)}</span>
+                            <span>{formatearFechaDisplay(reparacion.fechaIngreso)}</span>
                           </div>
 
                           {/* Punto de venta - Agregado aquí */}
@@ -1386,7 +1429,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   </Badge>
                 )}
                 <span className="text-xs sm:text-sm">
-                  Ticket #{currentReparacion.numeroTicket} - {formatearFecha(currentReparacion.fechaIngreso)}
+                  Ticket #{currentReparacion.numeroTicket} - {formatearFechaDisplay(currentReparacion.fechaIngreso)}
                 </span>
               </div>
             )}
@@ -1567,7 +1610,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                               <tbody>
                                 {currentReparacion.pagos.map((pago, index) => (
                                   <tr key={index} className="border-b border-gray-200">
-                                    <td className="py-1 sm:py-2">{formatearFecha(pago.fechaPago)}</td>
+                                    <td className="py-1 sm:py-2">{formatearFechaHora(pago.fechaPago)}</td>
                                     <td className="py-1 sm:py-2">
                                       {pago.metodoPago === "efectivo" && (
                                         <span className="flex items-center">
@@ -1755,7 +1798,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                                         </p>
                                       </div>
                                       <span className="text-[10px] sm:text-xs text-gray-500">
-                                        {formatearFecha(accion.fecha)} {accion.hora || ""}
+                                        {formatearFechaHora(accion.fecha)}
                                       </span>
                                     </div>
 
@@ -1860,7 +1903,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                   {obtenerNombreEstado(currentReparacion.estado)}
                 </Badge>
                 <span className="text-xs sm:text-sm">
-                  Ticket #{currentReparacion.numeroTicket} - {formatearFecha(currentReparacion.fechaIngreso)}
+                  Ticket #{currentReparacion.numeroTicket} - {formatearFechaDisplay(currentReparacion.fechaIngreso)}
                 </span>
               </div>
             )}
