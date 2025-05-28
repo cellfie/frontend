@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { Filter, UserPlus, Search, AlertCircle } from 'lucide-react'
+import { Filter, UserPlus, Search, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -45,6 +45,7 @@ const ClientesPage = () => {
   const [dialogPagoAbierto, setDialogPagoAbierto] = useState(false)
   const [dialogCuentaCorrienteAbierto, setDialogCuentaCorrienteAbierto] = useState(false)
   const [modoEdicion, setModoEdicion] = useState(false)
+  const [clienteEnEdicion, setClienteEnEdicion] = useState(null) // Nuevo estado para el cliente en edición
   const [formCliente, setFormCliente] = useState({
     nombre: "",
     telefono: "",
@@ -278,10 +279,11 @@ const ClientesPage = () => {
     }
   }
 
-  // Abrir diálogo para crear/editar cliente
+  // Abrir diálogo para crear/editar cliente - CORREGIDO
   const abrirDialogCliente = (cliente = null) => {
     if (cliente) {
       setModoEdicion(true)
+      setClienteEnEdicion(cliente) // Guardar referencia del cliente en edición
       setFormCliente({
         nombre: cliente.nombre,
         telefono: cliente.telefono || "",
@@ -289,6 +291,7 @@ const ClientesPage = () => {
       })
     } else {
       setModoEdicion(false)
+      setClienteEnEdicion(null) // Limpiar referencia
       setFormCliente({
         nombre: "",
         telefono: "",
@@ -322,7 +325,7 @@ const ClientesPage = () => {
     setDialogPagoAbierto(true)
   }
 
-  // Guardar cliente (crear o actualizar)
+  // Guardar cliente (crear o actualizar) - CORREGIDO
   const guardarCliente = async () => {
     if (!formCliente.nombre.trim()) {
       toast.error("El nombre del cliente es obligatorio")
@@ -332,15 +335,21 @@ const ClientesPage = () => {
     try {
       let clienteGuardado
       if (modoEdicion) {
-        clienteGuardado = await updateCliente(clienteSeleccionado.id, formCliente)
+        // Verificar que tenemos el cliente en edición
+        if (!clienteEnEdicion || !clienteEnEdicion.id) {
+          toast.error("Error: No se pudo identificar el cliente a editar")
+          return
+        }
+
+        clienteGuardado = await updateCliente(clienteEnEdicion.id, formCliente)
 
         // Actualizar el cliente en la lista
         setClientes((prevClientes) =>
-          prevClientes.map((c) => (c.id === clienteSeleccionado.id ? { ...c, ...formCliente } : c)),
+          prevClientes.map((c) => (c.id === clienteEnEdicion.id ? { ...c, ...formCliente } : c)),
         )
 
         // Actualizar el cliente seleccionado si está abierto
-        if (clienteSeleccionado) {
+        if (clienteSeleccionado && clienteSeleccionado.id === clienteEnEdicion.id) {
           setClienteSeleccionado({
             ...clienteSeleccionado,
             nombre: formCliente.nombre,
@@ -360,6 +369,9 @@ const ClientesPage = () => {
       }
 
       setDialogClienteAbierto(false)
+      // Limpiar estados
+      setClienteEnEdicion(null)
+      setModoEdicion(false)
     } catch (error) {
       console.error("Error al guardar cliente:", error)
       toast.error(error.message || "Error al guardar cliente")
@@ -688,7 +700,7 @@ const ClientesPage = () => {
         formCliente={formCliente}
         setFormCliente={setFormCliente}
         guardarCliente={guardarCliente}
-        clienteSeleccionado={clienteSeleccionado}
+        clienteSeleccionado={clienteEnEdicion} // Usar clienteEnEdicion en lugar de clienteSeleccionado
         dialogEliminarAbierto={dialogEliminarAbierto}
         setDialogEliminarAbierto={setDialogEliminarAbierto}
         eliminarCliente={eliminarCliente}
