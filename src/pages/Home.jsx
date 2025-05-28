@@ -988,12 +988,6 @@ export default function Home() {
                                   {note.usuario_nombre}
                                 </Badge>
                               )}
-                              <p className="text-xs text-muted-foreground">
-                                Agregado: {formatearFechaHora(note.fecha_creacion)}
-                                {note.completada && note.fecha_completada && (
-                                  <> • Completado: {formatearFechaHora(note.fecha_completada)}</>
-                                )}
-                              </p>
                             </div>
                           </div>
                         </div>
