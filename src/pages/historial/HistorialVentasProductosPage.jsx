@@ -5,25 +5,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { motion, AnimatePresence } from "framer-motion"
-import {
-  Search,
-  Filter,
-  FileText,
-  MapPin,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-  AlertTriangle,
-  ShoppingBag,
-  Package,
-  CheckCircle,
-  XCircle,
-  ArrowLeftRight,
-  Plus,
-  DollarSign,
-  Tag,
-} from "lucide-react"
+import { Search, Filter, FileText, MapPin, Trash2, ChevronDown, ChevronUp, RefreshCw, AlertTriangle, ShoppingBag, Package, CheckCircle, XCircle, ArrowLeftRight, Plus, DollarSign, Tag } from 'lucide-react'
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -324,16 +306,19 @@ const HistorialVentasProductosPage = () => {
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
+    
+    // Verificar si la fecha es válida
+    if (isNaN(fecha.getTime())) return ""
 
-    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
     return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false
     })
   }
 
@@ -937,8 +922,8 @@ const HistorialVentasProductosPage = () => {
                             <Badge
                               variant="outline"
                               className={`font-normal ${venta.puntoVenta.nombre === "Tala"
-                                  ? "border-orange-300 bg-orange-50 text-orange-700"
-                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                ? "border-orange-300 bg-orange-50 text-orange-700"
+                                : "border-indigo-300 bg-indigo-50 text-indigo-700"
                                 }`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
@@ -1060,8 +1045,8 @@ const HistorialVentasProductosPage = () => {
                                                   <Badge
                                                     variant="outline"
                                                     className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala"
-                                                        ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                        : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                                                      : "border-indigo-300 bg-indigo-50 text-indigo-700"
                                                       }`}
                                                   >
                                                     <MapPin className="h-3 w-3 mr-1" />
