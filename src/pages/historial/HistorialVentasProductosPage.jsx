@@ -5,7 +5,25 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Filter, FileText, MapPin, Trash2, ChevronDown, ChevronUp, RefreshCw, AlertTriangle, ShoppingBag, Package, CheckCircle, XCircle, ArrowLeftRight, Plus, DollarSign, Tag } from 'lucide-react'
+import {
+  Search,
+  Filter,
+  FileText,
+  MapPin,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  AlertTriangle,
+  ShoppingBag,
+  Package,
+  CheckCircle,
+  XCircle,
+  ArrowLeftRight,
+  Plus,
+  DollarSign,
+  Tag,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -279,6 +297,9 @@ const HistorialVentasProductosPage = () => {
 
     const fecha = new Date(fechaString)
     if (isNaN(fecha.getTime())) return ""
+
+    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
 
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
@@ -670,8 +691,9 @@ const HistorialVentasProductosPage = () => {
                         {productos.map((producto) => (
                           <li
                             key={producto.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
-                              }`}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                              productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
+                            }`}
                             onClick={() => {
                               handleSeleccionarProducto(producto)
                               setBusquedaProducto(producto.nombre)
@@ -852,10 +874,11 @@ const HistorialVentasProductosPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={`font-normal ${venta.puntoVenta.nombre === "Tala"
-                                ? "border-orange-300 bg-orange-50 text-orange-700"
-                                : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                }`}
+                              className={`font-normal ${
+                                venta.puntoVenta.nombre === "Tala"
+                                  ? "border-orange-300 bg-orange-50 text-orange-700"
+                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              }`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
                               {venta.puntoVenta.nombre}
@@ -975,10 +998,11 @@ const HistorialVentasProductosPage = () => {
                                                   <span className="text-gray-500">Punto de venta:</span>
                                                   <Badge
                                                     variant="outline"
-                                                    className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala"
-                                                      ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                      : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                      }`}
+                                                    className={`font-normal ${
+                                                      ventaSeleccionada.puntoVenta.nombre === "Tala"
+                                                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                                                        : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                    }`}
                                                   >
                                                     <MapPin className="h-3 w-3 mr-1" />
                                                     {ventaSeleccionada.puntoVenta.nombre}
@@ -1098,7 +1122,7 @@ const HistorialVentasProductosPage = () => {
                                                           <TableCell className="text-right font-medium">
                                                             {formatearPrecio(
                                                               (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
-                                                              detalle.precioConDescuento,
+                                                                detalle.precioConDescuento,
                                                             )}
                                                           </TableCell>
                                                         </TableRow>

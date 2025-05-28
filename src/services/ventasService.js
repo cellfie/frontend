@@ -5,18 +5,21 @@ const formatearFechaArgentina = (fechaString) => {
 
   try {
     // Manejar fechas que vienen de la base de datos
-    let fecha;
-    
-    if (fechaString.includes('T') || fechaString.includes('+')) {
+    let fecha
+
+    if (fechaString.includes("T") || fechaString.includes("+")) {
       // La fecha ya tiene información de timezone
-      fecha = new Date(fechaString);
+      fecha = new Date(fechaString)
     } else {
       // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
       // Agregamos el offset de Argentina (-03:00)
-      fecha = new Date(fechaString + ' GMT-0300');
+      fecha = new Date(fechaString + " GMT-0300")
     }
-    
+
     if (isNaN(fecha.getTime())) return ""
+
+    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
 
     return fecha.toLocaleString("es-AR", {
       timeZone: "America/Argentina/Buenos_Aires",
@@ -28,7 +31,7 @@ const formatearFechaArgentina = (fechaString) => {
       hour12: false,
     })
   } catch (error) {
-    console.error('Error al formatear fecha:', error)
+    console.error("Error al formatear fecha:", error)
     return ""
   }
 }
