@@ -1,25 +1,26 @@
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
-// Función para formatear fechas en zona horaria de Argentina
+// FUNCIÓN ACTUALIZADA: Formatear fechas SIN conversión de zona horaria
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
-  // Crear fecha desde string
+  // Crear fecha directamente desde el string de la base de datos
+  // Ya no aplicamos conversión de zona horaria porque las fechas se guardan correctamente
   const fecha = new Date(fechaString)
-  
+
   // Verificar si la fecha es válida
   if (isNaN(fecha.getTime())) return ""
 
-  // Formatear en zona horaria de Argentina con formato 24h
+  // Formatear directamente sin conversión de zona horaria
+  // porque las fechas ya están guardadas en la zona horaria correcta
   return fecha.toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false
+    hour12: false,
   })
 }
 
@@ -207,10 +208,10 @@ export const adaptVentaToFrontend = (venta) => {
     tieneDevoluciones: venta.tiene_devoluciones === 1,
     cliente: venta.cliente_id
       ? {
-        id: venta.cliente_id,
-        nombre: venta.cliente_nombre,
-        telefono: venta.cliente_telefono,
-      }
+          id: venta.cliente_id,
+          nombre: venta.cliente_nombre,
+          telefono: venta.cliente_telefono,
+        }
       : null,
     usuario: {
       id: venta.usuario_id,
@@ -225,19 +226,19 @@ export const adaptVentaToFrontend = (venta) => {
     },
     detalles: venta.detalles
       ? venta.detalles.map((detalle) => ({
-        id: detalle.id,
-        producto: {
-          id: detalle.producto_id,
-          codigo: detalle.producto_codigo,
-          nombre: detalle.producto_nombre,
-        },
-        cantidad: detalle.cantidad,
-        cantidadDevuelta: detalle.cantidad_devuelta || 0,
-        precioUnitario: detalle.precio_unitario,
-        precioConDescuento: detalle.precio_con_descuento,
-        subtotal: detalle.subtotal,
-        devuelto: detalle.devuelto === 1,
-      }))
+          id: detalle.id,
+          producto: {
+            id: detalle.producto_id,
+            codigo: detalle.producto_codigo,
+            nombre: detalle.producto_nombre,
+          },
+          cantidad: detalle.cantidad,
+          cantidadDevuelta: detalle.cantidad_devuelta || 0,
+          precioUnitario: detalle.precio_unitario,
+          precioConDescuento: detalle.precio_con_descuento,
+          subtotal: detalle.subtotal,
+          devuelto: detalle.devuelto === 1,
+        }))
       : [],
   }
 }

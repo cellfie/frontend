@@ -5,7 +5,25 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Filter, FileText, MapPin, Trash2, ChevronDown, ChevronUp, RefreshCw, AlertTriangle, ShoppingBag, Package, CheckCircle, XCircle, ArrowLeftRight, Plus, DollarSign, Tag } from 'lucide-react'
+import {
+  Search,
+  Filter,
+  FileText,
+  MapPin,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  AlertTriangle,
+  ShoppingBag,
+  Package,
+  CheckCircle,
+  XCircle,
+  ArrowLeftRight,
+  Plus,
+  DollarSign,
+  Tag,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +44,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-// Reemplazar la importación del DatePickerWithRange
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -90,7 +107,6 @@ const HistorialVentasProductosPage = () => {
   // Calcular el total de ventas filtradas
   const totalVentasFiltradas = useMemo(() => {
     return ventasFiltradas.reduce((sum, venta) => {
-      // Asegurarse de que el total sea un número
       const ventaTotal = typeof venta.total === "number" ? venta.total : Number.parseFloat(venta.total) || 0
       return sum + ventaTotal
     }, 0)
@@ -100,24 +116,19 @@ const HistorialVentasProductosPage = () => {
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        // Cargar puntos de venta
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
 
-        // Cargar métodos de pago
         const metodos = await getMetodosPago()
         setMetodosPago(metodos)
 
-        // Establecer fechas iniciales según el rol
         const fechaFin = new Date()
         let fechaInicio
 
         if (isAdmin) {
-          // Admin: últimos 30 días por defecto
           fechaInicio = new Date()
           fechaInicio.setDate(fechaInicio.getDate() - 30)
         } else {
-          // Empleado: últimos 7 días (y no puede ver más atrás)
           fechaInicio = new Date()
           fechaInicio.setDate(fechaInicio.getDate() - 7)
         }
@@ -145,21 +156,14 @@ const HistorialVentasProductosPage = () => {
   const cargarVentas = async () => {
     setCargando(true)
     try {
-      // Preparar parámetros para la consulta
       const params = {}
       if (filtros.fechaInicio) params.fecha_inicio = filtros.fechaInicio
       if (filtros.fechaFin) params.fecha_fin = filtros.fechaFin
       if (filtros.puntoVentaId) params.punto_venta_id = filtros.puntoVentaId
-      // Eliminamos el filtro de anuladas para obtener todas las ventas
-      // y luego filtrarlas en el frontend
 
-      // Obtener ventas
       const ventasData = await getVentas(params)
-
-      // Adaptar los datos al formato que espera el frontend
       const ventasAdaptadas = ventasData.map(adaptVentaToFrontend)
 
-      // Verificar si cada venta tiene devoluciones
       for (const venta of ventasAdaptadas) {
         try {
           const devoluciones = await getDevolucionesByVenta(venta.id)
@@ -170,7 +174,6 @@ const HistorialVentasProductosPage = () => {
         }
       }
 
-      // Si hay un producto seleccionado, necesitamos cargar los detalles de cada venta
       if (filtros.productoId) {
         for (const venta of ventasAdaptadas) {
           try {
@@ -184,8 +187,6 @@ const HistorialVentasProductosPage = () => {
       }
 
       setVentas(ventasAdaptadas)
-
-      // Aplicar filtro de búsqueda y método de pago
       filtrarVentas(ventasAdaptadas)
     } catch (error) {
       console.error("Error al cargar ventas:", error)
@@ -200,19 +201,16 @@ const HistorialVentasProductosPage = () => {
     (ventasAFiltrar = ventas) => {
       let resultado = [...ventasAFiltrar]
 
-      // Filtrar por ventas anuladas si el checkbox está activo
       if (filtros.mostrarAnuladas) {
         resultado = resultado.filter((v) => v.anulada === true)
       } else {
         resultado = resultado.filter((v) => v.anulada === false)
       }
 
-      // Filtrar por método de pago
       if (filtros.metodoPagoId) {
         resultado = resultado.filter((v) => v.tipoPago && v.tipoPago.nombre === filtros.metodoPagoId)
       }
 
-      // Filtrar por término de búsqueda
       if (filtros.busqueda) {
         const termino = filtros.busqueda.toLowerCase()
         resultado = resultado.filter(
@@ -223,7 +221,6 @@ const HistorialVentasProductosPage = () => {
         )
       }
 
-      // Filtrar por producto seleccionado
       if (filtros.productoId) {
         const productoId = Number.parseInt(filtros.productoId)
         resultado = resultado.filter((venta) => {
@@ -239,14 +236,12 @@ const HistorialVentasProductosPage = () => {
     [filtros.busqueda, filtros.metodoPagoId, filtros.mostrarAnuladas, filtros.productoId, ventas],
   )
 
-  // Efecto para aplicar filtros de búsqueda y método de pago
   useEffect(() => {
     if (!filtros.productoId) {
       filtrarVentas()
     }
   }, [filtros.busqueda, filtros.metodoPagoId, filtros.mostrarAnuladas, ventas, filtrarVentas])
 
-  // Actualizar filtros cuando cambia el rango de fechas
   useEffect(() => {
     if (rangoFechas && rangoFechas.from && rangoFechas.to) {
       setFiltros({
@@ -255,8 +250,6 @@ const HistorialVentasProductosPage = () => {
         fechaFin: formatearFecha(rangoFechas.to),
       })
     } else if (rangoFechas && (!rangoFechas.from || !rangoFechas.to)) {
-      // Si alguna de las fechas es null, no actualizamos los filtros
-      // Esto evita que se envíen consultas con fechas incompletas
       console.log("Rango de fechas incompleto, no se actualizarán los filtros")
     }
   }, [rangoFechas])
@@ -281,13 +274,11 @@ const HistorialVentasProductosPage = () => {
     }
   }
 
-  // Manejar cambio en la búsqueda de productos
   const handleBusquedaProductoChange = (value) => {
     setBusquedaProducto(value)
     buscarProductos(value)
   }
 
-  // Seleccionar un producto para filtrar
   const handleSeleccionarProducto = (producto) => {
     setProductoSeleccionado(producto)
     setFiltros({
@@ -296,33 +287,34 @@ const HistorialVentasProductosPage = () => {
     })
   }
 
-  // Formatear fecha para la API
   const formatearFecha = (fecha) => {
     if (!fecha) return null
     return fecha.toISOString().split("T")[0]
   }
 
-  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
+  // FUNCIÓN ACTUALIZADA: Formatear fecha para mostrar - SIN conversión de zona horaria
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
+    // Crear fecha directamente desde el string de la base de datos
+    // Ya no aplicamos conversión de zona horaria porque las fechas se guardan correctamente
     const fecha = new Date(fechaString)
-    
+
     // Verificar si la fecha es válida
     if (isNaN(fecha.getTime())) return ""
 
+    // Formatear directamente sin conversión de zona horaria
+    // porque las fechas ya están guardadas en la zona horaria correcta
     return fecha.toLocaleString("es-AR", {
-      timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      hour12: false
+      hour12: false,
     })
   }
 
-  // Formatear precio para mostrar
   const formatearPrecio = (precio) => {
     const precioNumerico = Number.parseFloat(precio) || 0
     return new Intl.NumberFormat("es-AR", {
@@ -332,9 +324,7 @@ const HistorialVentasProductosPage = () => {
     }).format(precioNumerico)
   }
 
-  // Limpiar filtros
   const limpiarFiltros = () => {
-    // Mantener solo las fechas
     const fechaFin = new Date()
     let fechaInicio
 
@@ -377,47 +367,35 @@ const HistorialVentasProductosPage = () => {
       setCargando(true)
       const ventaDetallada = await getVentaById(ventaId)
 
-      // Procesar los detalles para marcar productos devueltos
       if (ventaDetallada.detalles) {
-        // Cargar devoluciones para marcar productos
         const devoluciones = await getDevolucionesByVenta(ventaId)
-
-        // Crear un mapa de productos devueltos
         const productosDevueltos = new Map()
         const productosReemplazo = []
 
-        // Procesar las devoluciones en orden cronológico para mantener el historial correcto
         devoluciones
           .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
           .forEach((devolucion) => {
-            // Ignorar devoluciones anuladas
             if (devolucion.anulada === 1) return
 
-            // Procesar productos devueltos
             devolucion.productos_devueltos.forEach((prod) => {
-              // Usar una clave compuesta de producto_id y detalle_venta_id
               const key = `${prod.producto_id}_${prod.detalle_venta_id}`
               const actual = productosDevueltos.get(key) || 0
               productosDevueltos.set(key, actual + prod.cantidad)
 
-              // Si es un producto de reemplazo que se devuelve, marcarlo para eliminarlo de la lista de reemplazos
               if (prod.es_reemplazo) {
                 const index = productosReemplazo.findIndex(
                   (p) => p.id === prod.producto_id && p.detalleVentaId === prod.detalle_venta_id,
                 )
                 if (index !== -1) {
-                  // Si la cantidad devuelta es igual o mayor, eliminar el producto
                   if (prod.cantidad >= productosReemplazo[index].cantidad) {
                     productosReemplazo.splice(index, 1)
                   } else {
-                    // Si es menor, reducir la cantidad
                     productosReemplazo[index].cantidad -= prod.cantidad
                   }
                 }
               }
             })
 
-            // Recopilar productos de reemplazo
             devolucion.productos_reemplazo.forEach((prod) => {
               productosReemplazo.push({
                 id: prod.producto_id,
@@ -428,12 +406,11 @@ const HistorialVentasProductosPage = () => {
                 esReemplazo: true,
                 devolucionId: devolucion.id,
                 fechaDevolucion: devolucion.fecha,
-                detalleVentaId: null, // Se asignará cuando se encuentre en los detalles de venta
+                detalleVentaId: null,
               })
             })
           })
 
-        // Marcar productos devueltos y filtrar los completamente devueltos
         ventaDetallada.detalles = ventaDetallada.detalles.map((detalle) => {
           const key = `${detalle.producto_id}_${detalle.id}`
           const cantidadDevuelta = productosDevueltos.get(key) || 0
@@ -445,7 +422,6 @@ const HistorialVentasProductosPage = () => {
             detalle.devueltoParcial = true
           }
 
-          // Buscar si este detalle corresponde a un producto de reemplazo
           if (detalle.es_reemplazo) {
             const reemplazo = productosReemplazo.find((r) => r.id === detalle.producto_id && !r.detalleVentaId)
             if (reemplazo) {
@@ -456,7 +432,6 @@ const HistorialVentasProductosPage = () => {
           return detalle
         })
 
-        // Agregar productos de reemplazo a los detalles
         ventaDetallada.productosReemplazo = productosReemplazo
       }
 
@@ -464,7 +439,6 @@ const HistorialVentasProductosPage = () => {
       setDetalleVentaAbierto(ventaId)
       setTabActiva("detalles")
 
-      // Cargar devoluciones de la venta
       cargarDevolucionesVenta(ventaId)
     } catch (error) {
       console.error("Error al obtener detalle de venta:", error)
@@ -474,7 +448,6 @@ const HistorialVentasProductosPage = () => {
     }
   }
 
-  // Cargar devoluciones de una venta
   const cargarDevolucionesVenta = async (ventaId) => {
     setCargandoDevoluciones(true)
     try {
@@ -488,29 +461,23 @@ const HistorialVentasProductosPage = () => {
     }
   }
 
-  // Abrir diálogo de devolución
   const abrirDialogDevolucion = () => {
     setDialogDevolucionAbierto(true)
   }
 
-  // Manejar devolución completada
   const handleDevolucionCompleta = () => {
-    // Recargar devoluciones y detalles de la venta
     if (ventaSeleccionada) {
       cargarDevolucionesVenta(ventaSeleccionada.id)
       abrirDetalleVenta(ventaSeleccionada.id)
     }
 
-    // Recargar todas las ventas para actualizar indicadores
     cargarVentas()
 
-    // Mostrar mensaje de éxito
     toast.success("Devolución procesada correctamente", {
       position: "bottom-center",
     })
   }
 
-  // Abrir diálogo de anulación
   const abrirDialogAnulacion = (venta) => {
     setVentaAnular(venta)
     setMotivoAnulacion("")
@@ -518,7 +485,6 @@ const HistorialVentasProductosPage = () => {
     setDialogAnularAbierto(true)
   }
 
-  // Anular venta
   const confirmarAnulacion = async () => {
     if (!motivoAnulacion.trim()) {
       toast.error("El motivo de anulación es obligatorio")
@@ -531,7 +497,6 @@ const HistorialVentasProductosPage = () => {
     try {
       await anularVenta(ventaAnular.id, motivoAnulacion)
 
-      // Actualizar la lista de ventas
       const ventasActualizadas = ventas.map((v) =>
         v.id === ventaAnular.id
           ? { ...v, anulada: true, fechaAnulacion: new Date().toISOString(), motivoAnulacion }
@@ -541,7 +506,6 @@ const HistorialVentasProductosPage = () => {
       setVentas(ventasActualizadas)
       filtrarVentas(ventasActualizadas)
 
-      // Si la venta anulada es la que está seleccionada, actualizar su estado
       if (ventaSeleccionada && ventaSeleccionada.id === ventaAnular.id) {
         setVentaSeleccionada({
           ...ventaSeleccionada,
@@ -557,7 +521,6 @@ const HistorialVentasProductosPage = () => {
         mensaje: "Venta anulada correctamente. Se ha restaurado el stock de los productos.",
       })
 
-      // Cerrar el diálogo después de 2 segundos
       setTimeout(() => {
         setDialogAnularAbierto(false)
         toast.success("Venta anulada correctamente")
@@ -575,7 +538,6 @@ const HistorialVentasProductosPage = () => {
     }
   }
 
-  // Renderizar skeletons durante la carga
   const renderSkeletons = () =>
     Array.from({ length: 5 }).map((_, idx) => (
       <TableRow key={idx}>
@@ -603,15 +565,12 @@ const HistorialVentasProductosPage = () => {
       </TableRow>
     ))
 
-  // Modificar el useEffect que carga las ventas
   useEffect(() => {
-    // Solo cargar si tenemos fechas
     if (filtros.fechaInicio && filtros.fechaFin) {
       cargarVentas()
     }
   }, [filtros.fechaInicio, filtros.fechaFin, filtros.puntoVentaId])
 
-  // Efecto para recargar ventas cuando cambia el filtro de producto
   useEffect(() => {
     if (filtros.productoId) {
       cargarVentas()
@@ -693,7 +652,7 @@ const HistorialVentasProductosPage = () => {
               />
             </div>
 
-            {/* Búsqueda por producto - NUEVO */}
+            {/* Búsqueda por producto */}
             <div className="col-span-1 sm:col-span-2 xl:col-span-1">
               <div className="relative">
                 <Tag className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -736,8 +695,9 @@ const HistorialVentasProductosPage = () => {
                         {productos.map((producto) => (
                           <li
                             key={producto.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
-                              }`}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                              productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
+                            }`}
                             onClick={() => {
                               handleSeleccionarProducto(producto)
                               setBusquedaProducto(producto.nombre)
@@ -809,7 +769,6 @@ const HistorialVentasProductosPage = () => {
                 setDate={setRangoFechas}
                 className="w-full"
                 align="start"
-                // Deshabilitar selección de fechas anteriores a 7 días para empleados
                 disableBefore={!isAdmin ? new Date(new Date().setDate(new Date().getDate() - 7)) : undefined}
               />
               {!isAdmin && (
@@ -822,7 +781,6 @@ const HistorialVentasProductosPage = () => {
 
             {/* Controles adicionales */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-1 flex items-center justify-between gap-2">
-              {/* Mostrar anuladas */}
               <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border flex-1">
                 <Checkbox
                   id="mostrarAnuladas"
@@ -837,7 +795,6 @@ const HistorialVentasProductosPage = () => {
                 </label>
               </div>
 
-              {/* Botón limpiar */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -921,10 +878,11 @@ const HistorialVentasProductosPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={`font-normal ${venta.puntoVenta.nombre === "Tala"
-                                ? "border-orange-300 bg-orange-50 text-orange-700"
-                                : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                }`}
+                              className={`font-normal ${
+                                venta.puntoVenta.nombre === "Tala"
+                                  ? "border-orange-300 bg-orange-50 text-orange-700"
+                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              }`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
                               {venta.puntoVenta.nombre}
@@ -1044,10 +1002,11 @@ const HistorialVentasProductosPage = () => {
                                                   <span className="text-gray-500">Punto de venta:</span>
                                                   <Badge
                                                     variant="outline"
-                                                    className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala"
-                                                      ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                      : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                      }`}
+                                                    className={`font-normal ${
+                                                      ventaSeleccionada.puntoVenta.nombre === "Tala"
+                                                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                                                        : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                    }`}
                                                   >
                                                     <MapPin className="h-3 w-3 mr-1" />
                                                     {ventaSeleccionada.puntoVenta.nombre}
@@ -1117,9 +1076,8 @@ const HistorialVentasProductosPage = () => {
                                                     </TableRow>
                                                   </TableHeader>
                                                   <TableBody>
-                                                    {/* Productos originales de la venta (excluyendo los completamente devueltos) */}
                                                     {ventaSeleccionada.detalles
-                                                      .filter((detalle) => !detalle.devuelto) // Mostrar solo productos no devueltos completamente
+                                                      .filter((detalle) => !detalle.devuelto)
                                                       .map((detalle) => (
                                                         <TableRow
                                                           key={detalle.id}
@@ -1168,13 +1126,12 @@ const HistorialVentasProductosPage = () => {
                                                           <TableCell className="text-right font-medium">
                                                             {formatearPrecio(
                                                               (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
-                                                              detalle.precioConDescuento,
+                                                                detalle.precioConDescuento,
                                                             )}
                                                           </TableCell>
                                                         </TableRow>
                                                       ))}
 
-                                                    {/* Productos de reemplazo */}
                                                     {ventaSeleccionada.productosReemplazo &&
                                                       ventaSeleccionada.productosReemplazo.length > 0 && (
                                                         <>
@@ -1377,7 +1334,6 @@ const HistorialVentasProductosPage = () => {
               </div>
             </div>
 
-            {/* Estado de anulación */}
             {estadoAnulacion.exito && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 flex items-start gap-2">
                 <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
