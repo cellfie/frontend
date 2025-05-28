@@ -7,7 +7,23 @@ import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import ReactTooltip from "react-tooltip"
-import { Search, ShoppingBag, Smartphone, PenToolIcon as Tool, Edit, Loader2, Trash2, Plus, Save, CheckCircle, Clock, DollarSign, Wifi, WifiOff, X } from 'lucide-react'
+import {
+  Search,
+  ShoppingBag,
+  Smartphone,
+  PenToolIcon as Tool,
+  Edit,
+  Loader2,
+  Trash2,
+  Plus,
+  Save,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -223,33 +239,33 @@ export default function Home() {
   // Función mejorada para obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
   const obtenerFechaHoyArgentina = () => {
     // Crear fecha actual
-    const ahora = new Date();
-    
+    const ahora = new Date()
+
     // Obtener la fecha en zona horaria de Argentina
-    const fechaArgentina = new Date(ahora.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-    
+    const fechaArgentina = new Date(ahora.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
+
     // Formatear como YYYY-MM-DD
-    const year = fechaArgentina.getFullYear();
-    const month = String(fechaArgentina.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaArgentina.getDate()).padStart(2, '0');
-    
-    const fechaFormateada = `${year}-${month}-${day}`;
-    
-    console.log('Fecha actual (local):', ahora.toISOString());
-    console.log('Fecha Argentina calculada:', fechaArgentina.toISOString());
-    console.log('Fecha formateada para consulta:', fechaFormateada);
-    
-    return fechaFormateada;
-  };
+    const year = fechaArgentina.getFullYear()
+    const month = String(fechaArgentina.getMonth() + 1).padStart(2, "0")
+    const day = String(fechaArgentina.getDate()).padStart(2, "0")
+
+    const fechaFormateada = `${year}-${month}-${day}`
+
+    console.log("Fecha actual (local):", ahora.toISOString())
+    console.log("Fecha Argentina calculada:", fechaArgentina.toISOString())
+    console.log("Fecha formateada para consulta:", fechaFormateada)
+
+    return fechaFormateada
+  }
 
   // Efecto para cargar las ventas de hoy
   useEffect(() => {
     const fetchVentasHoy = async () => {
       try {
         // Obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
-        const today = obtenerFechaHoyArgentina();
-        
-        console.log('Consultando ventas para la fecha:', today);
+        const today = obtenerFechaHoyArgentina()
+
+        console.log("Consultando ventas para la fecha:", today)
 
         // Obtener las ventas de hoy
         const params = {
@@ -258,19 +274,19 @@ export default function Home() {
           anuladas: false,
         }
 
-        console.log('Parámetros de consulta:', params);
+        console.log("Parámetros de consulta:", params)
 
         const ventasData = await getVentas(params)
-        
-        console.log('Ventas obtenidas:', ventasData);
-        console.log('Cantidad de ventas:', ventasData.length);
+
+        console.log("Ventas obtenidas:", ventasData)
+        console.log("Cantidad de ventas:", ventasData.length)
 
         // Calcular el total de ventas y el monto total
         const cantidad = ventasData.length
         const monto = ventasData.reduce((total, venta) => total + Number.parseFloat(venta.total), 0)
 
-        console.log('Cantidad calculada:', cantidad);
-        console.log('Monto total:', monto);
+        console.log("Cantidad calculada:", cantidad)
+        console.log("Monto total:", monto)
 
         // Actualizar el estado
         setVentasHoy({
@@ -301,9 +317,9 @@ export default function Home() {
     const fetchEquiposVendidosHoy = async () => {
       try {
         // Obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
-        const today = obtenerFechaHoyArgentina();
-        
-        console.log('Consultando equipos vendidos para la fecha:', today);
+        const today = obtenerFechaHoyArgentina()
+
+        console.log("Consultando equipos vendidos para la fecha:", today)
 
         // Obtener las ventas de equipos de hoy
         const params = {
@@ -312,12 +328,12 @@ export default function Home() {
           anuladas: false,
         }
 
-        console.log('Parámetros de consulta equipos:', params);
+        console.log("Parámetros de consulta equipos:", params)
 
         const equiposData = await getVentasEquipos(params)
-        
-        console.log('Equipos obtenidos:', equiposData);
-        console.log('Cantidad de equipos:', equiposData.length);
+
+        console.log("Equipos obtenidos:", equiposData)
+        console.log("Cantidad de equipos:", equiposData.length)
 
         // Calcular el total de equipos vendidos
         const cantidad = equiposData.length
@@ -562,15 +578,18 @@ export default function Home() {
     }
   }
 
-  // Función mejorada para formatear fecha y hora en zona horaria Argentina
+  // Función para formatear fecha y hora con corrección de 3 horas (igual que en los historiales)
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
     // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
-    
+
     // Verificar si la fecha es válida
     if (isNaN(fecha.getTime())) return ""
+
+    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
 
     // Usar toLocaleString con zona horaria de Argentina y formato 24h
     return fecha.toLocaleString("es-AR", {
@@ -580,7 +599,7 @@ export default function Home() {
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      hour12: false
+      hour12: false,
     })
   }
 
