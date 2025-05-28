@@ -277,12 +277,18 @@ const HistorialVentasEquiposPage = () => {
     return fecha.toISOString().split("T")[0]
   }
 
-  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
+  // Formatear fecha para mostrar con corrección de 3 horas
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
     // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
+
+    // Verificar si la fecha es válida
+    if (isNaN(fecha.getTime())) return ""
+
+    // Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
 
     // Usar toLocaleString sin especificar zona horaria para usar la del sistema
     return fecha.toLocaleString("es-AR", {
@@ -293,7 +299,6 @@ const HistorialVentasEquiposPage = () => {
       minute: "2-digit",
     })
   }
-
 
   const formatearPrecioUSD = (precio) => {
     const precioNumerico = Number.parseFloat(precio) || 0
@@ -394,13 +399,13 @@ const HistorialVentasEquiposPage = () => {
         motivoAnulacion: ventaDetallada.motivo_anulacion,
         planCanje: ventaDetallada.plan_canje
           ? {
-            marca: ventaDetallada.plan_canje.marca,
-            modelo: ventaDetallada.plan_canje.modelo,
-            precio: ventaDetallada.plan_canje.precio,
-            memoria: ventaDetallada.plan_canje.memoria,
-            color: ventaDetallada.plan_canje.color,
-            imei: ventaDetallada.plan_canje.imei,
-          }
+              marca: ventaDetallada.plan_canje.marca,
+              modelo: ventaDetallada.plan_canje.modelo,
+              precio: ventaDetallada.plan_canje.precio,
+              memoria: ventaDetallada.plan_canje.memoria,
+              color: ventaDetallada.plan_canje.color,
+              imei: ventaDetallada.plan_canje.imei,
+            }
           : null,
         notas: ventaDetallada.notas,
       }
@@ -739,10 +744,11 @@ const HistorialVentasEquiposPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={`font-normal ${venta.puntoVenta.nombre === "Tala"
+                              className={`font-normal ${
+                                venta.puntoVenta.nombre === "Tala"
                                   ? "border-orange-300 bg-orange-50 text-orange-700"
                                   : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                }`}
+                              }`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
                               {venta.puntoVenta.nombre}
@@ -792,26 +798,27 @@ const HistorialVentasEquiposPage = () => {
                                 </Tooltip>
                               </TooltipProvider>
 
-                              {!venta.anulada && (currentUser?.role === "admin" || currentUser?.role === "empleado") && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => abrirDialogAnulacion(venta)}
-                                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                        disabled={venta.anulada}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Anular venta</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
+                              {!venta.anulada &&
+                                (currentUser?.role === "admin" || currentUser?.role === "empleado") && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => abrirDialogAnulacion(venta)}
+                                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                          disabled={venta.anulada}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Anular venta</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -854,10 +861,11 @@ const HistorialVentasEquiposPage = () => {
                                               <span className="text-gray-500">Punto de venta:</span>
                                               <Badge
                                                 variant="outline"
-                                                className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala"
+                                                className={`font-normal ${
+                                                  ventaSeleccionada.puntoVenta.nombre === "Tala"
                                                     ? "border-orange-300 bg-orange-50 text-orange-700"
                                                     : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                  }`}
+                                                }`}
                                               >
                                                 <MapPin className="h-3 w-3 mr-1" />
                                                 {ventaSeleccionada.puntoVenta.nombre}
@@ -949,12 +957,13 @@ const HistorialVentasEquiposPage = () => {
                                                   <div className="flex items-center gap-2">
                                                     <div className="w-16 h-3 bg-gray-200 rounded-full overflow-hidden">
                                                       <div
-                                                        className={`h-full ${ventaSeleccionada.equipo.bateria >= 80
+                                                        className={`h-full ${
+                                                          ventaSeleccionada.equipo.bateria >= 80
                                                             ? "bg-green-500"
                                                             : ventaSeleccionada.equipo.bateria >= 60
                                                               ? "bg-orange-500"
                                                               : "bg-red-500"
-                                                          }`}
+                                                        }`}
                                                         style={{ width: `${ventaSeleccionada.equipo.bateria}%` }}
                                                       ></div>
                                                     </div>
