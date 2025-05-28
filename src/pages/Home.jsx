@@ -582,25 +582,36 @@ export default function Home() {
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear la fecha a partir del string
-    const fecha = new Date(fechaString)
+    try {
+      // Manejar fechas que vienen de la base de datos
+      let fecha
 
-    // Verificar si la fecha es válida
-    if (isNaN(fecha.getTime())) return ""
+      if (fechaString.includes("T") || fechaString.includes("+")) {
+        // La fecha ya tiene información de timezone
+        fecha = new Date(fechaString)
+      } else {
+        // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
+        // Agregamos el offset de Argentina (-03:00)
+        fecha = new Date(fechaString + " GMT-0300")
+      }
 
-    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
-    fecha.setHours(fecha.getHours() + 3)
+      if (isNaN(fecha.getTime())) return ""
 
-    // Usar toLocaleString con zona horaria de Argentina y formato 24h
-    return fecha.toLocaleString("es-AR", {
-      timeZone: "America/Argentina/Buenos_Aires",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })
+      // SOLUCIÓN: Sumar 3 horas para corregir el desfase
+      fecha.setHours(fecha.getHours() + 3)
+
+      return fecha.toLocaleString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    } catch (error) {
+      console.error("Error al formatear fecha:", error)
+      return fechaString || "" // Devolver el string original si hay error
+    }
   }
 
   // Determinar qué productos mostrar
