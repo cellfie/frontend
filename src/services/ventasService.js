@@ -1,24 +1,13 @@
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
-// FUNCIÓN ACTUALIZADA: Formatear fechas parseando manualmente para evitar conversión de zona horaria
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
   try {
-    // Parsear manualmente la fecha para evitar conversión de zona horaria
-    // Formato esperado: "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss"
-    const fechaLimpia = fechaString.replace('T', ' ')
-    const [fechaParte, horaParte] = fechaLimpia.split(' ')
-    const [año, mes, dia] = fechaParte.split('-').map(Number)
-    const [hora, minuto, segundo] = horaParte.split(':').map(Number)
-    
-    // Crear fecha directamente con los valores parseados (interpretación local)
-    const fecha = new Date(año, mes - 1, dia, hora, minuto, segundo || 0)
-
-    // Verificar si la fecha es válida
+    // Simplemente crear el objeto Date y mostrarlo (sin restar horas)
+    const fecha = new Date(fechaString)
     if (isNaN(fecha.getTime())) return ""
 
-    // Formatear directamente
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
