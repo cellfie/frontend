@@ -7,23 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import ReactTooltip from "react-tooltip"
-import {
-  Search,
-  ShoppingBag,
-  Smartphone,
-  PenToolIcon as Tool,
-  Edit,
-  Loader2,
-  Trash2,
-  Plus,
-  Save,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  Wifi,
-  WifiOff,
-  X,
-} from "lucide-react"
+import { Search, ShoppingBag, Smartphone, PenToolIcon as Tool, Edit, Loader2, Trash2, Plus, Save, CheckCircle, Clock, DollarSign, Wifi, WifiOff, X } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -236,12 +220,20 @@ export default function Home() {
     fetchNotas()
   }, [])
 
+  // Función para obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
+  const obtenerFechaHoyArgentina = () => {
+    const fechaHoy = new Date();
+    // Convertir a zona horaria de Argentina
+    const fechaArgentina = new Date(fechaHoy.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+    return fechaArgentina.toISOString().split('T')[0];
+  };
+
   // Efecto para cargar las ventas de hoy
   useEffect(() => {
     const fetchVentasHoy = async () => {
       try {
-        // Obtener la fecha de hoy en formato YYYY-MM-DD
-        const today = new Date().toISOString().split("T")[0]
+        // Obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
+        const today = obtenerFechaHoyArgentina();
 
         // Obtener las ventas de hoy
         const params = {
@@ -284,8 +276,8 @@ export default function Home() {
   useEffect(() => {
     const fetchEquiposVendidosHoy = async () => {
       try {
-        // Obtener la fecha de hoy en formato YYYY-MM-DD
-        const today = new Date().toISOString().split("T")[0]
+        // Obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
+        const today = obtenerFechaHoyArgentina();
 
         // Obtener las ventas de equipos de hoy
         const params = {
@@ -539,20 +531,25 @@ export default function Home() {
     }
   }
 
-  // Función mejorada para formatear fecha - IGUAL QUE EN CLIENTES
+  // Función mejorada para formatear fecha y hora en zona horaria Argentina
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
     // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
+    
+    // Verificar si la fecha es válida
+    if (isNaN(fecha.getTime())) return ""
 
-    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
+    // Usar toLocaleString con zona horaria de Argentina y formato 24h
     return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false
     })
   }
 

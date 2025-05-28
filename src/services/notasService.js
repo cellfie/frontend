@@ -1,5 +1,27 @@
 const API_URL = "https://api.sistemacellfierm22.site/api" 
 
+// Función para formatear fechas en zona horaria de Argentina
+export const formatearFechaArgentina = (fechaString) => {
+  if (!fechaString) return ""
+
+  // Crear fecha desde string
+  const fecha = new Date(fechaString)
+  
+  // Verificar si la fecha es válida
+  if (isNaN(fecha.getTime())) return ""
+
+  // Formatear en zona horaria de Argentina con formato 24h
+  return fecha.toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  })
+}
+
 // Obtener todas las notas
 export const getNotas = async (completadas) => {
   try {
