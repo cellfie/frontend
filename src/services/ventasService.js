@@ -1,25 +1,31 @@
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
-// FUNCIÓN ACTUALIZADA: Formatear fechas SIN conversión de zona horaria
+// FUNCIÓN ACTUALIZADA: Formatear fechas forzando interpretación como hora local
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
-  // Crear fecha directamente desde el string de la base de datos
-  // Ya no aplicamos conversión de zona horaria porque las fechas se guardan correctamente
-  const fecha = new Date(fechaString)
+  // Crear fecha forzando interpretación como hora local
+  // Agregamos 'T' si no existe para asegurar formato ISO, pero sin 'Z' para evitar interpretación UTC
+  let fechaFormateada = fechaString.replace(' ', 'T')
+  
+  // Si no tiene 'T', significa que viene en formato YYYY-MM-DD HH:mm:ss
+  if (!fechaFormateada.includes('T')) {
+    fechaFormateada = fechaString.replace(' ', 'T')
+  }
+  
+  // Crear fecha interpretándola como hora local
+  const fecha = new Date(fechaFormateada)
 
   // Verificar si la fecha es válida
   if (isNaN(fecha.getTime())) return ""
 
-  // Formatear directamente sin conversión de zona horaria
-  // porque las fechas ya están guardadas en la zona horaria correcta
+  // Formatear directamente
   return fecha.toLocaleString("es-AR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
     hour12: false,
   })
 }

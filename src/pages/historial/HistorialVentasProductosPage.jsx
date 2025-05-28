@@ -274,19 +274,26 @@ const HistorialVentasProductosPage = () => {
     return fecha.toISOString().split("T")[0]
   }
 
-  // FUNCIÓN ACTUALIZADA: Formatear fecha para mostrar - SIN conversión de zona horaria
+  // FUNCIÓN ACTUALIZADA: Formatear fecha para mostrar - Forzando interpretación como hora local
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear fecha directamente desde el string de la base de datos
-    // Ya no aplicamos conversión de zona horaria porque las fechas se guardan correctamente
-    const fecha = new Date(fechaString)
+    // Crear fecha forzando interpretación como hora local
+    // Si la fecha viene en formato "YYYY-MM-DD HH:mm:ss", la convertimos a formato ISO local
+    let fechaFormateada = fechaString
+    
+    // Si contiene espacio, reemplazarlo por 'T' para formato ISO
+    if (fechaFormateada.includes(' ')) {
+      fechaFormateada = fechaFormateada.replace(' ', 'T')
+    }
+    
+    // Crear fecha interpretándola como hora local (sin 'Z' al final)
+    const fecha = new Date(fechaFormateada)
 
     // Verificar si la fecha es válida
     if (isNaN(fecha.getTime())) return ""
 
-    // Formatear directamente sin conversión de zona horaria
-    // porque las fechas ya están guardadas en la zona horaria correcta
+    // Formatear directamente
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
