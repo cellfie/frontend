@@ -220,12 +220,26 @@ export default function Home() {
     fetchNotas()
   }, [])
 
-  // Función para obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
+  // Función mejorada para obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
   const obtenerFechaHoyArgentina = () => {
-    const fechaHoy = new Date();
-    // Convertir a zona horaria de Argentina
-    const fechaArgentina = new Date(fechaHoy.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-    return fechaArgentina.toISOString().split('T')[0];
+    // Crear fecha actual
+    const ahora = new Date();
+    
+    // Obtener la fecha en zona horaria de Argentina
+    const fechaArgentina = new Date(ahora.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+    
+    // Formatear como YYYY-MM-DD
+    const year = fechaArgentina.getFullYear();
+    const month = String(fechaArgentina.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaArgentina.getDate()).padStart(2, '0');
+    
+    const fechaFormateada = `${year}-${month}-${day}`;
+    
+    console.log('Fecha actual (local):', ahora.toISOString());
+    console.log('Fecha Argentina calculada:', fechaArgentina.toISOString());
+    console.log('Fecha formateada para consulta:', fechaFormateada);
+    
+    return fechaFormateada;
   };
 
   // Efecto para cargar las ventas de hoy
@@ -234,6 +248,8 @@ export default function Home() {
       try {
         // Obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
         const today = obtenerFechaHoyArgentina();
+        
+        console.log('Consultando ventas para la fecha:', today);
 
         // Obtener las ventas de hoy
         const params = {
@@ -242,11 +258,19 @@ export default function Home() {
           anuladas: false,
         }
 
+        console.log('Parámetros de consulta:', params);
+
         const ventasData = await getVentas(params)
+        
+        console.log('Ventas obtenidas:', ventasData);
+        console.log('Cantidad de ventas:', ventasData.length);
 
         // Calcular el total de ventas y el monto total
         const cantidad = ventasData.length
         const monto = ventasData.reduce((total, venta) => total + Number.parseFloat(venta.total), 0)
+
+        console.log('Cantidad calculada:', cantidad);
+        console.log('Monto total:', monto);
 
         // Actualizar el estado
         setVentasHoy({
@@ -278,6 +302,8 @@ export default function Home() {
       try {
         // Obtener la fecha de hoy en formato YYYY-MM-DD en zona horaria Argentina
         const today = obtenerFechaHoyArgentina();
+        
+        console.log('Consultando equipos vendidos para la fecha:', today);
 
         // Obtener las ventas de equipos de hoy
         const params = {
@@ -286,7 +312,12 @@ export default function Home() {
           anuladas: false,
         }
 
+        console.log('Parámetros de consulta equipos:', params);
+
         const equiposData = await getVentasEquipos(params)
+        
+        console.log('Equipos obtenidos:', equiposData);
+        console.log('Cantidad de equipos:', equiposData.length);
 
         // Calcular el total de equipos vendidos
         const cantidad = equiposData.length
