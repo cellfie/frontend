@@ -274,26 +274,12 @@ const HistorialVentasProductosPage = () => {
     return fecha.toISOString().split("T")[0]
   }
 
-  // FUNCIÓN ACTUALIZADA: Formatear fecha para mostrar - Forzando interpretación como hora local
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear fecha forzando interpretación como hora local
-    // Si la fecha viene en formato "YYYY-MM-DD HH:mm:ss", la convertimos a formato ISO local
-    let fechaFormateada = fechaString
-    
-    // Si contiene espacio, reemplazarlo por 'T' para formato ISO
-    if (fechaFormateada.includes(' ')) {
-      fechaFormateada = fechaFormateada.replace(' ', 'T')
-    }
-    
-    // Crear fecha interpretándola como hora local (sin 'Z' al final)
-    const fecha = new Date(fechaFormateada)
-
-    // Verificar si la fecha es válida
+    const fecha = new Date(fechaString)
     if (isNaN(fecha.getTime())) return ""
 
-    // Formatear directamente
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
@@ -684,9 +670,8 @@ const HistorialVentasProductosPage = () => {
                         {productos.map((producto) => (
                           <li
                             key={producto.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                              productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
-                            }`}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
+                              }`}
                             onClick={() => {
                               handleSeleccionarProducto(producto)
                               setBusquedaProducto(producto.nombre)
@@ -867,11 +852,10 @@ const HistorialVentasProductosPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={`font-normal ${
-                                venta.puntoVenta.nombre === "Tala"
-                                  ? "border-orange-300 bg-orange-50 text-orange-700"
-                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                              }`}
+                              className={`font-normal ${venta.puntoVenta.nombre === "Tala"
+                                ? "border-orange-300 bg-orange-50 text-orange-700"
+                                : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                }`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
                               {venta.puntoVenta.nombre}
@@ -991,11 +975,10 @@ const HistorialVentasProductosPage = () => {
                                                   <span className="text-gray-500">Punto de venta:</span>
                                                   <Badge
                                                     variant="outline"
-                                                    className={`font-normal ${
-                                                      ventaSeleccionada.puntoVenta.nombre === "Tala"
-                                                        ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                        : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                    }`}
+                                                    className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala"
+                                                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                                                      : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                      }`}
                                                   >
                                                     <MapPin className="h-3 w-3 mr-1" />
                                                     {ventaSeleccionada.puntoVenta.nombre}
@@ -1115,7 +1098,7 @@ const HistorialVentasProductosPage = () => {
                                                           <TableCell className="text-right font-medium">
                                                             {formatearPrecio(
                                                               (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
-                                                                detalle.precioConDescuento,
+                                                              detalle.precioConDescuento,
                                                             )}
                                                           </TableCell>
                                                         </TableRow>

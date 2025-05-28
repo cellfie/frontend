@@ -1,33 +1,36 @@
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
-// FUNCIÓN ACTUALIZADA: Formatear fechas forzando interpretación como hora local
+// FUNCIÓN ACTUALIZADA: Formatear fechas parseando manualmente para evitar conversión de zona horaria
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
-  // Crear fecha forzando interpretación como hora local
-  // Agregamos 'T' si no existe para asegurar formato ISO, pero sin 'Z' para evitar interpretación UTC
-  let fechaFormateada = fechaString.replace(' ', 'T')
-  
-  // Si no tiene 'T', significa que viene en formato YYYY-MM-DD HH:mm:ss
-  if (!fechaFormateada.includes('T')) {
-    fechaFormateada = fechaString.replace(' ', 'T')
+  try {
+    // Parsear manualmente la fecha para evitar conversión de zona horaria
+    // Formato esperado: "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss"
+    const fechaLimpia = fechaString.replace('T', ' ')
+    const [fechaParte, horaParte] = fechaLimpia.split(' ')
+    const [año, mes, dia] = fechaParte.split('-').map(Number)
+    const [hora, minuto, segundo] = horaParte.split(':').map(Number)
+    
+    // Crear fecha directamente con los valores parseados (interpretación local)
+    const fecha = new Date(año, mes - 1, dia, hora, minuto, segundo || 0)
+
+    // Verificar si la fecha es válida
+    if (isNaN(fecha.getTime())) return ""
+
+    // Formatear directamente
+    return fecha.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+  } catch (error) {
+    console.error('Error al formatear fecha:', error)
+    return ""
   }
-  
-  // Crear fecha interpretándola como hora local
-  const fecha = new Date(fechaFormateada)
-
-  // Verificar si la fecha es válida
-  if (isNaN(fecha.getTime())) return ""
-
-  // Formatear directamente
-  return fecha.toLocaleString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
 }
 
 // Exportar la función para usar en otros componentes
