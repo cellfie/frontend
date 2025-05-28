@@ -4,11 +4,22 @@ const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
   try {
-    // Simplemente crear el objeto Date y mostrarlo (sin restar horas)
-    const fecha = new Date(fechaString)
+    // Manejar fechas que vienen de la base de datos
+    let fecha;
+    
+    if (fechaString.includes('T') || fechaString.includes('+')) {
+      // La fecha ya tiene información de timezone
+      fecha = new Date(fechaString);
+    } else {
+      // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
+      // Agregamos el offset de Argentina (-03:00)
+      fecha = new Date(fechaString + ' GMT-0300');
+    }
+    
     if (isNaN(fecha.getTime())) return ""
 
     return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
