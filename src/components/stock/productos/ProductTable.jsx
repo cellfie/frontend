@@ -155,10 +155,18 @@ export const ProductTable = ({
                       </div>
                       <div className="text-xs text-gray-500">
                         {product.fechaCreacion
-                          ? new Date(product.fechaCreacion).toLocaleTimeString("es-AR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? (() => {
+                              // Crear una nueva fecha y sumar 3 horas para corregir el desfase
+                              const fecha = new Date(product.fechaCreacion)
+                              fecha.setHours(fecha.getHours() + 3)
+
+                              // Formatear en formato de 24 horas
+                              return fecha.toLocaleTimeString("es-AR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                              })
+                            })()
                           : ""}
                       </div>
                     </TableCell>
