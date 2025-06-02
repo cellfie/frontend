@@ -129,15 +129,17 @@ export const ProductosPrincipal = () => {
     if (stockRange[0] > 0) filters.min_stock = stockRange[0]
     if (stockRange[1] < maxStockAvailable) filters.max_stock = stockRange[1]
 
-    // Filtros de fecha
+    // Filtros de fecha mejorados
     if (dateRange?.from) {
+      // Formatear la fecha de inicio para incluir el inicio del día (00:00:00)
       const fechaInicio = new Date(dateRange.from)
-      filters.fecha_inicio = fechaInicio.toISOString().split("T")[0]
+      filters.fecha_inicio = fechaInicio.toISOString().split("T")[0] + " 00:00:00"
     }
 
     if (dateRange?.to) {
+      // Formatear la fecha de fin para incluir el final del día (23:59:59)
       const fechaFin = new Date(dateRange.to)
-      filters.fecha_fin = fechaFin.toISOString().split("T")[0]
+      filters.fecha_fin = fechaFin.toISOString().split("T")[0] + " 23:59:59"
     }
 
     return filters

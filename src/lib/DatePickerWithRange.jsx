@@ -3,7 +3,7 @@
 import * as React from "react"
 import { format, isAfter, isBefore, startOfDay, startOfMonth, subDays, subMonths } from "date-fns"
 import { es } from "date-fns/locale"
-import { CalendarIcon, X } from 'lucide-react'
+import { CalendarIcon, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -14,27 +14,39 @@ import { toast } from "react-toastify"
 // Función helper para formatear fechas para el backend (zona horaria local)
 export const formatDateForBackend = (date) => {
   if (!date) return null
-  
+
   // Crear fecha en zona horaria local sin conversión a UTC
   const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
   return `${year}-${month}-${day}`
 }
 
 // Función helper para formatear fecha y hora para el backend
 export const formatDateTimeForBackend = (date) => {
   if (!date) return null
-  
+
   const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  const hours = String(date.getHours()).padStart(2, "0")
+  const minutes = String(date.getMinutes()).padStart(2, "0")
+  const seconds = String(date.getSeconds()).padStart(2, "0")
+
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+// Función para formatear fecha con hora de inicio del día
+export const formatDateWithStartTime = (date) => {
+  if (!date) return null
+  return formatDateForBackend(date) + " 00:00:00"
+}
+
+// Función para formatear fecha con hora de fin del día
+export const formatDateWithEndTime = (date) => {
+  if (!date) return null
+  return formatDateForBackend(date) + " 23:59:59"
 }
 
 const presets = [
@@ -127,7 +139,9 @@ export function DateRangePicker({ className, date, setDate, align = "center", sh
     // Asegurar que las fechas estén en el inicio y final del día en zona horaria local
     const adjustedDate = {
       from: newDate.from ? startOfDay(newDate.from) : null,
-      to: newDate.to ? new Date(newDate.to.getFullYear(), newDate.to.getMonth(), newDate.to.getDate(), 23, 59, 59) : null
+      to: newDate.to
+        ? new Date(newDate.to.getFullYear(), newDate.to.getMonth(), newDate.to.getDate(), 23, 59, 59)
+        : null,
     }
 
     setDate(adjustedDate)
@@ -165,7 +179,7 @@ export function DateRangePicker({ className, date, setDate, align = "center", sh
       // Ajustar las fechas para cubrir todo el día en zona horaria local
       const adjustedRange = {
         from: startOfDay(range.from),
-        to: range.to ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59) : null
+        to: range.to ? new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate(), 23, 59, 59) : null,
       }
 
       setCalendarError("")
