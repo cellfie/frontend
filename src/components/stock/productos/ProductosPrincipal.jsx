@@ -37,6 +37,17 @@ const useDebounce = (value, delay) => {
   return debouncedValue
 }
 
+// Función para formatear fecha local sin conversión a UTC
+const formatLocalDate = (date) => {
+  if (!date) return null
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
+}
+
 export const ProductosPrincipal = () => {
   // Estados principales
   const [products, setProducts] = useState([])
@@ -129,17 +140,15 @@ export const ProductosPrincipal = () => {
     if (stockRange[0] > 0) filters.min_stock = stockRange[0]
     if (stockRange[1] < maxStockAvailable) filters.max_stock = stockRange[1]
 
-    // Filtros de fecha mejorados
+    // Filtros de fecha corregidos - usar fecha local sin conversión a UTC
     if (dateRange?.from) {
-      // Formatear la fecha de inicio para incluir el inicio del día (00:00:00)
-      const fechaInicio = new Date(dateRange.from)
-      filters.fecha_inicio = fechaInicio.toISOString().split("T")[0] + " 00:00:00"
+      const fechaInicio = formatLocalDate(dateRange.from)
+      filters.fecha_inicio = fechaInicio + " 00:00:00"
     }
 
     if (dateRange?.to) {
-      // Formatear la fecha de fin para incluir el final del día (23:59:59)
-      const fechaFin = new Date(dateRange.to)
-      filters.fecha_fin = fechaFin.toISOString().split("T")[0] + " 23:59:59"
+      const fechaFin = formatLocalDate(dateRange.to)
+      filters.fecha_fin = fechaFin + " 23:59:59"
     }
 
     return filters
