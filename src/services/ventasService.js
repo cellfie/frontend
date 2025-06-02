@@ -1,5 +1,9 @@
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
+// Cache simple para ventas
+const cache = new Map()
+const CACHE_DURATION = 2 * 60 * 1000 // 2 minutos (menos que productos por ser más dinámico)
+
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
@@ -36,45 +40,30 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
-// Función para formatear fecha local sin conversión UTC
-const formatLocalDate = (date, includeTime = false) => {
-  if (!date) return null
-
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-
-  if (includeTime) {
-    const hours = String(date.getHours()).padStart(2, "0")
-    const minutes = String(date.getMinutes()).padStart(2, "0")
-    const seconds = String(date.getSeconds()).padStart(2, "0")
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-  }
-
-  return `${year}-${month}-${day}`
-}
 
 // Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
-// Obtener ventas con paginación
-export const getVentasPaginadas = async (params = {}) => {
+// NUEVA FUNCIÓN: Obtener ventas con paginación optimizada
+export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => {
   try {
-    // Construir la URL con los parámetros de búsqueda
-    const queryParams = new URLSearchParams()
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters,
+    })
 
-    if (params.page) queryParams.append("page", params.page)
-    if (params.limit) queryParams.append("limit", params.limit)
-    if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
-    if (params.fecha_fin) queryParams.append("fecha_fin", params.fecha_fin)
-    if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
-    if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
-    if (params.anuladas !== undefined) queryParams.append("anuladas", params.anuladas)
-    if (params.search) queryParams.append("search", params.search)
+    const cacheKey = `ventas_${queryParams.toString()}`
 
-    const url = `${API_URL}/ventas/paginadas?${queryParams.toString()}`
+    // Verificar cache
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey)
+      if (Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data
+      }
+    }
 
-    const response = await fetch(url, {
+    const response = await fetch(`${API_URL}/ventas/paginadas?${queryParams}`, {
       method: "GET",
       credentials: "include",
     })
@@ -84,14 +73,22 @@ export const getVentasPaginadas = async (params = {}) => {
       throw new Error(errorData.message || "Error al obtener ventas paginadas")
     }
 
-    return await response.json()
+    const data = await response.json()
+
+    // Guardar en cache
+    cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    })
+
+    return data
   } catch (error) {
     console.error("Error en getVentasPaginadas:", error)
     throw error
   }
 }
 
-// Búsqueda rápida de ventas
+// NUEVA FUNCIÓN: Búsqueda rápida de ventas optimizada
 export const searchVentasRapido = async (query) => {
   try {
     if (!query || query.length < 2) {
@@ -115,31 +112,17 @@ export const searchVentasRapido = async (query) => {
   }
 }
 
-// Obtener todas las ventas (mantener para compatibilidad)
-export const getVentas = async (params = {}) => {
+// Limpiar cache cuando sea necesario
+export const clearVentasCache = () => {
+  cache.clear()
+}
+
+// Obtener todas las ventas (optimizado para usar paginación)
+export const getVentas = async (filters = {}) => {
   try {
-    // Construir la URL con los parámetros de búsqueda
-    const queryParams = new URLSearchParams()
-
-    if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
-    if (params.fecha_fin) queryParams.append("fecha_fin", params.fecha_fin)
-    if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
-    if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
-    if (params.anuladas !== undefined) queryParams.append("anuladas", params.anuladas)
-
-    const url = `${API_URL}/ventas?${queryParams.toString()}`
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || "Error al obtener ventas")
-    }
-
-    return await response.json()
+    // Para mantener compatibilidad, obtener una página grande
+    const result = await getVentasPaginadas(1, 1000, filters)
+    return result.ventas || []
   } catch (error) {
     console.error("Error en getVentas:", error)
     throw error
@@ -149,6 +132,16 @@ export const getVentas = async (params = {}) => {
 // Obtener una venta por ID
 export const getVentaById = async (id) => {
   try {
+    const cacheKey = `venta_${id}`
+
+    // Verificar cache
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey)
+      if (Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data
+      }
+    }
+
     const response = await fetch(`${API_URL}/ventas/${id}`, {
       method: "GET",
       credentials: "include",
@@ -159,7 +152,15 @@ export const getVentaById = async (id) => {
       throw new Error(errorData.message || "Error al obtener la venta")
     }
 
-    return await response.json()
+    const data = await response.json()
+
+    // Guardar en cache
+    cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    })
+
+    return data
   } catch (error) {
     console.error("Error en getVentaById:", error)
     throw error
@@ -218,6 +219,9 @@ export const createVenta = async (ventaData) => {
       throw new Error(errorData.message || "Error al crear la venta")
     }
 
+    // Limpiar cache después de crear
+    clearVentasCache()
+
     return await response.json()
   } catch (error) {
     console.error("Error en createVenta:", error)
@@ -241,6 +245,9 @@ export const anularVenta = async (id, motivo) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error al anular la venta")
     }
+
+    // Limpiar cache después de anular
+    clearVentasCache()
 
     return await response.json()
   } catch (error) {

@@ -20,6 +20,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowLeftRight,
+  Plus,
   DollarSign,
   Tag,
 } from "lucide-react"
@@ -46,26 +47,95 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PaginationControls } from "@/lib/PaginationControls"
 
-import { getVentasPaginadas, getVentaById, anularVenta, adaptVentaToFrontend } from "@/services/ventasService"
+import {
+  getVentasPaginadas,
+  getVentaById,
+  anularVenta,
+  adaptVentaToFrontend,
+  clearVentasCache,
+} from "@/services/ventasService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getMetodosPago } from "@/services/metodosPagoService"
 import { getDevolucionesByVenta } from "@/services/devolucionesService"
-import { searchProductos } from "@/services/productosService"
+import { searchProductosRapido } from "@/services/productosService"
 import { useAuth } from "@/context/AuthContext"
-import { PaginationControls } from "@/lib/PaginationControls"
 
 import DevolucionDialog from "@/components/devoluciones/DevolucionDialog"
 import DevolucionesList from "@/components/devoluciones/DevolucionesList"
 
-const HistorialVentasProductosPage = () => {
+// Hook personalizado para debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
+// Función para formatear fecha local sin conversión a UTC
+const formatLocalDate = (date) => {
+  if (!date) return null
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
+}
+
+const HistorialVentasOptimizado = () => {
   const { currentUser } = useAuth()
   const isAdmin = currentUser?.role === "admin"
 
+  // Estados principales
   const [ventas, setVentas] = useState([])
-  const [cargando, setCargando] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [ventaSeleccionada, setVentaSeleccionada] = useState(null)
   const [detalleVentaAbierto, setDetalleVentaAbierto] = useState(null)
+
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(50)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
+  // Estados de filtros
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedPuntoVenta, setSelectedPuntoVenta] = useState("todos")
+  const [selectedMetodoPago, setSelectedMetodoPago] = useState("todos")
+  const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
+  const [dateRange, setDateRange] = useState({
+    from: null,
+    to: null,
+  })
+
+  // Estados para búsqueda de productos
+  const [busquedaProducto, setBusquedaProducto] = useState("")
+  const [productos, setProductos] = useState([])
+  const [productoSeleccionado, setProductoSeleccionado] = useState(null)
+  const [cargandoProductos, setCargandoProductos] = useState(false)
+
+  // Estados de datos auxiliares
+  const [puntosVenta, setPuntosVenta] = useState([])
+  const [metodosPago, setMetodosPago] = useState([])
+
+  // Estados para devoluciones
+  const [dialogDevolucionAbierto, setDialogDevolucionAbierto] = useState(false)
+  const [devolucionesVenta, setDevolucionesVenta] = useState([])
+  const [cargandoDevoluciones, setCargandoDevoluciones] = useState(false)
+  const [tabActiva, setTabActiva] = useState("detalles")
+
+  // Estados para anulación
   const [dialogAnularAbierto, setDialogAnularAbierto] = useState(false)
   const [motivoAnulacion, setMotivoAnulacion] = useState("")
   const [ventaAnular, setVentaAnular] = useState(null)
@@ -75,89 +145,9 @@ const HistorialVentasProductosPage = () => {
     error: false,
     mensaje: "",
   })
-  const [puntosVenta, setPuntosVenta] = useState([])
-  const [metodosPago, setMetodosPago] = useState([])
 
-  // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const [itemsPerPage, setItemsPerPage] = useState(50)
-
-  const [filtros, setFiltros] = useState({
-    busqueda: "",
-    fechaInicio: null,
-    fechaFin: null,
-    puntoVentaId: "",
-    metodoPagoId: "",
-    mostrarAnuladas: false,
-    productoId: "",
-  })
-  const [rangoFechas, setRangoFechas] = useState({
-    from: null,
-    to: null,
-  })
-
-  // Estados para devoluciones
-  const [dialogDevolucionAbierto, setDialogDevolucionAbierto] = useState(false)
-  const [devolucionesVenta, setDevolucionesVenta] = useState([])
-  const [cargandoDevoluciones, setCargandoDevoluciones] = useState(false)
-  const [tabActiva, setTabActiva] = useState("detalles")
-
-  // Estados para búsqueda de productos
-  const [productos, setProductos] = useState([])
-  const [cargandoProductos, setCargandoProductos] = useState(false)
-  const [busquedaProducto, setBusquedaProducto] = useState("")
-  const [productoSeleccionado, setProductoSeleccionado] = useState(null)
-
-  // Función para formatear fecha local sin conversión UTC
-  const formatLocalDate = (date, includeTime = false) => {
-    if (!date) return null
-
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-
-    if (includeTime) {
-      const hours = String(date.getHours()).padStart(2, "0")
-      const minutes = String(date.getMinutes()).padStart(2, "0")
-      const seconds = String(date.getSeconds()).padStart(2, "0")
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-    }
-
-    return `${year}-${month}-${day}`
-  }
-
-  // Función para construir filtros
-  const buildFilters = useCallback(() => {
-    const filters = {}
-
-    if (filtros.fechaInicio && filtros.fechaFin) {
-      const fechaInicio = new Date(filtros.fechaInicio)
-      const fechaFin = new Date(filtros.fechaFin)
-
-      // Configurar hora de inicio y fin del día
-      fechaInicio.setHours(0, 0, 0, 0)
-      fechaFin.setHours(23, 59, 59, 999)
-
-      filters.fecha_inicio = formatLocalDate(fechaInicio)
-      filters.fecha_fin = formatLocalDate(fechaFin)
-    }
-
-    if (filtros.puntoVentaId && filtros.puntoVentaId !== "all") {
-      filters.punto_venta_id = filtros.puntoVentaId
-    }
-
-    if (filtros.mostrarAnuladas !== undefined) {
-      filters.anuladas = filtros.mostrarAnuladas
-    }
-
-    if (filtros.busqueda) {
-      filters.search = filtros.busqueda
-    }
-
-    return filters
-  }, [filtros])
+  // Debounce para la búsqueda
+  const debouncedSearchTerm = useDebounce(searchTerm, 500)
 
   // Calcular el total de ventas filtradas
   const totalVentasFiltradas = useMemo(() => {
@@ -171,12 +161,12 @@ const HistorialVentasProductosPage = () => {
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        const puntos = await getPuntosVenta()
-        setPuntosVenta(puntos)
+        const [puntosData, metodosData] = await Promise.all([getPuntosVenta(), getMetodosPago()])
 
-        const metodos = await getMetodosPago()
-        setMetodosPago(metodos)
+        setPuntosVenta(puntosData)
+        setMetodosPago(metodosData)
 
+        // Configurar rango de fechas inicial
         const fechaFin = new Date()
         let fechaInicio
 
@@ -188,15 +178,9 @@ const HistorialVentasProductosPage = () => {
           fechaInicio.setDate(fechaInicio.getDate() - 7)
         }
 
-        setRangoFechas({
+        setDateRange({
           from: fechaInicio,
           to: fechaFin,
-        })
-
-        setFiltros({
-          ...filtros,
-          fechaInicio: formatearFecha(fechaInicio),
-          fechaFin: formatearFecha(fechaFin),
         })
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)
@@ -205,44 +189,104 @@ const HistorialVentasProductosPage = () => {
     }
 
     cargarDatosIniciales()
-  }, [])
+  }, [isAdmin])
+
+  // Función para construir filtros
+  const buildFilters = useCallback(() => {
+    const filters = {}
+
+    if (debouncedSearchTerm) {
+      filters.search = debouncedSearchTerm
+    }
+
+    if (selectedPuntoVenta !== "todos") {
+      const puntoVenta = puntosVenta.find((pv) => pv.nombre === selectedPuntoVenta)
+      if (puntoVenta) filters.punto_venta_id = puntoVenta.id
+    }
+
+    if (selectedMetodoPago !== "todos") {
+      filters.tipo_pago = selectedMetodoPago
+    }
+
+    if (mostrarAnuladas !== undefined) {
+      filters.anuladas = mostrarAnuladas
+    }
+
+    if (productoSeleccionado) {
+      filters.producto_id = productoSeleccionado.id
+    }
+
+    // Filtros de fecha usando fecha local
+    if (dateRange?.from) {
+      filters.fecha_inicio = formatLocalDate(dateRange.from)
+    }
+
+    if (dateRange?.to) {
+      filters.fecha_fin = formatLocalDate(dateRange.to)
+    }
+
+    return filters
+  }, [
+    debouncedSearchTerm,
+    selectedPuntoVenta,
+    selectedMetodoPago,
+    mostrarAnuladas,
+    productoSeleccionado,
+    dateRange,
+    puntosVenta,
+  ])
 
   // Cargar ventas con paginación
-  const cargarVentas = async (page = currentPage) => {
-    setCargando(true)
-    try {
-      const filters = buildFilters()
-      const params = {
-        page,
-        limit: itemsPerPage,
-        ...filters,
-      }
+  const fetchVentas = useCallback(
+    async (page = 1, resetPage = false) => {
+      setIsLoading(true)
+      try {
+        const filters = buildFilters()
+        const actualPage = resetPage ? 1 : page
 
-      const response = await getVentasPaginadas(params)
-      const ventasAdaptadas = response.ventas.map(adaptVentaToFrontend)
+        const result = await getVentasPaginadas(actualPage, itemsPerPage, filters)
 
-      // Verificar devoluciones para cada venta
-      for (const venta of ventasAdaptadas) {
-        try {
-          const devoluciones = await getDevolucionesByVenta(venta.id)
-          venta.tieneDevoluciones = devoluciones && devoluciones.length > 0
-        } catch (error) {
-          console.error(`Error al verificar devoluciones para venta ${venta.id}:`, error)
-          venta.tieneDevoluciones = false
+        const ventasAdaptadas = result.ventas.map(adaptVentaToFrontend)
+
+        setVentas(ventasAdaptadas)
+        setCurrentPage(result.pagination.currentPage)
+        setTotalPages(result.pagination.totalPages)
+        setTotalItems(result.pagination.totalItems)
+
+        if (resetPage) {
+          setCurrentPage(1)
         }
+      } catch (error) {
+        console.error("Error al cargar ventas:", error)
+        toast.error("Error al cargar ventas")
+      } finally {
+        setIsLoading(false)
       }
+    },
+    [buildFilters, itemsPerPage],
+  )
 
-      setVentas(ventasAdaptadas)
-      setCurrentPage(response.pagination.currentPage)
-      setTotalPages(response.pagination.totalPages)
-      setTotalItems(response.pagination.totalItems)
-    } catch (error) {
-      console.error("Error al cargar ventas:", error)
-      toast.error("Error al cargar ventas")
-    } finally {
-      setCargando(false)
+  // Efecto para cargar ventas cuando cambian los filtros
+  useEffect(() => {
+    if (dateRange?.from && dateRange?.to) {
+      fetchVentas(1, true)
     }
-  }
+  }, [
+    debouncedSearchTerm,
+    selectedPuntoVenta,
+    selectedMetodoPago,
+    mostrarAnuladas,
+    productoSeleccionado,
+    itemsPerPage,
+    dateRange,
+  ])
+
+  // Efecto para cargar ventas cuando cambia la página
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchVentas(currentPage, false)
+    }
+  }, [currentPage])
 
   // Buscar productos
   const buscarProductos = async (query) => {
@@ -253,7 +297,7 @@ const HistorialVentasProductosPage = () => {
 
     setCargandoProductos(true)
     try {
-      const productosData = await searchProductos(query)
+      const productosData = await searchProductosRapido(query)
       setProductos(productosData)
     } catch (error) {
       console.error("Error al buscar productos:", error)
@@ -271,15 +315,6 @@ const HistorialVentasProductosPage = () => {
 
   const handleSeleccionarProducto = (producto) => {
     setProductoSeleccionado(producto)
-    setFiltros({
-      ...filtros,
-      productoId: producto ? producto.id.toString() : "",
-    })
-  }
-
-  const formatearFecha = (fecha) => {
-    if (!fecha) return null
-    return fecha.toISOString().split("T")[0]
   }
 
   const formatearFechaHora = (fechaString) => {
@@ -322,37 +357,18 @@ const HistorialVentasProductosPage = () => {
       fechaInicio.setDate(fechaInicio.getDate() - 7)
     }
 
-    setRangoFechas({
+    setDateRange({
       from: fechaInicio,
       to: fechaFin,
     })
 
-    setFiltros({
-      busqueda: "",
-      fechaInicio: formatearFecha(fechaInicio),
-      fechaFin: formatearFecha(fechaFin),
-      puntoVentaId: "",
-      metodoPagoId: "",
-      mostrarAnuladas: false,
-      productoId: "",
-    })
-
+    setSearchTerm("")
+    setSelectedPuntoVenta("todos")
+    setSelectedMetodoPago("todos")
+    setMostrarAnuladas(false)
     setProductoSeleccionado(null)
     setBusquedaProducto("")
     setCurrentPage(1)
-  }
-
-  // Manejar cambio de página
-  const handlePageChange = (page) => {
-    setCurrentPage(page)
-    cargarVentas(page)
-  }
-
-  // Manejar cambio de elementos por página
-  const handleItemsPerPageChange = (newItemsPerPage) => {
-    setItemsPerPage(newItemsPerPage)
-    setCurrentPage(1)
-    cargarVentas(1)
   }
 
   // Abrir detalle de venta
@@ -364,7 +380,7 @@ const HistorialVentasProductosPage = () => {
     }
 
     try {
-      setCargando(true)
+      setIsLoading(true)
       const ventaDetallada = await getVentaById(ventaId)
 
       if (ventaDetallada.detalles) {
@@ -444,7 +460,7 @@ const HistorialVentasProductosPage = () => {
       console.error("Error al obtener detalle de venta:", error)
       toast.error("Error al obtener detalle de venta")
     } finally {
-      setCargando(false)
+      setIsLoading(false)
     }
   }
 
@@ -471,7 +487,9 @@ const HistorialVentasProductosPage = () => {
       abrirDetalleVenta(ventaSeleccionada.id)
     }
 
-    cargarVentas()
+    // Limpiar cache y recargar ventas
+    clearVentasCache()
+    fetchVentas(currentPage)
 
     toast.success("Devolución procesada correctamente", {
       position: "bottom-center",
@@ -497,13 +515,9 @@ const HistorialVentasProductosPage = () => {
     try {
       await anularVenta(ventaAnular.id, motivoAnulacion)
 
-      const ventasActualizadas = ventas.map((v) =>
-        v.id === ventaAnular.id
-          ? { ...v, anulada: true, fechaAnulacion: new Date().toISOString(), motivoAnulacion }
-          : v,
-      )
-
-      setVentas(ventasActualizadas)
+      // Limpiar cache y recargar ventas
+      clearVentasCache()
+      await fetchVentas(currentPage)
 
       if (ventaSeleccionada && ventaSeleccionada.id === ventaAnular.id) {
         setVentaSeleccionada({
@@ -523,7 +537,6 @@ const HistorialVentasProductosPage = () => {
       setTimeout(() => {
         setDialogAnularAbierto(false)
         toast.success("Venta anulada correctamente")
-        cargarVentas() // Recargar ventas
       }, 2000)
     } catch (error) {
       console.error("Error al anular venta:", error)
@@ -536,6 +549,17 @@ const HistorialVentasProductosPage = () => {
     } finally {
       setProcesandoAnulacion(false)
     }
+  }
+
+  // Funciones de paginación
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    setDetalleVentaAbierto(null) // Cerrar detalles al cambiar página
+  }
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage)
+    setCurrentPage(1)
   }
 
   const renderSkeletons = () =>
@@ -565,24 +589,6 @@ const HistorialVentasProductosPage = () => {
       </TableRow>
     ))
 
-  // Efectos para cargar ventas
-  useEffect(() => {
-    if (rangoFechas && rangoFechas.from && rangoFechas.to) {
-      setFiltros({
-        ...filtros,
-        fechaInicio: formatearFecha(rangoFechas.from),
-        fechaFin: formatearFecha(rangoFechas.to),
-      })
-    }
-  }, [rangoFechas])
-
-  useEffect(() => {
-    if (filtros.fechaInicio && filtros.fechaFin) {
-      setCurrentPage(1)
-      cargarVentas(1)
-    }
-  }, [filtros.fechaInicio, filtros.fechaFin, filtros.puntoVentaId, filtros.mostrarAnuladas, filtros.busqueda])
-
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
@@ -590,8 +596,8 @@ const HistorialVentasProductosPage = () => {
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Historial de Ventas de Productos</h1>
-          <p className="text-gray-500">Consulta y gestiona el historial de ventas de productos realizadas</p>
+          <h1 className="text-2xl font-bold text-gray-900">Historial de Ventas Optimizado</h1>
+          <p className="text-gray-500">Consulta y gestiona el historial de ventas con paginación optimizada</p>
         </div>
       </div>
 
@@ -614,20 +620,18 @@ const HistorialVentasProductosPage = () => {
                   Cantidad de Ventas
                 </span>
                 <span className="text-white text-2xl font-bold">{totalItems}</span>
-                <span className="text-white/70 text-xs">
-                  {!filtros.mostrarAnuladas ? "Ventas activas" : "Ventas anuladas"}
-                </span>
+                <span className="text-white/70 text-xs">{!mostrarAnuladas ? "Ventas activas" : "Ventas anuladas"}</span>
               </div>
 
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
                 <span className="text-white/70 text-sm mb-1 flex items-center gap-1">
                   <ArrowLeftRight size={14} />
-                  Devoluciones
+                  Página Actual
                 </span>
                 <span className="text-white text-2xl font-bold">
-                  {ventas.filter((v) => v.tieneDevoluciones).length}
+                  {currentPage} de {totalPages}
                 </span>
-                <span className="text-white/70 text-xs">Ventas con devoluciones registradas</span>
+                <span className="text-white/70 text-xs">Mostrando {ventas.length} ventas</span>
               </div>
             </div>
           </CardContent>
@@ -639,22 +643,22 @@ const HistorialVentasProductosPage = () => {
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
             <Filter size={20} />
-            Filtros de Búsqueda
+            Filtros de Búsqueda Optimizados
           </CardTitle>
           <CardDescription className="text-gray-300">
-            Utiliza los filtros para encontrar ventas específicas
+            Utiliza los filtros para encontrar ventas específicas con paginación
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             {/* Búsqueda */}
             <div className="relative col-span-1 sm:col-span-2 xl:col-span-1">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
-                placeholder="Buscar por factura, cliente o vendedor..."
+                placeholder="Buscar por factura, cliente..."
                 className="pl-9"
-                value={filtros.busqueda}
-                onChange={(e) => setFiltros({ ...filtros, busqueda: e.target.value })}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
@@ -678,10 +682,6 @@ const HistorialVentasProductosPage = () => {
                         setBusquedaProducto("")
                         setProductos([])
                         setProductoSeleccionado(null)
-                        setFiltros({
-                          ...filtros,
-                          productoId: "",
-                        })
                       }}
                     >
                       <XCircle className="h-4 w-4" />
@@ -730,17 +730,14 @@ const HistorialVentasProductosPage = () => {
 
             {/* Punto de venta */}
             <div>
-              <Select
-                value={filtros.puntoVentaId}
-                onValueChange={(value) => setFiltros({ ...filtros, puntoVentaId: value })}
-              >
+              <Select value={selectedPuntoVenta} onValueChange={setSelectedPuntoVenta}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Punto de venta" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los puntos</SelectItem>
+                  <SelectItem value="todos">Todos los puntos</SelectItem>
                   {puntosVenta.map((punto) => (
-                    <SelectItem key={punto.id} value={punto.id.toString()}>
+                    <SelectItem key={punto.id} value={punto.nombre}>
                       {punto.nombre}
                     </SelectItem>
                   ))}
@@ -750,15 +747,12 @@ const HistorialVentasProductosPage = () => {
 
             {/* Método de pago */}
             <div>
-              <Select
-                value={filtros.metodoPagoId}
-                onValueChange={(value) => setFiltros({ ...filtros, metodoPagoId: value })}
-              >
+              <Select value={selectedMetodoPago} onValueChange={setSelectedMetodoPago}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Método de pago" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los métodos</SelectItem>
+                  <SelectItem value="todos">Todos los métodos</SelectItem>
                   {metodosPago.map((metodo) => (
                     <SelectItem key={metodo.id} value={metodo.nombre}>
                       {metodo.nombre}
@@ -771,8 +765,8 @@ const HistorialVentasProductosPage = () => {
             {/* Rango de fechas */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-1">
               <DateRangePicker
-                date={rangoFechas}
-                setDate={setRangoFechas}
+                date={dateRange}
+                setDate={setDateRange}
                 className="w-full"
                 align="start"
                 disableBefore={!isAdmin ? new Date(new Date().setDate(new Date().getDate() - 7)) : undefined}
@@ -788,11 +782,7 @@ const HistorialVentasProductosPage = () => {
             {/* Controles adicionales */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-1 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border flex-1">
-                <Checkbox
-                  id="mostrarAnuladas"
-                  checked={filtros.mostrarAnuladas}
-                  onCheckedChange={(checked) => setFiltros({ ...filtros, mostrarAnuladas: checked })}
-                />
+                <Checkbox id="mostrarAnuladas" checked={mostrarAnuladas} onCheckedChange={setMostrarAnuladas} />
                 <label
                   htmlFor="mostrarAnuladas"
                   className="text-sm font-medium leading-none cursor-pointer select-none"
@@ -823,7 +813,7 @@ const HistorialVentasProductosPage = () => {
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
             <FileText size={20} />
-            Listado de Ventas de Productos
+            Listado de Ventas Paginado
           </CardTitle>
           <CardDescription className="text-gray-300">
             {totalItems} ventas encontradas - Página {currentPage} de {totalPages}
@@ -845,7 +835,7 @@ const HistorialVentasProductosPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {cargando ? (
+                  {isLoading ? (
                     renderSkeletons()
                   ) : ventas.length === 0 ? (
                     <TableRow>
@@ -985,7 +975,6 @@ const HistorialVentasProductosPage = () => {
                                         </TabsList>
 
                                         <TabsContent value="detalles">
-                                          {/* Contenido de detalles de venta - mantener el código existente */}
                                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             {/* Información de la venta */}
                                             <div className="space-y-3">
@@ -1067,14 +1056,168 @@ const HistorialVentasProductosPage = () => {
                                               </div>
                                             </div>
 
-                                            {/* Detalle de productos - mantener código existente */}
+                                            {/* Detalle de productos */}
                                             <div className="md:col-span-2">
                                               <div className="flex items-center gap-2 text-orange-700 mb-3">
                                                 <Package size={16} />
                                                 <h3 className="font-medium">Productos</h3>
                                               </div>
 
-                                              {/* Resto del contenido de productos - mantener código existente */}
+                                              <div className="rounded border overflow-hidden">
+                                                <Table>
+                                                  <TableHeader>
+                                                    <TableRow>
+                                                      <TableHead>Producto</TableHead>
+                                                      <TableHead className="text-right">Precio</TableHead>
+                                                      <TableHead className="text-center">Cantidad</TableHead>
+                                                      <TableHead className="text-right">Subtotal</TableHead>
+                                                    </TableRow>
+                                                  </TableHeader>
+                                                  <TableBody>
+                                                    {ventaSeleccionada.detalles
+                                                      .filter((detalle) => !detalle.devuelto)
+                                                      .map((detalle) => (
+                                                        <TableRow
+                                                          key={detalle.id}
+                                                          className={detalle.devueltoParcial ? "bg-blue-50/50" : ""}
+                                                        >
+                                                          <TableCell>
+                                                            <div>
+                                                              <div className="font-medium">
+                                                                {detalle.producto.nombre}
+                                                              </div>
+                                                              <div className="text-xs text-gray-500">
+                                                                Código: {detalle.producto.codigo}
+                                                              </div>
+                                                              {detalle.es_reemplazo && (
+                                                                <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
+                                                                  <Plus className="h-3 w-3 mr-1" />
+                                                                  Producto de reemplazo
+                                                                </Badge>
+                                                              )}
+                                                              {detalle.devueltoParcial && (
+                                                                <Badge className="mt-1 bg-blue-100 text-blue-800 border-blue-300">
+                                                                  <ArrowLeftRight className="h-3 w-3 mr-1" />
+                                                                  Devuelto parcial ({detalle.cantidadDevuelta}/
+                                                                  {detalle.cantidad})
+                                                                </Badge>
+                                                              )}
+                                                            </div>
+                                                          </TableCell>
+                                                          <TableCell className="text-right">
+                                                            {detalle.precioUnitario !== detalle.precioConDescuento ? (
+                                                              <div>
+                                                                <div className="text-orange-600">
+                                                                  {formatearPrecio(detalle.precioConDescuento)}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500 line-through">
+                                                                  {formatearPrecio(detalle.precioUnitario)}
+                                                                </div>
+                                                              </div>
+                                                            ) : (
+                                                              <span>{formatearPrecio(detalle.precioUnitario)}</span>
+                                                            )}
+                                                          </TableCell>
+                                                          <TableCell className="text-center">
+                                                            {detalle.cantidad - (detalle.cantidadDevuelta || 0)}
+                                                          </TableCell>
+                                                          <TableCell className="text-right font-medium">
+                                                            {formatearPrecio(
+                                                              (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
+                                                                detalle.precioConDescuento,
+                                                            )}
+                                                          </TableCell>
+                                                        </TableRow>
+                                                      ))}
+
+                                                    {ventaSeleccionada.productosReemplazo &&
+                                                      ventaSeleccionada.productosReemplazo.length > 0 && (
+                                                        <>
+                                                          <TableRow>
+                                                            <TableCell colSpan={4} className="bg-gray-100 py-1">
+                                                              <div className="text-xs font-medium text-gray-600 flex items-center">
+                                                                <ArrowLeftRight className="h-3 w-3 mr-1" />
+                                                                Productos de reemplazo
+                                                              </div>
+                                                            </TableCell>
+                                                          </TableRow>
+
+                                                          {ventaSeleccionada.productosReemplazo.map(
+                                                            (producto, index) => (
+                                                              <TableRow
+                                                                key={`reemplazo-${index}`}
+                                                                className="bg-green-50"
+                                                              >
+                                                                <TableCell>
+                                                                  <div>
+                                                                    <div className="font-medium">{producto.nombre}</div>
+                                                                    <div className="text-xs text-gray-500">
+                                                                      Código: {producto.codigo}
+                                                                    </div>
+                                                                    <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
+                                                                      <Plus className="h-3 w-3 mr-1" />
+                                                                      Producto de reemplazo
+                                                                    </Badge>
+                                                                  </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-right">
+                                                                  {formatearPrecio(producto.precio)}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                  {producto.cantidad}
+                                                                </TableCell>
+                                                                <TableCell className="text-right font-medium">
+                                                                  {formatearPrecio(producto.precio * producto.cantidad)}
+                                                                </TableCell>
+                                                              </TableRow>
+                                                            ),
+                                                          )}
+                                                        </>
+                                                      )}
+                                                  </TableBody>
+                                                </Table>
+                                              </div>
+
+                                              {/* Resumen de totales */}
+                                              <div className="mt-4 bg-gray-50 p-3 rounded border">
+                                                <div className="space-y-1">
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-500">Subtotal:</span>
+                                                    <span>{formatearPrecio(ventaSeleccionada.subtotal)}</span>
+                                                  </div>
+
+                                                  {ventaSeleccionada.porcentajeInteres > 0 && (
+                                                    <div className="flex justify-between">
+                                                      <span className="text-gray-500">
+                                                        Interés ({ventaSeleccionada.porcentajeInteres}%):
+                                                      </span>
+                                                      <span className="text-orange-600">
+                                                        +{formatearPrecio(ventaSeleccionada.montoInteres)}
+                                                      </span>
+                                                    </div>
+                                                  )}
+
+                                                  {ventaSeleccionada.porcentajeDescuento > 0 && (
+                                                    <div className="flex justify-between">
+                                                      <span className="text-gray-500">
+                                                        Descuento ({ventaSeleccionada.porcentajeDescuento}%):
+                                                      </span>
+                                                      <span className="text-green-600">
+                                                        -{formatearPrecio(ventaSeleccionada.montoDescuento)}
+                                                      </span>
+                                                    </div>
+                                                  )}
+
+                                                  <Separator className="my-1" />
+                                                  <div className="flex justify-between font-bold">
+                                                    <span>Total:</span>
+                                                    <span className="text-orange-600">
+                                                      {formatearPrecio(ventaSeleccionada.total)}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              </div>
+
                                               {!ventaSeleccionada.anulada && (
                                                 <div className="mt-4 flex justify-end">
                                                   <Button
@@ -1162,7 +1305,7 @@ const HistorialVentasProductosPage = () => {
         itemsPerPage={itemsPerPage}
         onPageChange={handlePageChange}
         onItemsPerPageChange={handleItemsPerPageChange}
-        isLoading={cargando}
+        isLoading={isLoading}
       />
 
       {/* Diálogo de anulación */}
@@ -1285,4 +1428,4 @@ const HistorialVentasProductosPage = () => {
   )
 }
 
-export default HistorialVentasProductosPage
+export default HistorialVentasOptimizado
