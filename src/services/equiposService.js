@@ -1,4 +1,4 @@
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Obtener todos los equipos
 export const getEquipos = async () => {
@@ -120,10 +120,10 @@ export const createEquipo = async (equipoData) => {
   }
 }
 
-// Actualizar un equipo existente
+// Actualizar un equipo existente - FUNCIÓN CORREGIDA
 export const updateEquipo = async (id, equipoData) => {
   try {
-    // Adaptar los datos del frontend al formato que espera el backend
+    // IMPORTANTE: No enviamos los campos de plan canje para preservarlos
     const backendData = {
       marca: equipoData.marca,
       modelo: equipoData.modelo,
@@ -135,10 +135,8 @@ export const updateEquipo = async (id, equipoData) => {
       imei: equipoData.imei,
       fecha_ingreso: equipoData.fecha_ingreso,
       punto_venta_id: equipoData.punto_venta_id,
-      es_canje: equipoData.es_canje,
-      cliente_canje_id: equipoData.cliente_canje_id,
-      venta_canje_id: equipoData.venta_canje_id,
-      // No enviamos tipo_cambio ni tipo_cambio_original, el servidor los manejará
+      // NO enviamos es_canje, cliente_canje_id, venta_canje_id
+      // para que el backend preserve los valores originales
     }
 
     const response = await fetch(`${API_URL}/equipos/${id}`, {
