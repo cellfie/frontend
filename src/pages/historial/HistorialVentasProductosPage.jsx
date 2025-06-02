@@ -23,6 +23,7 @@ import {
   Plus,
   DollarSign,
   Tag,
+  Calendar,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,7 +43,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -82,7 +83,7 @@ const useDebounce = (value, delay) => {
   return debouncedValue
 }
 
-// Función para formatear fecha local sin conversión a UTC
+// Función para formatear fecha local sin conversión a UTC (mejorada)
 const formatLocalDate = (date) => {
   if (!date) return null
 
@@ -210,7 +211,7 @@ const HistorialVentas = () => {
     cargarDatosIniciales()
   }, [isAdmin])
 
-  // Función para construir filtros
+  // Función para construir filtros (mejorada)
   const buildFilters = useCallback(() => {
     const filters = {}
 
@@ -235,13 +236,15 @@ const HistorialVentas = () => {
       filters.producto_id = productoSeleccionado.id
     }
 
-    // Filtros de fecha usando fecha local
+    // Filtros de fecha mejorados - usar fecha local sin conversión a UTC
     if (dateRange?.from) {
-      filters.fecha_inicio = formatLocalDate(dateRange.from)
+      const fechaInicio = formatLocalDate(dateRange.from)
+      filters.fecha_inicio = fechaInicio + " 00:00:00"
     }
 
     if (dateRange?.to) {
-      filters.fecha_fin = formatLocalDate(dateRange.to)
+      const fechaFin = formatLocalDate(dateRange.to)
+      filters.fecha_fin = fechaFin + " 23:59:59"
     }
 
     return filters
@@ -681,175 +684,267 @@ const HistorialVentas = () => {
         </Card>
       )}
 
-      {/* Filtros */}
-      <Card className="mb-6 border-0 shadow-md">
-        <CardHeader className="bg-[#131321] pb-3">
-          <CardTitle className="text-orange-600 flex items-center gap-2">
-            <Filter size={20} />
-            Filtros de Búsqueda Optimizados
-          </CardTitle>
-          <CardDescription className="text-gray-300">
-            Utiliza los filtros para encontrar ventas específicas con paginación
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            {/* Búsqueda */}
-            <div className="relative col-span-1 sm:col-span-2 xl:col-span-1">
-              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Buscar por factura, cliente..."
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            {/* Búsqueda por producto */}
-            <div className="col-span-1 sm:col-span-2 xl:col-span-1">
-              <div className="relative">
-                <Tag className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Buscar por producto..."
-                  className="pl-9"
-                  value={busquedaProducto}
-                  onChange={(e) => handleBusquedaProductoChange(e.target.value)}
-                />
-                {busquedaProducto && busquedaProducto.length > 0 && (
-                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => {
-                        setBusquedaProducto("")
-                        setProductos([])
-                        setProductoSeleccionado(null)
-                      }}
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {busquedaProducto && busquedaProducto.length > 0 && (
-                <div className="relative mt-1">
-                  <div className="absolute z-10 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                    {cargandoProductos ? (
-                      <div className="p-2 text-center text-gray-500">Buscando productos...</div>
-                    ) : productos.length === 0 ? (
-                      <div className="p-2 text-center text-gray-500">No se encontraron productos</div>
-                    ) : (
-                      <ul className="py-1">
-                        {productos.map((producto) => (
-                          <li
-                            key={producto.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                              productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
-                            }`}
-                            onClick={() => {
-                              handleSeleccionarProducto(producto)
-                              setBusquedaProducto(producto.nombre)
-                            }}
-                          >
-                            <div className="font-medium">{producto.nombre}</div>
-                            <div className="text-xs text-gray-500">Código: {producto.codigo}</div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-              {productoSeleccionado && (
-                <div className="mt-1">
-                  <Badge className="bg-orange-100 text-orange-800 border-orange-300">
-                    <Tag className="h-3 w-3 mr-1" />
-                    {productoSeleccionado.nombre}
-                  </Badge>
-                </div>
-              )}
-            </div>
-
-            {/* Punto de venta */}
-            <div>
-              <Select value={selectedPuntoVenta} onValueChange={setSelectedPuntoVenta}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Punto de venta" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos los puntos</SelectItem>
-                  {puntosVenta.map((punto) => (
-                    <SelectItem key={punto.id} value={punto.nombre}>
-                      {punto.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Método de pago */}
-            <div>
-              <Select value={selectedMetodoPago} onValueChange={setSelectedMetodoPago}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos los métodos</SelectItem>
-                  {metodosPago.map((metodo) => (
-                    <SelectItem key={metodo.id} value={metodo.nombre}>
-                      {metodo.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Rango de fechas */}
-            <div className="col-span-1 sm:col-span-2 lg:col-span-1">
-              <DateRangePicker
-                date={dateRange}
-                setDate={setDateRange}
-                className="w-full"
-                align="start"
-                disableBefore={!isAdmin ? new Date(new Date().setDate(new Date().getDate() - 7)) : undefined}
-              />
-              {!isAdmin && (
-                <div className="text-xs text-amber-600 mt-1 flex items-center">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Solo puedes ver los últimos 7 días
-                </div>
-              )}
-            </div>
-
-            {/* Controles adicionales */}
-            <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-1 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border flex-1">
-                <Checkbox id="mostrarAnuladas" checked={mostrarAnuladas} onCheckedChange={setMostrarAnuladas} />
-                <label
-                  htmlFor="mostrarAnuladas"
-                  className="text-sm font-medium leading-none cursor-pointer select-none"
-                >
-                  Mostrar anuladas
-                </label>
-              </div>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" onClick={limpiarFiltros} className="h-10 w-10 flex-shrink-0">
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Limpiar filtros</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+      {/* Header mejorado y responsivo */}
+      <div className="bg-white rounded-lg shadow-md border-0 overflow-hidden mb-6">
+        <div className="bg-[#131321] p-4 text-white">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-orange-600">
+              <Filter size={20} />
+              Filtros de Búsqueda
+            </h2>
+            <Badge variant="outline" className="bg-white/20 text-white border-white/30 hover:bg-white/30">
+              {totalItems} ventas
+            </Badge>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="p-4">
+          <div className="flex flex-col gap-3">
+            {/* Primera fila: Búsqueda y controles principales */}
+            <div className="flex flex-col md:flex-row gap-3 items-center">
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Buscar por factura, cliente..."
+                  className="pl-9 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border">
+                  <Checkbox id="mostrarAnuladas" checked={mostrarAnuladas} onCheckedChange={setMostrarAnuladas} />
+                  <label
+                    htmlFor="mostrarAnuladas"
+                    className="text-sm font-medium leading-none cursor-pointer select-none whitespace-nowrap"
+                  >
+                    Mostrar anuladas
+                  </label>
+                </div>
+
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={limpiarFiltros}
+                        className="h-10 w-10 flex-shrink-0"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Limpiar filtros</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+
+            {/* Segunda fila: Filtros específicos */}
+            <div className="flex flex-col lg:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 flex-1">
+                {/* Búsqueda por producto */}
+                <div className="relative w-full sm:w-auto sm:min-w-[200px]">
+                  <Tag className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Buscar por producto..."
+                    className="pl-9"
+                    value={busquedaProducto}
+                    onChange={(e) => handleBusquedaProductoChange(e.target.value)}
+                  />
+                  {busquedaProducto && busquedaProducto.length > 0 && (
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={() => {
+                          setBusquedaProducto("")
+                          setProductos([])
+                          setProductoSeleccionado(null)
+                        }}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {busquedaProducto && busquedaProducto.length > 0 && (
+                    <div className="relative mt-1">
+                      <div className="absolute z-10 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                        {cargandoProductos ? (
+                          <div className="p-2 text-center text-gray-500">Buscando productos...</div>
+                        ) : productos.length === 0 ? (
+                          <div className="p-2 text-center text-gray-500">No se encontraron productos</div>
+                        ) : (
+                          <ul className="py-1">
+                            {productos.map((producto) => (
+                              <li
+                                key={producto.id}
+                                className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                                  productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
+                                }`}
+                                onClick={() => {
+                                  handleSeleccionarProducto(producto)
+                                  setBusquedaProducto(producto.nombre)
+                                }}
+                              >
+                                <div className="font-medium">{producto.nombre}</div>
+                                <div className="text-xs text-gray-500">Código: {producto.codigo}</div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Punto de venta */}
+                <Select value={selectedPuntoVenta} onValueChange={setSelectedPuntoVenta}>
+                  <SelectTrigger
+                    className={`w-full sm:w-auto ${
+                      selectedPuntoVenta !== "todos"
+                        ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <MapPin size={14} />
+                      <span>{selectedPuntoVenta === "todos" ? "Todos los puntos" : selectedPuntoVenta}</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los puntos</SelectItem>
+                    {puntosVenta.map((punto) => (
+                      <SelectItem key={punto.id} value={punto.nombre}>
+                        {punto.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Método de pago */}
+                <Select value={selectedMetodoPago} onValueChange={setSelectedMetodoPago}>
+                  <SelectTrigger
+                    className={`w-full sm:w-auto ${
+                      selectedMetodoPago !== "todos"
+                        ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <DollarSign size={14} />
+                      <span>{selectedMetodoPago === "todos" ? "Todos los métodos" : selectedMetodoPago}</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los métodos</SelectItem>
+                    {metodosPago.map((metodo) => (
+                      <SelectItem key={metodo.id} value={metodo.nombre}>
+                        {metodo.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro de fechas mejorado */}
+              <div className="w-full lg:w-auto">
+                <DateRangePicker
+                  date={dateRange}
+                  setDate={setDateRange}
+                  className="w-full lg:w-[280px]"
+                  showPresets={true}
+                  align="start"
+                  disableBefore={!isAdmin ? new Date(new Date().setDate(new Date().getDate() - 7)) : undefined}
+                />
+              </div>
+            </div>
+
+            {/* Producto seleccionado */}
+            {productoSeleccionado && (
+              <div className="flex items-center gap-2">
+                <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                  <Tag className="h-3 w-3 mr-1" />
+                  {productoSeleccionado.nombre}
+                </Badge>
+              </div>
+            )}
+
+            {/* Indicadores de filtros activos */}
+            {(searchTerm ||
+              selectedPuntoVenta !== "todos" ||
+              selectedMetodoPago !== "todos" ||
+              productoSeleccionado ||
+              mostrarAnuladas ||
+              dateRange?.from ||
+              dateRange?.to) && (
+              <div className="pt-3 border-t flex items-center justify-between">
+                <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
+                  <Filter size={14} className="text-orange-400" />
+                  <span>Filtros activos:</span>
+                  {searchTerm && (
+                    <Badge variant="outline" className="ml-2 text-xs bg-gray-50">
+                      Búsqueda: {searchTerm}
+                    </Badge>
+                  )}
+                  {selectedPuntoVenta !== "todos" && (
+                    <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
+                      Punto: {selectedPuntoVenta}
+                    </Badge>
+                  )}
+                  {selectedMetodoPago !== "todos" && (
+                    <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
+                      Pago: {selectedMetodoPago}
+                    </Badge>
+                  )}
+                  {productoSeleccionado && (
+                    <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
+                      Producto: {productoSeleccionado.nombre}
+                    </Badge>
+                  )}
+                  {mostrarAnuladas && (
+                    <Badge variant="outline" className="ml-1 text-xs bg-red-50 text-red-700 border-red-300">
+                      Anuladas incluidas
+                    </Badge>
+                  )}
+                  {(dateRange?.from || dateRange?.to) && (
+                    <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
+                      <Calendar size={12} className="mr-1" />
+                      Fechas: {dateRange?.from ? formatLocalDate(dateRange.from) : "..."} -{" "}
+                      {dateRange?.to ? formatLocalDate(dateRange.to) : "..."}
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-gray-500 hover:text-gray-700"
+                  onClick={limpiarFiltros}
+                >
+                  Limpiar filtros
+                </Button>
+              </div>
+            )}
+
+            {/* Advertencia para usuarios no admin */}
+            {!isAdmin && (
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                <div className="flex items-center gap-2 text-amber-700">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm font-medium">Acceso limitado</span>
+                </div>
+                <p className="text-xs text-amber-600 mt-1">
+                  Solo puedes ver las ventas de los últimos 7 días. Para acceso completo, contacta al administrador.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Tabla de ventas */}
       <Card className="border-0 shadow-md">
