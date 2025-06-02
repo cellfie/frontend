@@ -29,8 +29,6 @@ import {
   Filter,
   UserPlus,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -57,7 +55,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Importar servicios optimizados
-import { getProductosPaginados, searchProductosRapido, adaptProductoToFrontend } from "@/services/productosService"
+import { searchProductosRapido, adaptProductoToFrontend } from "@/services/productosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getCategorias } from "@/services/categoriasService"
 import { searchClientes, createCliente } from "@/services/clientesService"
@@ -83,7 +81,7 @@ const useDebounce = (value, delay) => {
   return debouncedValue
 }
 
-const VentasProductos = () => {
+const VentasProductosOptimizado = () => {
   const { currentUser } = useAuth()
 
   // Estados principales
@@ -91,13 +89,6 @@ const VentasProductos = () => {
   const [productos, setProductos] = useState([])
   const [productosSeleccionados, setProductosSeleccionados] = useState([])
   const [cargando, setCargando] = useState(false)
-  const [mostrarTodosLosProductos, setMostrarTodosLosProductos] = useState(false)
-
-  // Estados de paginación para cuando se muestran todos los productos
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const itemsPerPage = 20 // Menos productos por página para mejor rendimiento
 
   // Estados de venta
   const [porcentajeInteres, setPorcentajeInteres] = useState(0)
@@ -167,100 +158,47 @@ const VentasProductos = () => {
     }
   }, [puntoVentaSeleccionado])
 
-  // Función para construir filtros
-  const buildFilters = useCallback(() => {
-    const filters = {}
-
-    if (debouncedSearchTerm) {
-      filters.search = debouncedSearchTerm
-    }
-
-    if (filtroCategoria !== "todos") {
-      const categoria = categorias.find((cat) => cat.nombre === filtroCategoria)
-      if (categoria) filters.categoria_id = categoria.id
-    }
-
-    if (puntoVentaSeleccionado !== "todos") {
-      filters.punto_venta_id = puntoVentaSeleccionado
-    }
-
-    return filters
-  }, [debouncedSearchTerm, filtroCategoria, puntoVentaSeleccionado, categorias])
-
-  // Búsqueda rápida de productos (nueva funcionalidad optimizada)
+  // Búsqueda rápida de productos (solo cuando hay búsqueda)
   const buscarProductosRapido = useCallback(async () => {
     if (!debouncedSearchTerm || debouncedSearchTerm.length < 2) {
-      if (!mostrarTodosLosProductos) {
-        setProductos([])
-      }
+      setProductos([])
       return
     }
 
     setCargando(true)
     try {
       const productosEncontrados = await searchProductosRapido(debouncedSearchTerm)
-      const productosAdaptados = productosEncontrados.map(adaptProductoToFrontend).map((prod) => ({
+      let productosAdaptados = productosEncontrados.map(adaptProductoToFrontend).map((prod) => ({
         ...prod,
         price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
       }))
 
       // Filtrar por punto de venta si está seleccionado
-      const productosFiltrados =
-        puntoVentaSeleccionado !== "todos"
-          ? productosAdaptados.filter((p) => p.punto_venta_id?.toString() === puntoVentaSeleccionado)
-          : productosAdaptados
+      if (puntoVentaSeleccionado !== "todos") {
+        productosAdaptados = productosAdaptados.filter((p) => p.punto_venta_id?.toString() === puntoVentaSeleccionado)
+      }
 
-      setProductos(productosFiltrados)
+      // Filtrar por categoría si está seleccionado
+      if (filtroCategoria !== "todos") {
+        const categoria = categorias.find((cat) => cat.nombre === filtroCategoria)
+        if (categoria) {
+          productosAdaptados = productosAdaptados.filter((p) => p.categoria_id === categoria.id)
+        }
+      }
+
+      setProductos(productosAdaptados)
     } catch (error) {
       console.error("Error en búsqueda rápida:", error)
       toast.error("Error al buscar productos")
     } finally {
       setCargando(false)
     }
-  }, [debouncedSearchTerm, puntoVentaSeleccionado])
-
-  // Cargar productos paginados (cuando se muestran todos)
-  const cargarProductosPaginados = useCallback(
-    async (page = 1) => {
-      setCargando(true)
-      try {
-        const filters = buildFilters()
-        const result = await getProductosPaginados(page, itemsPerPage, filters)
-
-        const productosAdaptados = result.data.map(adaptProductoToFrontend).map((prod) => ({
-          ...prod,
-          price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
-        }))
-
-        setProductos(productosAdaptados)
-        setCurrentPage(result.pagination.currentPage)
-        setTotalPages(result.pagination.totalPages)
-        setTotalItems(result.pagination.totalItems)
-      } catch (error) {
-        console.error("Error al cargar productos paginados:", error)
-        toast.error("Error al cargar productos")
-      } finally {
-        setCargando(false)
-      }
-    },
-    [buildFilters, itemsPerPage],
-  )
+  }, [debouncedSearchTerm, puntoVentaSeleccionado, filtroCategoria, categorias])
 
   // Efecto para manejar la búsqueda
   useEffect(() => {
-    if (mostrarTodosLosProductos) {
-      cargarProductosPaginados(1)
-    } else {
-      buscarProductosRapido()
-    }
-  }, [debouncedSearchTerm, filtroCategoria, puntoVentaSeleccionado, mostrarTodosLosProductos])
-
-  // Efecto para cargar productos cuando cambia la página
-  useEffect(() => {
-    if (mostrarTodosLosProductos && currentPage > 1) {
-      cargarProductosPaginados(currentPage)
-    }
-  }, [currentPage, mostrarTodosLosProductos])
+    buscarProductosRapido()
+  }, [debouncedSearchTerm, filtroCategoria, puntoVentaSeleccionado])
 
   // Buscar clientes cuando cambia la búsqueda
   useEffect(() => {
@@ -587,11 +525,7 @@ const VentasProductos = () => {
 
       // Recargar productos si hay búsqueda activa
       if (debouncedSearchTerm) {
-        if (mostrarTodosLosProductos) {
-          cargarProductosPaginados(currentPage)
-        } else {
-          buscarProductosRapido()
-        }
+        buscarProductosRapido()
       }
     } catch (error) {
       console.error("Error al finalizar venta:", error)
@@ -618,7 +552,7 @@ const VentasProductos = () => {
 
   // Skeletons
   const renderSkeletons = () =>
-    Array.from({ length: 5 }).map((_, idx) => (
+    Array.from({ length: 3 }).map((_, idx) => (
       <div key={idx} className="flex items-center space-x-4 p-3 border-b">
         <Skeleton className="h-12 w-12 rounded-md" />
         <div className="space-y-2 flex-1">
@@ -810,17 +744,15 @@ const VentasProductos = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Productos Disponibles - OPTIMIZADO */}
+        {/* Productos Disponibles - SOLO BÚSQUEDA */}
         <Card className="lg:col-span-1 overflow-hidden border-0 shadow-md bg-white">
           <CardHeader className="bg-[#131321] pb-3">
             <CardTitle className="text-orange-600 flex items-center gap-2">
               <Package size={20} />
-              Productos Disponibles
+              Buscar Productos
             </CardTitle>
             <CardDescription className="text-gray-300">
-              {mostrarTodosLosProductos
-                ? `Mostrando ${productos.length} de ${totalItems} productos`
-                : "Busca productos por nombre o código para agregarlos al carrito"}
+              Busca productos por nombre o código para agregarlos al carrito
             </CardDescription>
             <div className="relative mt-2">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -830,31 +762,12 @@ const VentasProductos = () => {
                 className="pl-8 bg-white/90 border-0 focus-visible:ring-orange-500"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
+                autoFocus
               />
             </div>
 
+            {/* Solo filtro de categorías */}
             <div className="flex gap-2 mt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className={`whitespace-nowrap flex items-center gap-1 h-8 ${
-                  mostrarTodosLosProductos
-                    ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                    : "bg-white"
-                }`}
-                onClick={() => {
-                  setMostrarTodosLosProductos(!mostrarTodosLosProductos)
-                  if (!mostrarTodosLosProductos) {
-                    setCurrentPage(1)
-                  } else {
-                    setProductos([])
-                  }
-                }}
-              >
-                {mostrarTodosLosProductos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                <span className="hidden sm:inline">{mostrarTodosLosProductos ? "Ocultar lista" : "Ver todos"}</span>
-              </Button>
-
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -869,7 +782,7 @@ const VentasProductos = () => {
                     <Filter size={14} />
                     <span className="hidden sm:inline">
                       {filtroCategoria === "todos"
-                        ? "Categorías"
+                        ? "Todas las categorías"
                         : categorias.find((c) => c.nombre === filtroCategoria)?.nombre || "Categoría"}
                     </span>
                   </Button>
@@ -915,9 +828,9 @@ const VentasProductos = () => {
                   {productos.map((prod) => (
                     <motion.div
                       key={prod.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                     >
                       <div
@@ -990,58 +903,41 @@ const VentasProductos = () => {
                     </motion.div>
                   ))}
                 </AnimatePresence>
+              ) : busqueda.length >= 2 ? (
+                <div className="text-center py-12 text-gray-600">
+                  <Search className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                  <h3 className="text-lg font-medium mb-1 text-gray-800">No se encontraron productos</h3>
+                  <p className="text-sm text-gray-500">No hay productos que coincidan con "{busqueda}"</p>
+                  <p className="text-xs text-gray-400 mt-2">Intenta con otro término de búsqueda</p>
+                </div>
               ) : (
                 <div className="text-center py-12 text-gray-600">
-                  <Search className="mx-auto h-12 w-12 text-gray-600 mb-3" />
-                  <h3 className="text-lg font-medium mb-1">
-                    {busqueda ? "No se encontraron productos" : "Busca productos"}
-                  </h3>
-                  <p className="text-sm">
-                    {busqueda
-                      ? "Intenta con otra búsqueda o cambia los filtros"
-                      : "Escribe en el campo de búsqueda para encontrar productos"}
-                  </p>
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-8 rounded-xl mx-4 border border-orange-200">
+                    <Search className="mx-auto h-16 w-16 text-orange-400 mb-4" />
+                    <h3 className="text-xl font-medium mb-2 text-gray-800">Busca productos</h3>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Escribe el nombre o código del producto que quieres vender
+                    </p>
+                    <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                      <Info size={12} />
+                      <span>Mínimo 2 caracteres para buscar</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </ScrollArea>
           </CardContent>
           <CardFooter className="text-xs text-gray-700 flex justify-between py-3 border-t">
             <span>
-              {mostrarTodosLosProductos
-                ? `Página ${currentPage} de ${totalPages}`
-                : `${productos.length} productos encontrados`}
+              {productos.length > 0 ? `${productos.length} productos encontrados` : "Busca para ver productos"}
             </span>
-            <div className="flex items-center gap-2">
-              {mostrarTodosLosProductos && totalPages > 1 && (
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage <= 1}
-                  >
-                    ‹
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage >= totalPages}
-                  >
-                    ›
-                  </Button>
-                </div>
-              )}
-              <span className="flex items-center gap-1">
-                <Info size={12} /> Doble click para agregar
-              </span>
-            </div>
+            <span className="flex items-center gap-1">
+              <Info size={12} /> Doble click para agregar
+            </span>
           </CardFooter>
         </Card>
 
-        {/* Detalle de Venta - SIN CAMBIOS SIGNIFICATIVOS */}
+        {/* Detalle de Venta - SIN CAMBIOS */}
         <Card className="lg:col-span-2 border-0 shadow-md overflow-hidden bg-white">
           <CardHeader className="bg-[#131321] border-b pb-3">
             <CardTitle className="flex items-center gap-2 text-orange-600">
@@ -1502,4 +1398,4 @@ const VentasProductos = () => {
   )
 }
 
-export default VentasProductos
+export default VentasProductosOptimizado
