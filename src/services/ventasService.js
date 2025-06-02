@@ -40,6 +40,23 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
+// Función para formatear fecha local sin conversión UTC
+const formatLocalDate = (date, includeTime = false) => {
+  if (!date) return null
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  if (includeTime) {
+    const hours = String(date.getHours()).padStart(2, "0")
+    const minutes = String(date.getMinutes()).padStart(2, "0")
+    const seconds = String(date.getSeconds()).padStart(2, "0")
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
+
+  return `${year}-${month}-${day}`
+}
 
 // Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
@@ -306,28 +323,28 @@ export const adaptVentaToFrontend = (venta) => {
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,
-          nombre: venta.cliente_nombre,
+          nombre: venta.cliente_nombre || "Cliente eliminado",
           telefono: venta.cliente_telefono,
         }
       : null,
     usuario: {
-      id: venta.usuario_id,
-      nombre: venta.usuario_nombre,
+      id: venta.usuario_id || 0,
+      nombre: venta.usuario_nombre || "Usuario eliminado",
     },
     puntoVenta: {
-      id: venta.punto_venta_id,
-      nombre: venta.punto_venta_nombre,
+      id: venta.punto_venta_id || 0,
+      nombre: venta.punto_venta_nombre || "Punto de venta eliminado",
     },
     tipoPago: {
-      nombre: venta.tipo_pago_nombre,
+      nombre: venta.tipo_pago_nombre || "N/A",
     },
     detalles: venta.detalles
       ? venta.detalles.map((detalle) => ({
           id: detalle.id,
           producto: {
             id: detalle.producto_id,
-            codigo: detalle.producto_codigo,
-            nombre: detalle.producto_nombre,
+            codigo: detalle.producto_codigo || "N/A",
+            nombre: detalle.producto_nombre || "Producto eliminado",
           },
           cantidad: detalle.cantidad,
           cantidadDevuelta: detalle.cantidad_devuelta || 0,
@@ -335,6 +352,7 @@ export const adaptVentaToFrontend = (venta) => {
           precioConDescuento: detalle.precio_con_descuento,
           subtotal: detalle.subtotal,
           devuelto: detalle.devuelto === 1,
+          es_reemplazo: detalle.es_reemplazo === 1,
         }))
       : [],
   }
