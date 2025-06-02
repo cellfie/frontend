@@ -2,7 +2,7 @@
 
 import { DialogTrigger } from "@/components/ui/dialog"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
@@ -29,6 +29,8 @@ import {
   Filter,
   UserPlus,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -54,8 +56,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-// Importar servicios
-import { getProductos, adaptProductoToFrontend } from "@/services/productosService"
+// Importar servicios optimizados
+import { getProductosPaginados, searchProductosRapido, adaptProductoToFrontend } from "@/services/productosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getCategorias } from "@/services/categoriasService"
 import { searchClientes, createCliente } from "@/services/clientesService"
@@ -64,14 +66,40 @@ import { createVenta } from "@/services/ventasService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
 import { useAuth } from "@/context/AuthContext"
 
+// Hook personalizado para debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
 const VentasProductos = () => {
   const { currentUser } = useAuth()
-  // Estados
+
+  // Estados principales
   const [busqueda, setBusqueda] = useState("")
   const [productos, setProductos] = useState([])
-  const [productosFiltrados, setProductosFiltrados] = useState([])
   const [productosSeleccionados, setProductosSeleccionados] = useState([])
-  const [cargando, setCargando] = useState(true)
+  const [cargando, setCargando] = useState(false)
+  const [mostrarTodosLosProductos, setMostrarTodosLosProductos] = useState(false)
+
+  // Estados de paginación para cuando se muestran todos los productos
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 20 // Menos productos por página para mejor rendimiento
+
+  // Estados de venta
   const [porcentajeInteres, setPorcentajeInteres] = useState(0)
   const [porcentajeDescuento, setPorcentajeDescuento] = useState(0)
   const [cliente, setCliente] = useState({ id: null, nombre: "Cliente General", telefono: "", dni: "" })
@@ -81,11 +109,12 @@ const VentasProductos = () => {
   const [tipoPagoSeleccionado, setTipoPagoSeleccionado] = useState("")
   const [interesInputValue, setInteresInputValue] = useState("0")
   const [descuentoInputValue, setDescuentoInputValue] = useState("0")
+
+  // Estados de configuración
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
   const [filtroCategoria, setFiltroCategoria] = useState("todos")
   const [categorias, setCategorias] = useState([])
-  const [mostrarSoloConDescuento, setMostrarSoloConDescuento] = useState(false)
   const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
   const [clientesBusqueda, setClientesBusqueda] = useState([])
   const [busquedaCliente, setBusquedaCliente] = useState("")
@@ -94,6 +123,9 @@ const VentasProductos = () => {
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
   const [mostrarInteresVisual, setMostrarInteresVisual] = useState(false)
+
+  // Debounce para la búsqueda
+  const debouncedSearchTerm = useDebounce(busqueda, 300)
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -135,58 +167,100 @@ const VentasProductos = () => {
     }
   }, [puntoVentaSeleccionado])
 
-  // Cargar productos cuando cambia el punto de venta seleccionado
-  useEffect(() => {
-    const fetchProductos = async () => {
+  // Función para construir filtros
+  const buildFilters = useCallback(() => {
+    const filters = {}
+
+    if (debouncedSearchTerm) {
+      filters.search = debouncedSearchTerm
+    }
+
+    if (filtroCategoria !== "todos") {
+      const categoria = categorias.find((cat) => cat.nombre === filtroCategoria)
+      if (categoria) filters.categoria_id = categoria.id
+    }
+
+    if (puntoVentaSeleccionado !== "todos") {
+      filters.punto_venta_id = puntoVentaSeleccionado
+    }
+
+    return filters
+  }, [debouncedSearchTerm, filtroCategoria, puntoVentaSeleccionado, categorias])
+
+  // Búsqueda rápida de productos (nueva funcionalidad optimizada)
+  const buscarProductosRapido = useCallback(async () => {
+    if (!debouncedSearchTerm || debouncedSearchTerm.length < 2) {
+      if (!mostrarTodosLosProductos) {
+        setProductos([])
+      }
+      return
+    }
+
+    setCargando(true)
+    try {
+      const productosEncontrados = await searchProductosRapido(debouncedSearchTerm)
+      const productosAdaptados = productosEncontrados.map(adaptProductoToFrontend).map((prod) => ({
+        ...prod,
+        price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
+      }))
+
+      // Filtrar por punto de venta si está seleccionado
+      const productosFiltrados =
+        puntoVentaSeleccionado !== "todos"
+          ? productosAdaptados.filter((p) => p.punto_venta_id?.toString() === puntoVentaSeleccionado)
+          : productosAdaptados
+
+      setProductos(productosFiltrados)
+    } catch (error) {
+      console.error("Error en búsqueda rápida:", error)
+      toast.error("Error al buscar productos")
+    } finally {
+      setCargando(false)
+    }
+  }, [debouncedSearchTerm, puntoVentaSeleccionado])
+
+  // Cargar productos paginados (cuando se muestran todos)
+  const cargarProductosPaginados = useCallback(
+    async (page = 1) => {
       setCargando(true)
       try {
-        // Cargar todos los productos sin filtrar por punto de venta
-        const productosData = await getProductos()
+        const filters = buildFilters()
+        const result = await getProductosPaginados(page, itemsPerPage, filters)
 
-        // Adaptar los datos al formato que espera el frontend
-        const productosAdaptados = productosData.map(adaptProductoToFrontend).map((prod) => ({
+        const productosAdaptados = result.data.map(adaptProductoToFrontend).map((prod) => ({
           ...prod,
-          // Asegurarse de que price sea un número
           price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
         }))
 
         setProductos(productosAdaptados)
-
-        // Inicialmente, filtrar para mostrar todos los productos
-        setProductosFiltrados(productosAdaptados)
+        setCurrentPage(result.pagination.currentPage)
+        setTotalPages(result.pagination.totalPages)
+        setTotalItems(result.pagination.totalItems)
       } catch (error) {
-        console.error("Error al cargar productos:", error)
+        console.error("Error al cargar productos paginados:", error)
         toast.error("Error al cargar productos")
       } finally {
         setCargando(false)
       }
-    }
+    },
+    [buildFilters, itemsPerPage],
+  )
 
-    fetchProductos()
-  }, [])
-
-  // Filtrar productos
+  // Efecto para manejar la búsqueda
   useEffect(() => {
-    const filtered = productos.filter((p) => {
-      // Filtro por búsqueda
-      const matchesSearch =
-        !busqueda.trim() ||
-        p.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-        p.code.toLowerCase().includes(busqueda.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(busqueda.toLowerCase()))
+    if (mostrarTodosLosProductos) {
+      cargarProductosPaginados(1)
+    } else {
+      buscarProductosRapido()
+    }
+  }, [debouncedSearchTerm, filtroCategoria, puntoVentaSeleccionado, mostrarTodosLosProductos])
 
-      // Filtro por categoría
-      const matchesCategoria =
-        filtroCategoria === "todos" || (p.categoria_id && p.categoria_id.toString() === filtroCategoria)
-
-      // Filtro por descuento
-      const matchesDescuento = !mostrarSoloConDescuento || (p.discount && new Date(p.discount.endDate) > new Date())
-
-      return matchesSearch && matchesCategoria && matchesDescuento
-    })
-
-    setProductosFiltrados(filtered)
-  }, [busqueda, productos, filtroCategoria, mostrarSoloConDescuento])
+  // Efecto para cargar productos cuando cambia la página
+  useEffect(() => {
+    if (mostrarTodosLosProductos && currentPage > 1) {
+      cargarProductosPaginados(currentPage)
+    }
+  }, [currentPage, mostrarTodosLosProductos])
 
   // Buscar clientes cuando cambia la búsqueda
   useEffect(() => {
@@ -225,7 +299,6 @@ const VentasProductos = () => {
         setCuentaCorrienteInfo(cuentaCorriente)
       } catch (error) {
         console.error("Error al cargar cuenta corriente:", error)
-        // Si el error es 404, significa que el cliente no tiene cuenta corriente
         if (error.message && error.message.includes("no tiene cuenta corriente")) {
           setCuentaCorrienteInfo({ saldo: 0, limite_credito: 0, activo: true, cliente_id: cliente.id })
         } else {
@@ -243,7 +316,6 @@ const VentasProductos = () => {
 
   // Actualizar tipo de pago cuando cambia el cliente
   useEffect(() => {
-    // Si se selecciona cuenta corriente pero no hay cliente, resetear el tipo de pago
     if (tipoPagoSeleccionado) {
       const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
       if (
@@ -282,12 +354,10 @@ const VentasProductos = () => {
   }
 
   const calcularTotal = () => {
-    // El total real siempre es subtotal - descuento (sin interés)
     return calcularSubtotal() - calcularDescuento()
   }
 
   const calcularTotalVisual = () => {
-    // El total visual incluye el interés para mostrar al cliente
     return calcularSubtotal() + calcularInteres() - calcularDescuento()
   }
 
@@ -361,7 +431,7 @@ const VentasProductos = () => {
   const cambiarCantidad = (id, nueva) => {
     if (nueva < 1) return
 
-    const producto = productos.find((x) => x.id === id)
+    const producto = productos.find((x) => x.id === id) || productosSeleccionados.find((x) => x.id === id)
     if (nueva > producto.stock) {
       toast.error(`Solo hay ${producto.stock} unidades disponibles`, {
         position: "bottom-right",
@@ -445,16 +515,13 @@ const VentasProductos = () => {
       return
     }
 
-    // Verificar que el usuario esté autenticado
     if (!currentUser || !currentUser.id) {
       toast.error("El usuario no está autenticado. Por favor, inicie sesión.", {
         position: "bottom-right",
       })
-      console.log("Estado del usuario:", currentUser)
       return
     }
 
-    // Si el tipo de pago es cuenta corriente, verificar que haya un cliente seleccionado
     const tipoPago = tiposPagoDisponibles.find((m) => m.id.toString() === tipoPagoSeleccionado)
     if (tipoPago && tipoPago.nombre.toLowerCase() === "cuenta corriente" && !cliente.id) {
       toast.error("Debe seleccionar un cliente para ventas con cuenta corriente", {
@@ -463,7 +530,6 @@ const VentasProductos = () => {
       return
     }
 
-    // Si el tipo de pago es cuenta corriente, verificar límite de crédito
     if (
       tipoPago &&
       tipoPago.nombre.toLowerCase() === "cuenta corriente" &&
@@ -480,12 +546,11 @@ const VentasProductos = () => {
     setProcesandoVenta(true)
 
     try {
-      // Preparar datos para la API
       const ventaData = {
         cliente_id: cliente.id || null,
         punto_venta_id: Number.parseInt(puntoVentaSeleccionado),
-        tipo_pago: tipoPago.nombre, // Ahora enviamos el nombre del tipo de pago en lugar del ID
-        porcentaje_interes: 0, // Siempre enviamos 0 para el interés ya que es solo visual
+        tipo_pago: tipoPago.nombre,
+        porcentaje_interes: 0,
         porcentaje_descuento: porcentajeDescuento,
         productos: productosSeleccionados.map((p) => ({
           id: p.id,
@@ -500,7 +565,6 @@ const VentasProductos = () => {
         notas: `Venta de ${productosSeleccionados.length} productos`,
       }
 
-      // Llamar a la API para crear la venta
       const resultado = await createVenta(ventaData)
 
       toast.success(`Venta #${resultado.numero_factura} registrada con éxito`, {
@@ -521,14 +585,14 @@ const VentasProductos = () => {
       setCuentaCorrienteInfo(null)
       setMostrarInteresVisual(false)
 
-      // Recargar productos para actualizar stock
-      const productosData = await getProductos()
-      const productosAdaptados = productosData.map(adaptProductoToFrontend).map((prod) => ({
-        ...prod,
-        price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
-      }))
-      setProductos(productosAdaptados)
-      setProductosFiltrados(productosAdaptados)
+      // Recargar productos si hay búsqueda activa
+      if (debouncedSearchTerm) {
+        if (mostrarTodosLosProductos) {
+          cargarProductosPaginados(currentPage)
+        } else {
+          buscarProductosRapido()
+        }
+      }
     } catch (error) {
       console.error("Error al finalizar venta:", error)
       toast.error("Error al finalizar venta: " + error.message)
@@ -746,7 +810,7 @@ const VentasProductos = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Productos Disponibles */}
+        {/* Productos Disponibles - OPTIMIZADO */}
         <Card className="lg:col-span-1 overflow-hidden border-0 shadow-md bg-white">
           <CardHeader className="bg-[#131321] pb-3">
             <CardTitle className="text-orange-600 flex items-center gap-2">
@@ -754,13 +818,15 @@ const VentasProductos = () => {
               Productos Disponibles
             </CardTitle>
             <CardDescription className="text-gray-300">
-              Venta en punto: {getNombrePuntoVenta(puntoVentaSeleccionado)} - Solo puedes vender productos de este punto
+              {mostrarTodosLosProductos
+                ? `Mostrando ${productos.length} de ${totalItems} productos`
+                : "Busca productos por nombre o código para agregarlos al carrito"}
             </CardDescription>
             <div className="relative mt-2">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input
                 type="text"
-                placeholder="Buscar por nombre, código o descripción..."
+                placeholder="Buscar por nombre, código..."
                 className="pl-8 bg-white/90 border-0 focus-visible:ring-orange-500"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
@@ -772,14 +838,21 @@ const VentasProductos = () => {
                 variant="outline"
                 size="sm"
                 className={`whitespace-nowrap flex items-center gap-1 h-8 ${
-                  mostrarSoloConDescuento
+                  mostrarTodosLosProductos
                     ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
                     : "bg-white"
                 }`}
-                onClick={() => setMostrarSoloConDescuento(!mostrarSoloConDescuento)}
+                onClick={() => {
+                  setMostrarTodosLosProductos(!mostrarTodosLosProductos)
+                  if (!mostrarTodosLosProductos) {
+                    setCurrentPage(1)
+                  } else {
+                    setProductos([])
+                  }
+                }}
               >
-                <PercentCircle size={14} />
-                <span className="hidden sm:inline">Descuentos</span>
+                {mostrarTodosLosProductos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                <span className="hidden sm:inline">{mostrarTodosLosProductos ? "Ocultar lista" : "Ver todos"}</span>
               </Button>
 
               <Popover>
@@ -797,7 +870,7 @@ const VentasProductos = () => {
                     <span className="hidden sm:inline">
                       {filtroCategoria === "todos"
                         ? "Categorías"
-                        : categorias.find((c) => c.id.toString() === filtroCategoria)?.nombre || "Categoría"}
+                        : categorias.find((c) => c.nombre === filtroCategoria)?.nombre || "Categoría"}
                     </span>
                   </Button>
                 </PopoverTrigger>
@@ -821,8 +894,8 @@ const VentasProductos = () => {
                           key={cat.id}
                           variant="ghost"
                           size="sm"
-                          className={`w-full justify-start ${filtroCategoria === cat.id.toString() ? "bg-orange-50 text-orange-700" : ""}`}
-                          onClick={() => setFiltroCategoria(cat.id.toString())}
+                          className={`w-full justify-start ${filtroCategoria === cat.nombre ? "bg-orange-50 text-orange-700" : ""}`}
+                          onClick={() => setFiltroCategoria(cat.nombre)}
                         >
                           {cat.nombre}
                         </Button>
@@ -837,9 +910,9 @@ const VentasProductos = () => {
             <ScrollArea className="h-[450px]">
               {cargando ? (
                 renderSkeletons()
-              ) : productosFiltrados.length > 0 ? (
+              ) : productos.length > 0 ? (
                 <AnimatePresence>
-                  {productosFiltrados.map((prod) => (
+                  {productos.map((prod) => (
                     <motion.div
                       key={prod.id}
                       initial={{ opacity: 0 }}
@@ -847,7 +920,6 @@ const VentasProductos = () => {
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
                     >
-                      {/* Modificar la visualización de los productos para mostrar claramente el punto de venta y aplicar estilos diferentes */}
                       <div
                         className={`p-3 cursor-pointer hover:bg-blue-50 transition-colors border-b border-gray-100 ${
                           prod.stock <= 0 ? "opacity-50 pointer-events-none bg-gray-50" : ""
@@ -921,21 +993,55 @@ const VentasProductos = () => {
               ) : (
                 <div className="text-center py-12 text-gray-600">
                   <Search className="mx-auto h-12 w-12 text-gray-600 mb-3" />
-                  <h3 className="text-lg font-medium mb-1">No se encontraron productos</h3>
-                  <p className="text-sm">Intenta con otra búsqueda o cambia los filtros</p>
+                  <h3 className="text-lg font-medium mb-1">
+                    {busqueda ? "No se encontraron productos" : "Busca productos"}
+                  </h3>
+                  <p className="text-sm">
+                    {busqueda
+                      ? "Intenta con otra búsqueda o cambia los filtros"
+                      : "Escribe en el campo de búsqueda para encontrar productos"}
+                  </p>
                 </div>
               )}
             </ScrollArea>
           </CardContent>
           <CardFooter className="text-xs text-gray-700 flex justify-between py-3 border-t">
-            <span>Total: {productosFiltrados.length} productos</span>
-            <span className="flex items-center gap-1">
-              <Info size={12} /> Doble click para agregar
+            <span>
+              {mostrarTodosLosProductos
+                ? `Página ${currentPage} de ${totalPages}`
+                : `${productos.length} productos encontrados`}
             </span>
+            <div className="flex items-center gap-2">
+              {mostrarTodosLosProductos && totalPages > 1 && (
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    ‹
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                  >
+                    ›
+                  </Button>
+                </div>
+              )}
+              <span className="flex items-center gap-1">
+                <Info size={12} /> Doble click para agregar
+              </span>
+            </div>
           </CardFooter>
         </Card>
 
-        {/* Detalle de Venta */}
+        {/* Detalle de Venta - SIN CAMBIOS SIGNIFICATIVOS */}
         <Card className="lg:col-span-2 border-0 shadow-md overflow-hidden bg-white">
           <CardHeader className="bg-[#131321] border-b pb-3">
             <CardTitle className="flex items-center gap-2 text-orange-600">
@@ -1044,9 +1150,7 @@ const VentasProductos = () => {
                 <div className="bg-gray-50 p-8 rounded-xl inline-flex flex-col items-center">
                   <ShoppingCart className="h-16 w-16 text-gray-300 mb-4" strokeWidth={1.5} />
                   <h3 className="text-xl font-medium mb-2 text-gray-800">Carrito vacío</h3>
-                  <p className="text-sm max-w-md">
-                    Selecciona productos de la lista para agregarlos al carrito de compras
-                  </p>
+                  <p className="text-sm max-w-md">Busca y selecciona productos para agregarlos al carrito de compras</p>
                 </div>
               </div>
             )}
@@ -1054,7 +1158,6 @@ const VentasProductos = () => {
             {productosSeleccionados.length > 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-gray-50 border-t">
                 <div className="flex flex-col gap-2">
-                  {/* Resumen de totales con ajustes minimalistas */}
                   <div className="bg-white rounded-lg shadow-sm border p-4">
                     <div className="flex flex-col space-y-3">
                       <div className="flex justify-between items-center">
@@ -1072,7 +1175,6 @@ const VentasProductos = () => {
                                 const { value } = values
                                 setInteresInputValue(value)
                                 setPorcentajeInteres(Number(value) || 0)
-                                // Si se ingresa un interés, mostrar el interés visual
                                 setMostrarInteresVisual(Number(value) > 0)
                               }}
                               decimalScale={2}
@@ -1131,13 +1233,11 @@ const VentasProductos = () => {
 
                       <Separator className="my-1" />
 
-                      {/* Total real (sin interés) */}
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total:</span>
                         <span className="text-orange-600">{formatearPrecio(calcularTotal())}</span>
                       </div>
 
-                      {/* Total visual con interés (si aplica) */}
                       {mostrarInteresVisual && porcentajeInteres > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500 flex items-center gap-1">
