@@ -53,7 +53,7 @@ import { getMetodosPago } from "@/services/metodosPagoService"
 import { getDevolucionesByVenta } from "@/services/devolucionesService"
 import { searchProductos } from "@/services/productosService"
 import { useAuth } from "@/context/AuthContext"
-import { PaginationControls } from "@/components/ui/PaginationControls"
+import { PaginationControls } from "@/lib/PaginationControls"
 
 import DevolucionDialog from "@/components/devoluciones/DevolucionDialog"
 import DevolucionesList from "@/components/devoluciones/DevolucionesList"
