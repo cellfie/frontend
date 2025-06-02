@@ -8,7 +8,7 @@ import { ProductHeader } from "./ProductHeader"
 import { ProductTable } from "./ProductTable"
 import { AddProductModal } from "./AddProductModal"
 import { DiscountModal } from "./DiscountModal"
-import { PaginationControls } from "@/lib/PaginationControls"
+import { PaginationControls } from "./PaginationControls"
 import {
   getProductosPaginados,
   createProducto,
@@ -53,6 +53,10 @@ export const ProductosPrincipal = () => {
   const [selectedCategory, setSelectedCategory] = useState("todas")
   const [pointOfSale, setPointOfSale] = useState("todos")
   const [stockRange, setStockRange] = useState([0, 100])
+  const [dateRange, setDateRange] = useState({
+    from: null,
+    to: null,
+  })
 
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1)
@@ -125,8 +129,28 @@ export const ProductosPrincipal = () => {
     if (stockRange[0] > 0) filters.min_stock = stockRange[0]
     if (stockRange[1] < maxStockAvailable) filters.max_stock = stockRange[1]
 
+    // Filtros de fecha
+    if (dateRange?.from) {
+      const fechaInicio = new Date(dateRange.from)
+      filters.fecha_inicio = fechaInicio.toISOString().split("T")[0]
+    }
+
+    if (dateRange?.to) {
+      const fechaFin = new Date(dateRange.to)
+      filters.fecha_fin = fechaFin.toISOString().split("T")[0]
+    }
+
     return filters
-  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, categorias, puntosVenta, maxStockAvailable])
+  }, [
+    debouncedSearchTerm,
+    selectedCategory,
+    pointOfSale,
+    stockRange,
+    categorias,
+    puntosVenta,
+    maxStockAvailable,
+    dateRange,
+  ])
 
   // Cargar productos con paginación
   const fetchProducts = useCallback(
@@ -170,7 +194,7 @@ export const ProductosPrincipal = () => {
   // Efecto para cargar productos cuando cambian los filtros
   useEffect(() => {
     fetchProducts(1, true)
-  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, itemsPerPage])
+  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, itemsPerPage, dateRange])
 
   // Efecto para cargar productos cuando cambia la página
   useEffect(() => {
@@ -339,6 +363,7 @@ export const ProductosPrincipal = () => {
     setSelectedCategory("todas")
     setPointOfSale("todos")
     setStockRange([0, maxStockAvailable])
+    setDateRange({ from: null, to: null })
     setCurrentPage(1)
   }
 
@@ -358,6 +383,8 @@ export const ProductosPrincipal = () => {
         puntosVenta={puntosVenta}
         maxStockAvailable={maxStockAvailable}
         onClearFilters={clearFilters}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
       />
 
       <ProductTable

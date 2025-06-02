@@ -1,9 +1,12 @@
+"use client"
+
 import { useState, useEffect } from "react"
-import { Search, Plus, Package, MapPin } from "lucide-react"
+import { Search, Plus, Package, MapPin, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { getCategorias } from "../../../services/categoriasService"
 
 export const ProductHeader = ({
@@ -18,6 +21,9 @@ export const ProductHeader = ({
   selectedCategory,
   setSelectedCategory,
   maxStockAvailable = 100,
+  onClearFilters,
+  dateRange,
+  setDateRange,
 }) => {
   const [categorias, setCategorias] = useState([])
 
@@ -43,7 +49,9 @@ export const ProductHeader = ({
     selectedCategory !== "todas" ||
     stockRange[0] > 0 ||
     stockRange[1] < maxStockAvailable ||
-    pointOfSale !== "todos"
+    pointOfSale !== "todos" ||
+    dateRange?.from ||
+    dateRange?.to
 
   return (
     <div className="bg-white rounded-lg shadow-md border-0 overflow-hidden mb-6">
@@ -59,76 +67,92 @@ export const ProductHeader = ({
       </div>
 
       <div className="p-4">
-        <div className="flex flex-col md:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              type="text"
-              placeholder="Buscar por nombre o código..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-full pr-8"
-            />
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          <div className="flex gap-2 md:gap-3 flex-wrap">
-            <Select value={pointOfSale} onValueChange={setPointOfSale}>
-              <SelectTrigger
-                className={`h-9 w-auto text-sm ${
-                  pointOfSale !== "todos" ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100" : ""
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  <MapPin size={14} />
-                  <span>{pointOfSale === "todos" ? "Todos" : pointOfSale}</span>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {puntosVenta.map((pv) => (
-                  <SelectItem key={pv.id} value={pv.nombre}>
-                    {pv.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger
-                className={`h-9 w-auto text-sm ${
-                  selectedCategory !== "todas"
-                    ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                    : ""
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  <Package size={14} />
-                  <span>Categoría: {selectedCategory === "todas" ? "Todas" : selectedCategory}</span>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas las categorías</SelectItem>
-                {categorias.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.nombre}>
-                    {cat.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex flex-col gap-3">
+          {/* Primera fila: Búsqueda y botón agregar */}
+          <div className="flex flex-col md:flex-row gap-3 items-center">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Buscar por nombre o código..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 w-full pr-8"
+              />
+              {searchTerm && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
 
             <Button onClick={onAddClick} size="sm" className="whitespace-nowrap bg-orange-600 hover:bg-orange-700">
               <Plus className="mr-1 h-4 w-4" />
               <span className="hidden sm:inline">Agregar</span>
               <span className="sm:hidden">Nuevo</span>
             </Button>
+          </div>
+
+          {/* Segunda fila: Filtros */}
+          <div className="flex flex-col lg:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              <Select value={pointOfSale} onValueChange={setPointOfSale}>
+                <SelectTrigger
+                  className={`h-9 w-full sm:w-auto text-sm ${
+                    pointOfSale !== "todos" ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <MapPin size={14} />
+                    <span>{pointOfSale === "todos" ? "Todos" : pointOfSale}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {puntosVenta.map((pv) => (
+                    <SelectItem key={pv.id} value={pv.nombre}>
+                      {pv.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger
+                  className={`h-9 w-full sm:w-auto text-sm ${
+                    selectedCategory !== "todas"
+                      ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <Package size={14} />
+                    <span>Categoría: {selectedCategory === "todas" ? "Todas" : selectedCategory}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas las categorías</SelectItem>
+                  {categorias.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.nombre}>
+                      {cat.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro de fechas */}
+            <div className="w-full lg:w-auto">
+              <DateRangePicker
+                date={dateRange}
+                setDate={setDateRange}
+                className="w-full lg:w-[280px]"
+                showPresets={true}
+              />
+            </div>
           </div>
         </div>
 
@@ -152,16 +176,19 @@ export const ProductHeader = ({
                   Categoría: {selectedCategory}
                 </Badge>
               )}
+              {(dateRange?.from || dateRange?.to) && (
+                <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
+                  <Calendar size={12} className="mr-1" />
+                  Fechas: {dateRange?.from ? new Date(dateRange.from).toLocaleDateString() : "..."} -{" "}
+                  {dateRange?.to ? new Date(dateRange.to).toLocaleDateString() : "..."}
+                </Badge>
+              )}
             </div>
             <Button
               variant="ghost"
               size="sm"
               className="h-7 text-xs text-gray-500 hover:text-gray-700"
-              onClick={() => {
-                setSearchTerm("")
-                setSelectedCategory("todas")
-                setPointOfSale("todos")
-              }}
+              onClick={onClearFilters}
             >
               Limpiar filtros
             </Button>
@@ -210,4 +237,3 @@ const X = (props) => (
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 )
-

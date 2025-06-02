@@ -78,6 +78,7 @@ export const ProductTable = ({
               <TableHead className="bg-white">Precio</TableHead>
               <TableHead className="bg-white">Stock</TableHead>
               <TableHead className="bg-white">Punto de Venta</TableHead>
+              <TableHead className="bg-white">Fecha Creación</TableHead>
               <TableHead className="text-right bg-white">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -85,7 +86,7 @@ export const ProductTable = ({
           <TableBody>
             {products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Package className="h-12 w-12 text-gray-300" />
                     <h3 className="text-lg font-medium text-gray-500">No hay productos disponibles</h3>
@@ -141,6 +142,25 @@ export const ProductTable = ({
                         <MapPin className="h-3 w-3 mr-1" />
                         {product.pointOfSale || "No asignado"}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {product.fechaCreacion
+                          ? new Date(product.fechaCreacion).toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })
+                          : "N/A"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {product.fechaCreacion
+                          ? new Date(product.fechaCreacion).toLocaleTimeString("es-AR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
