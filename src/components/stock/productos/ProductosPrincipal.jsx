@@ -8,7 +8,7 @@ import { ProductHeader } from "./ProductHeader"
 import { ProductTable } from "./ProductTable"
 import { AddProductModal } from "./AddProductModal"
 import { DiscountModal } from "./DiscountModal"
-import { PaginationControls } from "./PaginationControls"
+import { PaginationControls } from "@/lib/PaginationControls"
 import {
   getProductosPaginados,
   createProducto,
