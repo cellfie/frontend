@@ -36,10 +36,86 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
+// Función para formatear fecha local sin conversión UTC
+const formatLocalDate = (date, includeTime = false) => {
+  if (!date) return null
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  if (includeTime) {
+    const hours = String(date.getHours()).padStart(2, "0")
+    const minutes = String(date.getMinutes()).padStart(2, "0")
+    const seconds = String(date.getSeconds()).padStart(2, "0")
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  }
+
+  return `${year}-${month}-${day}`
+}
+
 // Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
-// Obtener todas las ventas
+// Obtener ventas con paginación
+export const getVentasPaginadas = async (params = {}) => {
+  try {
+    // Construir la URL con los parámetros de búsqueda
+    const queryParams = new URLSearchParams()
+
+    if (params.page) queryParams.append("page", params.page)
+    if (params.limit) queryParams.append("limit", params.limit)
+    if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
+    if (params.fecha_fin) queryParams.append("fecha_fin", params.fecha_fin)
+    if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
+    if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
+    if (params.anuladas !== undefined) queryParams.append("anuladas", params.anuladas)
+    if (params.search) queryParams.append("search", params.search)
+
+    const url = `${API_URL}/ventas/paginadas?${queryParams.toString()}`
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al obtener ventas paginadas")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getVentasPaginadas:", error)
+    throw error
+  }
+}
+
+// Búsqueda rápida de ventas
+export const searchVentasRapido = async (query) => {
+  try {
+    if (!query || query.length < 2) {
+      return []
+    }
+
+    const response = await fetch(`${API_URL}/ventas/search-rapido?q=${encodeURIComponent(query)}`, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error en búsqueda rápida de ventas")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en searchVentasRapido:", error)
+    throw error
+  }
+}
+
+// Obtener todas las ventas (mantener para compatibilidad)
 export const getVentas = async (params = {}) => {
   try {
     // Construir la URL con los parámetros de búsqueda
@@ -117,8 +193,8 @@ export const createVenta = async (ventaData) => {
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
-      tipo_pago: ventaData.tipo_pago, // Enviamos el nombre del tipo de pago
-      porcentaje_interes: ventaData.porcentaje_interes || 0, // Siempre será 0 ya que el interés es solo visual
+      tipo_pago: ventaData.tipo_pago,
+      porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
       productos: ventaData.productos.map((p) => ({
         id: p.id,
@@ -208,6 +284,8 @@ export const adaptVentaToFrontend = (venta) => {
     id: venta.id,
     numeroFactura: venta.numero_factura,
     fecha: venta.fecha,
+    fechaCreacion: venta.fecha_creacion,
+    fechaActualizacion: venta.fecha_actualizacion,
     subtotal: venta.subtotal,
     porcentajeInteres: venta.porcentaje_interes,
     montoInteres: venta.monto_interes,
