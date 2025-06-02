@@ -180,6 +180,36 @@ export const deleteEquipo = async (id) => {
   }
 }
 
+// Obtener equipos paginados
+export const getEquiposPaginados = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams()
+
+    Object.keys(params).forEach((key) => {
+      if (params[key] !== undefined && params[key] !== null && params[key] !== "") {
+        queryParams.append(key, params[key])
+      }
+    })
+
+    const url = `${API_URL}/equipos/paginados?${queryParams.toString()}`
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al obtener equipos paginados")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getEquiposPaginados:", error)
+    throw error
+  }
+}
+
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptEquipoToFrontend = (equipo) => {
   return {
@@ -193,6 +223,8 @@ export const adaptEquipoToFrontend = (equipo) => {
     descripcion: equipo.descripcion || "",
     imei: equipo.imei,
     fechaIngreso: equipo.fecha_ingreso,
+    fechaCreacion: equipo.fecha_creacion,
+    fechaActualizacion: equipo.fecha_actualizacion,
     tipoCambio: equipo.tipo_cambio,
     tipoCambioOriginal: equipo.tipo_cambio_original,
     vendido: equipo.vendido === 1,

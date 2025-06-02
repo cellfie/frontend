@@ -1,15 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { Search, Plus, Smartphone, MapPin, Tag, RefreshCw, Hash } from "lucide-react"
+import { Search, Plus, Smartphone, MapPin, Tag, RefreshCw, Hash, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DateRangePicker } from "@/lib/DatePickerWithRange"
 
 export const EquipmentHeader = ({
   searchTerm,
@@ -47,8 +47,8 @@ export const EquipmentHeader = ({
     imeiSearch ||
     priceRange[0] > 0 ||
     priceRange[1] < 5000 ||
-    dateRange[0] !== "" ||
-    dateRange[1] !== "" ||
+    dateRange?.from ||
+    dateRange?.to ||
     pointOfSale !== "todos" ||
     batteryRange[0] > 0 ||
     batteryRange[1] < 100 ||
@@ -128,6 +128,8 @@ export const EquipmentHeader = ({
           </div>
 
           <div className="flex gap-2 md:gap-3 flex-wrap">
+            <DateRangePicker date={dateRange} setDate={setDateRange} className="w-auto" align="end" />
+
             <Select value={pointOfSale} onValueChange={setPointOfSale}>
               <SelectTrigger
                 className={`h-9 w-auto text-sm ${
@@ -233,9 +235,11 @@ export const EquipmentHeader = ({
                   Batería: {batteryRange[0]}% - {batteryRange[1]}%
                 </Badge>
               )}
-              {(dateRange[0] || dateRange[1]) && (
+              {(dateRange?.from || dateRange?.to) && (
                 <Badge variant="outline" className="ml-1 text-xs bg-orange-50 border-orange-200 text-orange-700">
-                  Fecha: {dateRange[0] || "Inicio"} → {dateRange[1] || "Fin"}
+                  <Calendar size={10} className="mr-1" />
+                  Fecha: {dateRange?.from ? new Date(dateRange.from).toLocaleDateString() : "Inicio"} →{" "}
+                  {dateRange?.to ? new Date(dateRange.to).toLocaleDateString() : "Fin"}
                 </Badge>
               )}
               {!incluirVendidos && (
@@ -261,7 +265,7 @@ export const EquipmentHeader = ({
                 setSearchTerm("")
                 setImeiSearch("")
                 setPriceRange([0, 5000])
-                setDateRange(["", ""])
+                setDateRange({ from: null, to: null })
                 setPointOfSale("todos")
                 setBatteryRange([0, 100])
                 setIncluirVendidos(true)

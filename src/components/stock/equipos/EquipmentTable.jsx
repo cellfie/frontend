@@ -193,7 +193,20 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-xs text-gray-500">{eq.imei}</TableCell>
                     <TableCell className="hidden sm:table-cell text-sm">
-                      {eq.fechaIngreso ? new Date(eq.fechaIngreso).toLocaleDateString() : "N/A"}
+                      {eq.fechaCreacion
+                        ? (() => {
+                            const fecha = new Date(eq.fechaCreacion)
+                            fecha.setHours(fecha.getHours() + 3) // Agregar 3 horas
+                            return fecha.toLocaleString("es-ES", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false, // Formato de 24 horas
+                            })
+                          })()
+                        : "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -430,17 +443,24 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
 
                                         <Separator className="bg-[#131321]/10" />
 
-                                        <div>
+                                        <div className="space-y-1">
                                           <div className="text-gray-500 text-sm flex items-center gap-1">
-                                            <Calendar size={14} /> Fecha de ingreso
+                                            <Calendar size={14} /> Fecha de creación
                                           </div>
                                           <div className="font-medium">
-                                            {eq.fechaIngreso
-                                              ? new Date(eq.fechaIngreso).toLocaleDateString("es-ES", {
-                                                  year: "numeric",
-                                                  month: "long",
-                                                  day: "numeric",
-                                                })
+                                            {eq.fechaCreacion
+                                              ? (() => {
+                                                  const fecha = new Date(eq.fechaCreacion)
+                                                  fecha.setHours(fecha.getHours() + 3) // Agregar 3 horas
+                                                  return fecha.toLocaleString("es-ES", {
+                                                    year: "numeric",
+                                                    month: "long",
+                                                    day: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                    hour12: false,
+                                                  })
+                                                })()
                                               : "N/A"}
                                           </div>
                                         </div>
