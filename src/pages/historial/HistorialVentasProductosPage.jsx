@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useRef } from "react"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
@@ -93,15 +93,19 @@ const formatLocalDate = (date) => {
   return `${year}-${month}-${day}`
 }
 
-const HistorialVentasOptimizado = () => {
+const HistorialVentas = () => {
   const { currentUser } = useAuth()
   const isAdmin = currentUser?.role === "admin"
+
+  // Ref para el scroll automático
+  const ventaRefs = useRef({})
 
   // Estados principales
   const [ventas, setVentas] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [ventaSeleccionada, setVentaSeleccionada] = useState(null)
   const [detalleVentaAbierto, setDetalleVentaAbierto] = useState(null)
+  const [loadingDetalle, setLoadingDetalle] = useState(false)
 
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1)
@@ -156,6 +160,21 @@ const HistorialVentasOptimizado = () => {
       return sum + ventaTotal
     }, 0)
   }, [ventas])
+
+  // Función para hacer scroll suave al elemento
+  const scrollToVenta = useCallback((ventaId) => {
+    const element = ventaRefs.current[ventaId]
+    if (element) {
+      // Pequeño delay para permitir que la animación se complete
+      setTimeout(() => {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        })
+      }, 100)
+    }
+  }, [])
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -255,6 +274,7 @@ const HistorialVentasOptimizado = () => {
 
         if (resetPage) {
           setCurrentPage(1)
+          setDetalleVentaAbierto(null) // Cerrar detalles al resetear
         }
       } catch (error) {
         console.error("Error al cargar ventas:", error)
@@ -369,9 +389,10 @@ const HistorialVentasOptimizado = () => {
     setProductoSeleccionado(null)
     setBusquedaProducto("")
     setCurrentPage(1)
+    setDetalleVentaAbierto(null)
   }
 
-  // Abrir detalle de venta
+  // MEJORADO: Abrir detalle de venta con scroll automático y mejor manejo de errores
   const abrirDetalleVenta = async (ventaId) => {
     if (detalleVentaAbierto === ventaId) {
       setDetalleVentaAbierto(null)
@@ -380,87 +401,108 @@ const HistorialVentasOptimizado = () => {
     }
 
     try {
-      setIsLoading(true)
+      setLoadingDetalle(true)
+      setDetalleVentaAbierto(ventaId) // Abrir inmediatamente para mostrar loading
+
       const ventaDetallada = await getVentaById(ventaId)
 
+      if (!ventaDetallada) {
+        throw new Error("No se pudo obtener la información de la venta")
+      }
+
       if (ventaDetallada.detalles) {
-        const devoluciones = await getDevolucionesByVenta(ventaId)
-        const productosDevueltos = new Map()
-        const productosReemplazo = []
+        try {
+          const devoluciones = await getDevolucionesByVenta(ventaId)
+          const productosDevueltos = new Map()
+          const productosReemplazo = []
 
-        devoluciones
-          .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-          .forEach((devolucion) => {
-            if (devolucion.anulada === 1) return
+          devoluciones
+            .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+            .forEach((devolucion) => {
+              if (devolucion.anulada === 1) return
 
-            devolucion.productos_devueltos.forEach((prod) => {
-              const key = `${prod.producto_id}_${prod.detalle_venta_id}`
-              const actual = productosDevueltos.get(key) || 0
-              productosDevueltos.set(key, actual + prod.cantidad)
+              if (devolucion.productos_devueltos) {
+                devolucion.productos_devueltos.forEach((prod) => {
+                  const key = `${prod.producto_id}_${prod.detalle_venta_id}`
+                  const actual = productosDevueltos.get(key) || 0
+                  productosDevueltos.set(key, actual + prod.cantidad)
 
-              if (prod.es_reemplazo) {
-                const index = productosReemplazo.findIndex(
-                  (p) => p.id === prod.producto_id && p.detalleVentaId === prod.detalle_venta_id,
-                )
-                if (index !== -1) {
-                  if (prod.cantidad >= productosReemplazo[index].cantidad) {
-                    productosReemplazo.splice(index, 1)
-                  } else {
-                    productosReemplazo[index].cantidad -= prod.cantidad
+                  if (prod.es_reemplazo) {
+                    const index = productosReemplazo.findIndex(
+                      (p) => p.id === prod.producto_id && p.detalleVentaId === prod.detalle_venta_id,
+                    )
+                    if (index !== -1) {
+                      if (prod.cantidad >= productosReemplazo[index].cantidad) {
+                        productosReemplazo.splice(index, 1)
+                      } else {
+                        productosReemplazo[index].cantidad -= prod.cantidad
+                      }
+                    }
                   }
-                }
+                })
+              }
+
+              if (devolucion.productos_reemplazo) {
+                devolucion.productos_reemplazo.forEach((prod) => {
+                  productosReemplazo.push({
+                    id: prod.producto_id,
+                    nombre: prod.producto_nombre,
+                    codigo: prod.producto_codigo,
+                    cantidad: prod.cantidad,
+                    precio: prod.precio,
+                    esReemplazo: true,
+                    devolucionId: devolucion.id,
+                    fechaDevolucion: devolucion.fecha,
+                    detalleVentaId: null,
+                  })
+                })
               }
             })
 
-            devolucion.productos_reemplazo.forEach((prod) => {
-              productosReemplazo.push({
-                id: prod.producto_id,
-                nombre: prod.producto_nombre,
-                codigo: prod.producto_codigo,
-                cantidad: prod.cantidad,
-                precio: prod.precio,
-                esReemplazo: true,
-                devolucionId: devolucion.id,
-                fechaDevolucion: devolucion.fecha,
-                detalleVentaId: null,
-              })
-            })
+          ventaDetallada.detalles = ventaDetallada.detalles.map((detalle) => {
+            const key = `${detalle.producto_id}_${detalle.id}`
+            const cantidadDevuelta = productosDevueltos.get(key) || 0
+            detalle.cantidadDevuelta = cantidadDevuelta
+
+            if (cantidadDevuelta >= detalle.cantidad) {
+              detalle.devuelto = true
+            } else if (cantidadDevuelta > 0) {
+              detalle.devueltoParcial = true
+            }
+
+            if (detalle.es_reemplazo) {
+              const reemplazo = productosReemplazo.find((r) => r.id === detalle.producto_id && !r.detalleVentaId)
+              if (reemplazo) {
+                reemplazo.detalleVentaId = detalle.id
+              }
+            }
+
+            return detalle
           })
 
-        ventaDetallada.detalles = ventaDetallada.detalles.map((detalle) => {
-          const key = `${detalle.producto_id}_${detalle.id}`
-          const cantidadDevuelta = productosDevueltos.get(key) || 0
-          detalle.cantidadDevuelta = cantidadDevuelta
-
-          if (cantidadDevuelta >= detalle.cantidad) {
-            detalle.devuelto = true
-          } else if (cantidadDevuelta > 0) {
-            detalle.devueltoParcial = true
-          }
-
-          if (detalle.es_reemplazo) {
-            const reemplazo = productosReemplazo.find((r) => r.id === detalle.producto_id && !r.detalleVentaId)
-            if (reemplazo) {
-              reemplazo.detalleVentaId = detalle.id
-            }
-          }
-
-          return detalle
-        })
-
-        ventaDetallada.productosReemplazo = productosReemplazo
+          ventaDetallada.productosReemplazo = productosReemplazo
+        } catch (devolucionError) {
+          console.warn("Error al cargar devoluciones:", devolucionError)
+          // Continuar sin devoluciones si hay error
+        }
       }
 
       setVentaSeleccionada(adaptVentaToFrontend(ventaDetallada))
-      setDetalleVentaAbierto(ventaId)
       setTabActiva("detalles")
 
+      // Scroll automático después de que se complete la carga
+      setTimeout(() => {
+        scrollToVenta(ventaId)
+      }, 300)
+
+      // Cargar devoluciones en paralelo
       cargarDevolucionesVenta(ventaId)
     } catch (error) {
       console.error("Error al obtener detalle de venta:", error)
-      toast.error("Error al obtener detalle de venta")
+      toast.error(`Error al obtener detalle de venta: ${error.message}`)
+      setDetalleVentaAbierto(null) // Cerrar si hay error
     } finally {
-      setIsLoading(false)
+      setLoadingDetalle(false)
     }
   }
 
@@ -560,6 +602,7 @@ const HistorialVentasOptimizado = () => {
   const handleItemsPerPageChange = (newItemsPerPage) => {
     setItemsPerPage(newItemsPerPage)
     setCurrentPage(1)
+    setDetalleVentaAbierto(null) // Cerrar detalles al cambiar items por página
   }
 
   const renderSkeletons = () =>
@@ -853,6 +896,7 @@ const HistorialVentasOptimizado = () => {
                     ventas.map((venta) => (
                       <React.Fragment key={venta.id}>
                         <TableRow
+                          ref={(el) => (ventaRefs.current[venta.id] = el)}
                           className={`group ${venta.anulada ? "bg-red-50" : venta.tieneDevoluciones ? "bg-blue-50" : detalleVentaAbierto === venta.id ? "bg-orange-50" : ""}`}
                         >
                           <TableCell>
@@ -901,13 +945,33 @@ const HistorialVentasOptimizado = () => {
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => abrirDetalleVenta(venta.id)}
+                                      disabled={loadingDetalle && detalleVentaAbierto === venta.id}
                                       className={
                                         detalleVentaAbierto === venta.id
                                           ? "bg-orange-100 text-orange-700"
                                           : "hover:bg-orange-50 hover:text-orange-600"
                                       }
                                     >
-                                      {detalleVentaAbierto === venta.id ? (
+                                      {loadingDetalle && detalleVentaAbierto === venta.id ? (
+                                        <div className="animate-spin">
+                                          <svg className="h-4 w-4" viewBox="0 0 24 24">
+                                            <circle
+                                              className="opacity-25"
+                                              cx="12"
+                                              cy="12"
+                                              r="10"
+                                              stroke="currentColor"
+                                              strokeWidth="4"
+                                              fill="none"
+                                            />
+                                            <path
+                                              className="opacity-75"
+                                              fill="currentColor"
+                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                            />
+                                          </svg>
+                                        </div>
+                                      ) : detalleVentaAbierto === venta.id ? (
                                         <ChevronUp className="h-4 w-4" />
                                       ) : (
                                         <ChevronDown className="h-4 w-4" />
@@ -915,7 +979,13 @@ const HistorialVentasOptimizado = () => {
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{detalleVentaAbierto === venta.id ? "Ocultar detalles" : "Ver detalles"}</p>
+                                    <p>
+                                      {loadingDetalle && detalleVentaAbierto === venta.id
+                                        ? "Cargando..."
+                                        : detalleVentaAbierto === venta.id
+                                          ? "Ocultar detalles"
+                                          : "Ver detalles"}
+                                    </p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -944,342 +1014,384 @@ const HistorialVentasOptimizado = () => {
                           </TableCell>
                         </TableRow>
 
-                        {/* Detalle de venta */}
+                        {/* Detalle de venta con scroll automático mejorado */}
                         <AnimatePresence>
-                          {detalleVentaAbierto === venta.id && ventaSeleccionada && (
+                          {detalleVentaAbierto === venta.id && (
                             <TableRow>
                               <TableCell colSpan={7} className="p-0 border-0">
                                 <motion.div
                                   initial={{ opacity: 0, height: 0 }}
                                   animate={{ opacity: 1, height: "auto" }}
                                   exit={{ opacity: 0, height: 0 }}
-                                  transition={{ duration: 0.2 }}
+                                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                                  onAnimationComplete={() => {
+                                    // Scroll automático después de que se complete la animación
+                                    if (detalleVentaAbierto === venta.id) {
+                                      scrollToVenta(venta.id)
+                                    }
+                                  }}
                                 >
                                   <Card className="mx-4 my-2 border border-orange-200 shadow-sm">
                                     <CardContent className="p-4">
-                                      <Tabs value={tabActiva} onValueChange={setTabActiva}>
-                                        <TabsList className="mb-4">
-                                          <TabsTrigger value="detalles" className="flex items-center gap-1">
-                                            <Package className="h-4 w-4" />
-                                            Detalles de la venta
-                                          </TabsTrigger>
-                                          <TabsTrigger value="devoluciones" className="flex items-center gap-1">
-                                            <ArrowLeftRight className="h-4 w-4" />
-                                            Devoluciones
-                                            {ventaSeleccionada.tieneDevoluciones && (
-                                              <Badge className="ml-1 bg-blue-100 text-blue-800 border-blue-300">
-                                                {devolucionesVenta.length}
-                                              </Badge>
-                                            )}
-                                          </TabsTrigger>
-                                        </TabsList>
-
-                                        <TabsContent value="detalles">
-                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {/* Información de la venta */}
-                                            <div className="space-y-3">
-                                              <div className="flex items-center gap-2 text-orange-700">
-                                                <FileText size={16} />
-                                                <h3 className="font-medium">Información de la venta</h3>
-                                              </div>
-
-                                              <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-500">Factura:</span>
-                                                  <span className="font-medium">{ventaSeleccionada.numeroFactura}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-500">Fecha:</span>
-                                                  <span>{formatearFechaHora(ventaSeleccionada.fecha)}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-500">Vendedor:</span>
-                                                  <span>{ventaSeleccionada.usuario.nombre}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-500">Punto de venta:</span>
-                                                  <Badge
-                                                    variant="outline"
-                                                    className={`font-normal ${
-                                                      ventaSeleccionada.puntoVenta.nombre === "Tala"
-                                                        ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                        : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                    }`}
-                                                  >
-                                                    <MapPin className="h-3 w-3 mr-1" />
-                                                    {ventaSeleccionada.puntoVenta.nombre}
-                                                  </Badge>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-500">Método de pago:</span>
-                                                  <Badge variant="secondary" className="font-normal">
-                                                    {ventaSeleccionada.tipoPago
-                                                      ? ventaSeleccionada.tipoPago.nombre
-                                                      : "N/A"}
-                                                  </Badge>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span className="text-gray-500">Cliente:</span>
-                                                  <span>
-                                                    {ventaSeleccionada.cliente
-                                                      ? ventaSeleccionada.cliente.nombre
-                                                      : "Cliente General"}
-                                                  </span>
-                                                </div>
-                                                {ventaSeleccionada.cliente?.telefono && (
-                                                  <div className="flex justify-between">
-                                                    <span className="text-gray-500">Teléfono:</span>
-                                                    <span>{ventaSeleccionada.cliente.telefono}</span>
-                                                  </div>
-                                                )}
-                                                {ventaSeleccionada.anulada && (
-                                                  <>
-                                                    <Separator className="my-2" />
-                                                    <div className="bg-red-50 p-2 rounded border border-red-200">
-                                                      <div className="flex items-center gap-1 text-red-600 font-medium">
-                                                        <AlertTriangle size={14} />
-                                                        Venta anulada
-                                                      </div>
-                                                      <div className="text-xs mt-1">
-                                                        <div>
-                                                          <span className="text-gray-500">Fecha:</span>{" "}
-                                                          {formatearFechaHora(ventaSeleccionada.fechaAnulacion)}
-                                                        </div>
-                                                        <div>
-                                                          <span className="text-gray-500">Motivo:</span>{" "}
-                                                          {ventaSeleccionada.motivoAnulacion}
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  </>
-                                                )}
-                                              </div>
+                                      {loadingDetalle ? (
+                                        <div className="flex justify-center items-center py-8">
+                                          <div className="flex items-center gap-3">
+                                            <div className="animate-spin">
+                                              <svg className="h-6 w-6 text-orange-600" viewBox="0 0 24 24">
+                                                <circle
+                                                  className="opacity-25"
+                                                  cx="12"
+                                                  cy="12"
+                                                  r="10"
+                                                  stroke="currentColor"
+                                                  strokeWidth="4"
+                                                  fill="none"
+                                                />
+                                                <path
+                                                  className="opacity-75"
+                                                  fill="currentColor"
+                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                />
+                                              </svg>
                                             </div>
+                                            <span className="text-gray-600">Cargando detalles de la venta...</span>
+                                          </div>
+                                        </div>
+                                      ) : ventaSeleccionada ? (
+                                        <Tabs value={tabActiva} onValueChange={setTabActiva}>
+                                          <TabsList className="mb-4">
+                                            <TabsTrigger value="detalles" className="flex items-center gap-1">
+                                              <Package className="h-4 w-4" />
+                                              Detalles de la venta
+                                            </TabsTrigger>
+                                            <TabsTrigger value="devoluciones" className="flex items-center gap-1">
+                                              <ArrowLeftRight className="h-4 w-4" />
+                                              Devoluciones
+                                              {ventaSeleccionada.tieneDevoluciones && (
+                                                <Badge className="ml-1 bg-blue-100 text-blue-800 border-blue-300">
+                                                  {devolucionesVenta.length}
+                                                </Badge>
+                                              )}
+                                            </TabsTrigger>
+                                          </TabsList>
 
-                                            {/* Detalle de productos */}
-                                            <div className="md:col-span-2">
-                                              <div className="flex items-center gap-2 text-orange-700 mb-3">
-                                                <Package size={16} />
-                                                <h3 className="font-medium">Productos</h3>
-                                              </div>
+                                          <TabsContent value="detalles">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                              {/* Información de la venta */}
+                                              <div className="space-y-3">
+                                                <div className="flex items-center gap-2 text-orange-700">
+                                                  <FileText size={16} />
+                                                  <h3 className="font-medium">Información de la venta</h3>
+                                                </div>
 
-                                              <div className="rounded border overflow-hidden">
-                                                <Table>
-                                                  <TableHeader>
-                                                    <TableRow>
-                                                      <TableHead>Producto</TableHead>
-                                                      <TableHead className="text-right">Precio</TableHead>
-                                                      <TableHead className="text-center">Cantidad</TableHead>
-                                                      <TableHead className="text-right">Subtotal</TableHead>
-                                                    </TableRow>
-                                                  </TableHeader>
-                                                  <TableBody>
-                                                    {ventaSeleccionada.detalles
-                                                      .filter((detalle) => !detalle.devuelto)
-                                                      .map((detalle) => (
-                                                        <TableRow
-                                                          key={detalle.id}
-                                                          className={detalle.devueltoParcial ? "bg-blue-50/50" : ""}
-                                                        >
-                                                          <TableCell>
-                                                            <div>
-                                                              <div className="font-medium">
-                                                                {detalle.producto.nombre}
-                                                              </div>
-                                                              <div className="text-xs text-gray-500">
-                                                                Código: {detalle.producto.codigo}
-                                                              </div>
-                                                              {detalle.es_reemplazo && (
-                                                                <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
-                                                                  <Plus className="h-3 w-3 mr-1" />
-                                                                  Producto de reemplazo
-                                                                </Badge>
-                                                              )}
-                                                              {detalle.devueltoParcial && (
-                                                                <Badge className="mt-1 bg-blue-100 text-blue-800 border-blue-300">
-                                                                  <ArrowLeftRight className="h-3 w-3 mr-1" />
-                                                                  Devuelto parcial ({detalle.cantidadDevuelta}/
-                                                                  {detalle.cantidad})
-                                                                </Badge>
-                                                              )}
-                                                            </div>
-                                                          </TableCell>
-                                                          <TableCell className="text-right">
-                                                            {detalle.precioUnitario !== detalle.precioConDescuento ? (
-                                                              <div>
-                                                                <div className="text-orange-600">
-                                                                  {formatearPrecio(detalle.precioConDescuento)}
-                                                                </div>
-                                                                <div className="text-xs text-gray-500 line-through">
-                                                                  {formatearPrecio(detalle.precioUnitario)}
-                                                                </div>
-                                                              </div>
-                                                            ) : (
-                                                              <span>{formatearPrecio(detalle.precioUnitario)}</span>
-                                                            )}
-                                                          </TableCell>
-                                                          <TableCell className="text-center">
-                                                            {detalle.cantidad - (detalle.cantidadDevuelta || 0)}
-                                                          </TableCell>
-                                                          <TableCell className="text-right font-medium">
-                                                            {formatearPrecio(
-                                                              (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
-                                                                detalle.precioConDescuento,
-                                                            )}
-                                                          </TableCell>
-                                                        </TableRow>
-                                                      ))}
-
-                                                    {ventaSeleccionada.productosReemplazo &&
-                                                      ventaSeleccionada.productosReemplazo.length > 0 && (
-                                                        <>
-                                                          <TableRow>
-                                                            <TableCell colSpan={4} className="bg-gray-100 py-1">
-                                                              <div className="text-xs font-medium text-gray-600 flex items-center">
-                                                                <ArrowLeftRight className="h-3 w-3 mr-1" />
-                                                                Productos de reemplazo
-                                                              </div>
-                                                            </TableCell>
-                                                          </TableRow>
-
-                                                          {ventaSeleccionada.productosReemplazo.map(
-                                                            (producto, index) => (
-                                                              <TableRow
-                                                                key={`reemplazo-${index}`}
-                                                                className="bg-green-50"
-                                                              >
-                                                                <TableCell>
-                                                                  <div>
-                                                                    <div className="font-medium">{producto.nombre}</div>
-                                                                    <div className="text-xs text-gray-500">
-                                                                      Código: {producto.codigo}
-                                                                    </div>
-                                                                    <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
-                                                                      <Plus className="h-3 w-3 mr-1" />
-                                                                      Producto de reemplazo
-                                                                    </Badge>
-                                                                  </div>
-                                                                </TableCell>
-                                                                <TableCell className="text-right">
-                                                                  {formatearPrecio(producto.precio)}
-                                                                </TableCell>
-                                                                <TableCell className="text-center">
-                                                                  {producto.cantidad}
-                                                                </TableCell>
-                                                                <TableCell className="text-right font-medium">
-                                                                  {formatearPrecio(producto.precio * producto.cantidad)}
-                                                                </TableCell>
-                                                              </TableRow>
-                                                            ),
-                                                          )}
-                                                        </>
-                                                      )}
-                                                  </TableBody>
-                                                </Table>
-                                              </div>
-
-                                              {/* Resumen de totales */}
-                                              <div className="mt-4 bg-gray-50 p-3 rounded border">
-                                                <div className="space-y-1">
+                                                <div className="space-y-2 text-sm">
                                                   <div className="flex justify-between">
-                                                    <span className="text-gray-500">Subtotal:</span>
-                                                    <span>{formatearPrecio(ventaSeleccionada.subtotal)}</span>
-                                                  </div>
-
-                                                  {ventaSeleccionada.porcentajeInteres > 0 && (
-                                                    <div className="flex justify-between">
-                                                      <span className="text-gray-500">
-                                                        Interés ({ventaSeleccionada.porcentajeInteres}%):
-                                                      </span>
-                                                      <span className="text-orange-600">
-                                                        +{formatearPrecio(ventaSeleccionada.montoInteres)}
-                                                      </span>
-                                                    </div>
-                                                  )}
-
-                                                  {ventaSeleccionada.porcentajeDescuento > 0 && (
-                                                    <div className="flex justify-between">
-                                                      <span className="text-gray-500">
-                                                        Descuento ({ventaSeleccionada.porcentajeDescuento}%):
-                                                      </span>
-                                                      <span className="text-green-600">
-                                                        -{formatearPrecio(ventaSeleccionada.montoDescuento)}
-                                                      </span>
-                                                    </div>
-                                                  )}
-
-                                                  <Separator className="my-1" />
-                                                  <div className="flex justify-between font-bold">
-                                                    <span>Total:</span>
-                                                    <span className="text-orange-600">
-                                                      {formatearPrecio(ventaSeleccionada.total)}
+                                                    <span className="text-gray-500">Factura:</span>
+                                                    <span className="font-medium">
+                                                      {ventaSeleccionada.numeroFactura}
                                                     </span>
                                                   </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-500">Fecha:</span>
+                                                    <span>{formatearFechaHora(ventaSeleccionada.fecha)}</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-500">Vendedor:</span>
+                                                    <span>{ventaSeleccionada.usuario.nombre}</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-500">Punto de venta:</span>
+                                                    <Badge
+                                                      variant="outline"
+                                                      className={`font-normal ${
+                                                        ventaSeleccionada.puntoVenta.nombre === "Tala"
+                                                          ? "border-orange-300 bg-orange-50 text-orange-700"
+                                                          : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                                      }`}
+                                                    >
+                                                      <MapPin className="h-3 w-3 mr-1" />
+                                                      {ventaSeleccionada.puntoVenta.nombre}
+                                                    </Badge>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-500">Método de pago:</span>
+                                                    <Badge variant="secondary" className="font-normal">
+                                                      {ventaSeleccionada.tipoPago
+                                                        ? ventaSeleccionada.tipoPago.nombre
+                                                        : "N/A"}
+                                                    </Badge>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                    <span className="text-gray-500">Cliente:</span>
+                                                    <span>
+                                                      {ventaSeleccionada.cliente
+                                                        ? ventaSeleccionada.cliente.nombre
+                                                        : "Cliente General"}
+                                                    </span>
+                                                  </div>
+                                                  {ventaSeleccionada.cliente?.telefono && (
+                                                    <div className="flex justify-between">
+                                                      <span className="text-gray-500">Teléfono:</span>
+                                                      <span>{ventaSeleccionada.cliente.telefono}</span>
+                                                    </div>
+                                                  )}
+                                                  {ventaSeleccionada.anulada && (
+                                                    <>
+                                                      <Separator className="my-2" />
+                                                      <div className="bg-red-50 p-2 rounded border border-red-200">
+                                                        <div className="flex items-center gap-1 text-red-600 font-medium">
+                                                          <AlertTriangle size={14} />
+                                                          Venta anulada
+                                                        </div>
+                                                        <div className="text-xs mt-1">
+                                                          <div>
+                                                            <span className="text-gray-500">Fecha:</span>{" "}
+                                                            {formatearFechaHora(ventaSeleccionada.fechaAnulacion)}
+                                                          </div>
+                                                          <div>
+                                                            <span className="text-gray-500">Motivo:</span>{" "}
+                                                            {ventaSeleccionada.motivoAnulacion}
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    </>
+                                                  )}
                                                 </div>
                                               </div>
 
-                                              {!ventaSeleccionada.anulada && (
-                                                <div className="mt-4 flex justify-end">
-                                                  <Button
-                                                    onClick={abrirDialogDevolucion}
-                                                    className="bg-blue-600 hover:bg-blue-700"
+                                              {/* Detalle de productos */}
+                                              <div className="md:col-span-2">
+                                                <div className="flex items-center gap-2 text-orange-700 mb-3">
+                                                  <Package size={16} />
+                                                  <h3 className="font-medium">Productos</h3>
+                                                </div>
+
+                                                <div className="rounded border overflow-hidden">
+                                                  <Table>
+                                                    <TableHeader>
+                                                      <TableRow>
+                                                        <TableHead>Producto</TableHead>
+                                                        <TableHead className="text-right">Precio</TableHead>
+                                                        <TableHead className="text-center">Cantidad</TableHead>
+                                                        <TableHead className="text-right">Subtotal</TableHead>
+                                                      </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                      {ventaSeleccionada.detalles
+                                                        .filter((detalle) => !detalle.devuelto)
+                                                        .map((detalle) => (
+                                                          <TableRow
+                                                            key={detalle.id}
+                                                            className={detalle.devueltoParcial ? "bg-blue-50/50" : ""}
+                                                          >
+                                                            <TableCell>
+                                                              <div>
+                                                                <div className="font-medium">
+                                                                  {detalle.producto.nombre}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                  Código: {detalle.producto.codigo}
+                                                                </div>
+                                                                {detalle.es_reemplazo && (
+                                                                  <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
+                                                                    <Plus className="h-3 w-3 mr-1" />
+                                                                    Producto de reemplazo
+                                                                  </Badge>
+                                                                )}
+                                                                {detalle.devueltoParcial && (
+                                                                  <Badge className="mt-1 bg-blue-100 text-blue-800 border-blue-300">
+                                                                    <ArrowLeftRight className="h-3 w-3 mr-1" />
+                                                                    Devuelto parcial ({detalle.cantidadDevuelta}/
+                                                                    {detalle.cantidad})
+                                                                  </Badge>
+                                                                )}
+                                                              </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                              {detalle.precioUnitario !== detalle.precioConDescuento ? (
+                                                                <div>
+                                                                  <div className="text-orange-600">
+                                                                    {formatearPrecio(detalle.precioConDescuento)}
+                                                                  </div>
+                                                                  <div className="text-xs text-gray-500 line-through">
+                                                                    {formatearPrecio(detalle.precioUnitario)}
+                                                                  </div>
+                                                                </div>
+                                                              ) : (
+                                                                <span>{formatearPrecio(detalle.precioUnitario)}</span>
+                                                              )}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                              {detalle.cantidad - (detalle.cantidadDevuelta || 0)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-medium">
+                                                              {formatearPrecio(
+                                                                (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
+                                                                  detalle.precioConDescuento,
+                                                              )}
+                                                            </TableCell>
+                                                          </TableRow>
+                                                        ))}
+
+                                                      {ventaSeleccionada.productosReemplazo &&
+                                                        ventaSeleccionada.productosReemplazo.length > 0 && (
+                                                          <>
+                                                            <TableRow>
+                                                              <TableCell colSpan={4} className="bg-gray-100 py-1">
+                                                                <div className="text-xs font-medium text-gray-600 flex items-center">
+                                                                  <ArrowLeftRight className="h-3 w-3 mr-1" />
+                                                                  Productos de reemplazo
+                                                                </div>
+                                                              </TableCell>
+                                                            </TableRow>
+
+                                                            {ventaSeleccionada.productosReemplazo.map(
+                                                              (producto, index) => (
+                                                                <TableRow
+                                                                  key={`reemplazo-${index}`}
+                                                                  className="bg-green-50"
+                                                                >
+                                                                  <TableCell>
+                                                                    <div>
+                                                                      <div className="font-medium">
+                                                                        {producto.nombre}
+                                                                      </div>
+                                                                      <div className="text-xs text-gray-500">
+                                                                        Código: {producto.codigo}
+                                                                      </div>
+                                                                      <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
+                                                                        <Plus className="h-3 w-3 mr-1" />
+                                                                        Producto de reemplazo
+                                                                      </Badge>
+                                                                    </div>
+                                                                  </TableCell>
+                                                                  <TableCell className="text-right">
+                                                                    {formatearPrecio(producto.precio)}
+                                                                  </TableCell>
+                                                                  <TableCell className="text-center">
+                                                                    {producto.cantidad}
+                                                                  </TableCell>
+                                                                  <TableCell className="text-right font-medium">
+                                                                    {formatearPrecio(
+                                                                      producto.precio * producto.cantidad,
+                                                                    )}
+                                                                  </TableCell>
+                                                                </TableRow>
+                                                              ),
+                                                            )}
+                                                          </>
+                                                        )}
+                                                    </TableBody>
+                                                  </Table>
+                                                </div>
+
+                                                {/* Resumen de totales */}
+                                                <div className="mt-4 bg-gray-50 p-3 rounded border">
+                                                  <div className="space-y-1">
+                                                    <div className="flex justify-between">
+                                                      <span className="text-gray-500">Subtotal:</span>
+                                                      <span>{formatearPrecio(ventaSeleccionada.subtotal)}</span>
+                                                    </div>
+
+                                                    {ventaSeleccionada.porcentajeInteres > 0 && (
+                                                      <div className="flex justify-between">
+                                                        <span className="text-gray-500">
+                                                          Interés ({ventaSeleccionada.porcentajeInteres}%):
+                                                        </span>
+                                                        <span className="text-orange-600">
+                                                          +{formatearPrecio(ventaSeleccionada.montoInteres)}
+                                                        </span>
+                                                      </div>
+                                                    )}
+
+                                                    {ventaSeleccionada.porcentajeDescuento > 0 && (
+                                                      <div className="flex justify-between">
+                                                        <span className="text-gray-500">
+                                                          Descuento ({ventaSeleccionada.porcentajeDescuento}%):
+                                                        </span>
+                                                        <span className="text-green-600">
+                                                          -{formatearPrecio(ventaSeleccionada.montoDescuento)}
+                                                        </span>
+                                                      </div>
+                                                    )}
+
+                                                    <Separator className="my-1" />
+                                                    <div className="flex justify-between font-bold">
+                                                      <span>Total:</span>
+                                                      <span className="text-orange-600">
+                                                        {formatearPrecio(ventaSeleccionada.total)}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                </div>
+
+                                                {!ventaSeleccionada.anulada && (
+                                                  <div className="mt-4 flex justify-end">
+                                                    <Button
+                                                      onClick={abrirDialogDevolucion}
+                                                      className="bg-blue-600 hover:bg-blue-700"
+                                                    >
+                                                      <ArrowLeftRight className="h-4 w-4 mr-2" />
+                                                      Registrar devolución
+                                                    </Button>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </TabsContent>
+
+                                          <TabsContent value="devoluciones">
+                                            {cargandoDevoluciones ? (
+                                              <div className="flex justify-center py-8">
+                                                <div className="animate-spin">
+                                                  <svg
+                                                    className="h-8 w-8 text-blue-600"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
                                                   >
-                                                    <ArrowLeftRight className="h-4 w-4 mr-2" />
-                                                    Registrar devolución
-                                                  </Button>
+                                                    <circle
+                                                      className="opacity-25"
+                                                      cx="12"
+                                                      cy="12"
+                                                      r="10"
+                                                      stroke="currentColor"
+                                                      strokeWidth="4"
+                                                    />
+                                                    <path
+                                                      className="opacity-75"
+                                                      fill="currentColor"
+                                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                    />
+                                                  </svg>
                                                 </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </TabsContent>
-
-                                        <TabsContent value="devoluciones">
-                                          {cargandoDevoluciones ? (
-                                            <div className="flex justify-center py-8">
-                                              <div className="animate-spin">
-                                                <svg
-                                                  className="h-8 w-8 text-blue-600"
-                                                  xmlns="http://www.w3.org/2000/svg"
-                                                  fill="none"
-                                                  viewBox="0 0 24 24"
-                                                >
-                                                  <circle
-                                                    className="opacity-25"
-                                                    cx="12"
-                                                    cy="12"
-                                                    r="10"
-                                                    stroke="currentColor"
-                                                    strokeWidth="4"
-                                                  />
-                                                  <path
-                                                    className="opacity-75"
-                                                    fill="currentColor"
-                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                  />
-                                                </svg>
                                               </div>
-                                            </div>
-                                          ) : (
-                                            <DevolucionesList
-                                              devoluciones={devolucionesVenta}
-                                              formatearPrecio={formatearPrecio}
-                                              formatearFechaHora={formatearFechaHora}
-                                            />
-                                          )}
+                                            ) : (
+                                              <DevolucionesList
+                                                devoluciones={devolucionesVenta}
+                                                formatearPrecio={formatearPrecio}
+                                                formatearFechaHora={formatearFechaHora}
+                                              />
+                                            )}
 
-                                          {!ventaSeleccionada.anulada && (
-                                            <div className="mt-4 flex justify-end">
-                                              <Button
-                                                onClick={abrirDialogDevolucion}
-                                                className="bg-blue-600 hover:bg-blue-700"
-                                              >
-                                                <ArrowLeftRight className="h-4 w-4 mr-2" />
-                                                Registrar nueva devolución
-                                              </Button>
-                                            </div>
-                                          )}
-                                        </TabsContent>
-                                      </Tabs>
+                                            {!ventaSeleccionada.anulada && (
+                                              <div className="mt-4 flex justify-end">
+                                                <Button
+                                                  onClick={abrirDialogDevolucion}
+                                                  className="bg-blue-600 hover:bg-blue-700"
+                                                >
+                                                  <ArrowLeftRight className="h-4 w-4 mr-2" />
+                                                  Registrar nueva devolución
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </TabsContent>
+                                        </Tabs>
+                                      ) : (
+                                        <div className="text-center py-8 text-gray-500">
+                                          Error al cargar los detalles de la venta
+                                        </div>
+                                      )}
                                     </CardContent>
                                   </Card>
                                 </motion.div>
@@ -1428,4 +1540,4 @@ const HistorialVentasOptimizado = () => {
   )
 }
 
-export default HistorialVentasOptimizado
+export default HistorialVentas
