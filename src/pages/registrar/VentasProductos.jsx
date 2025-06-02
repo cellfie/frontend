@@ -55,7 +55,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Importar servicios optimizados
-import { searchProductosRapido, adaptProductoToFrontend } from "@/services/productosService"
+import { getProductosPaginados, adaptProductoToFrontend } from "@/services/productosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getCategorias } from "@/services/categoriasService"
 import { searchClientes, createCliente } from "@/services/clientesService"
@@ -81,7 +81,7 @@ const useDebounce = (value, delay) => {
   return debouncedValue
 }
 
-const VentasProductosOptimizado = () => {
+const VentasProductos = () => {
   const { currentUser } = useAuth()
 
   // Estados principales
@@ -167,24 +167,29 @@ const VentasProductosOptimizado = () => {
 
     setCargando(true)
     try {
-      const productosEncontrados = await searchProductosRapido(debouncedSearchTerm)
-      let productosAdaptados = productosEncontrados.map(adaptProductoToFrontend).map((prod) => ({
-        ...prod,
-        price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
-      }))
+      // Usar la función de búsqueda paginada en lugar de search-rapido
+      const filters = {
+        search: debouncedSearchTerm,
+      }
 
       // Filtrar por punto de venta si está seleccionado
       if (puntoVentaSeleccionado !== "todos") {
-        productosAdaptados = productosAdaptados.filter((p) => p.punto_venta_id?.toString() === puntoVentaSeleccionado)
+        filters.punto_venta_id = puntoVentaSeleccionado
       }
 
       // Filtrar por categoría si está seleccionado
       if (filtroCategoria !== "todos") {
         const categoria = categorias.find((cat) => cat.nombre === filtroCategoria)
         if (categoria) {
-          productosAdaptados = productosAdaptados.filter((p) => p.categoria_id === categoria.id)
+          filters.categoria_id = categoria.id
         }
       }
+
+      const result = await getProductosPaginados(1, 50, filters)
+      const productosAdaptados = result.data.map(adaptProductoToFrontend).map((prod) => ({
+        ...prod,
+        price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
+      }))
 
       setProductos(productosAdaptados)
     } catch (error) {
@@ -1398,4 +1403,4 @@ const VentasProductosOptimizado = () => {
   )
 }
 
-export default VentasProductosOptimizado
+export default VentasProductos
