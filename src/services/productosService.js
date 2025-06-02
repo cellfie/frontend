@@ -1,4 +1,8 @@
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
+
+// Cache simple para productos
+const cache = new Map()
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
 // Función para convertir un precio formateado a número
 const parseFormattedPrice = (price) => {
@@ -13,12 +17,28 @@ const parseFormattedPrice = (price) => {
   return Number.parseFloat(cleanPrice)
 }
 
-// Obtener todos los productos
-export const getProductos = async () => {
+// NUEVA FUNCIÓN: Obtener productos con paginación
+export const getProductosPaginados = async (page = 1, limit = 50, filters = {}) => {
   try {
-    const response = await fetch(`${API_URL}/productos`, {
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters,
+    })
+
+    const cacheKey = `productos_${queryParams.toString()}`
+
+    // Verificar cache
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey)
+      if (Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data
+      }
+    }
+
+    const response = await fetch(`${API_URL}/productos/paginados?${queryParams}`, {
       method: "GET",
-      credentials: "include", // Importante para enviar la cookie con el token
+      credentials: "include",
     })
 
     if (!response.ok) {
@@ -26,16 +46,75 @@ export const getProductos = async () => {
       throw new Error(errorData.message || "Error al obtener productos")
     }
 
+    const data = await response.json()
+
+    // Guardar en cache
+    cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    })
+
+    return data
+  } catch (error) {
+    console.error("Error en getProductosPaginados:", error)
+    throw error
+  }
+}
+
+// NUEVA FUNCIÓN: Búsqueda rápida para autocompletado
+export const searchProductosRapido = async (query) => {
+  try {
+    if (!query || query.length < 2) {
+      return []
+    }
+
+    const response = await fetch(`${API_URL}/productos/search-rapido?q=${encodeURIComponent(query)}`, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error en búsqueda rápida")
+    }
+
     return await response.json()
+  } catch (error) {
+    console.error("Error en searchProductosRapido:", error)
+    throw error
+  }
+}
+
+// Obtener todos los productos (optimizado para usar paginación)
+export const getProductos = async () => {
+  try {
+    // Para mantener compatibilidad, obtener una página grande
+    const result = await getProductosPaginados(1, 1000)
+    return result.data || []
   } catch (error) {
     console.error("Error en getProductos:", error)
     throw error
   }
 }
 
+// Limpiar cache cuando sea necesario
+export const clearProductosCache = () => {
+  cache.clear()
+}
+
 // Obtener un producto por ID
 export const getProductoById = async (id) => {
   try {
+    const cacheKey = `producto_${id}`
+
+    // Verificar cache
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey)
+      if (Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data
+      }
+    }
+
     const response = await fetch(`${API_URL}/productos/${id}`, {
       method: "GET",
       credentials: "include",
@@ -46,49 +125,31 @@ export const getProductoById = async (id) => {
       throw new Error(errorData.message || "Error al obtener el producto")
     }
 
-    return await response.json()
+    const data = await response.json()
+
+    // Guardar en cache
+    cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+    })
+
+    return data
   } catch (error) {
     console.error("Error en getProductoById:", error)
     throw error
   }
 }
 
-// Buscar productos con filtros
-export const searchProductos = async (query) => {
+// Buscar productos con filtros (ahora usa paginación)
+export const searchProductos = async (filters = {}) => {
   try {
-    // Si recibimos un string, lo convertimos a un objeto de parámetros
-    const params = typeof query === "string" ? { query } : query
-
-    // Construir la URL con los parámetros de búsqueda
-    const queryParams = new URLSearchParams()
-
-    if (params.query) queryParams.append("query", params.query)
-    if (params.categoria_id) queryParams.append("categoria_id", params.categoria_id)
-    if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
-    if (params.min_precio !== undefined) queryParams.append("min_precio", params.min_precio)
-    if (params.max_precio !== undefined) queryParams.append("max_precio", params.max_precio)
-    if (params.min_stock !== undefined) queryParams.append("min_stock", params.min_stock)
-    if (params.max_stock !== undefined) queryParams.append("max_stock", params.max_stock)
-
-    const url = `${API_URL}/productos/search?${queryParams.toString()}`
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || "Error al buscar productos")
-    }
-
-    return await response.json()
+    const result = await getProductosPaginados(1, 100, filters)
+    return result.data || []
   } catch (error) {
     console.error("Error en searchProductos:", error)
     throw error
   }
 }
-
 
 // Crear un nuevo producto
 export const createProducto = async (productoData) => {
@@ -100,11 +161,9 @@ export const createProducto = async (productoData) => {
       descripcion: productoData.description || "",
       precio: parseFormattedPrice(productoData.price),
       categoria_id: productoData.categoria_id === "0" ? null : Number(productoData.categoria_id),
-      punto_venta_id: Number(productoData.punto_venta_id), // Usar directamente el ID del punto de venta
+      punto_venta_id: Number(productoData.punto_venta_id),
       stock: productoData.stock,
     }
-
-    console.log("Datos enviados al backend:", backendData)
 
     const response = await fetch(`${API_URL}/productos`, {
       method: "POST",
@@ -119,6 +178,9 @@ export const createProducto = async (productoData) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error al crear el producto")
     }
+
+    // Limpiar cache después de crear
+    clearProductosCache()
 
     return await response.json()
   } catch (error) {
@@ -141,8 +203,6 @@ export const updateProducto = async (id, productoData) => {
           : Number(productoData.categoria_id)
 
     // Manejar el precio correctamente
-    // Si el precio es un número, usarlo directamente
-    // Si no, intentar parsearlo
     let precio
     if (typeof productoData.price === "number") {
       precio = productoData.price
@@ -157,13 +217,9 @@ export const updateProducto = async (id, productoData) => {
       descripcion: productoData.description || "",
       precio: precio,
       categoria_id: categoria_id,
-      punto_venta_id: productoActual.punto_venta_id, // Mantener el punto de venta original
+      punto_venta_id: productoActual.punto_venta_id,
       stock: productoData.stock,
     }
-
-    console.log("Datos enviados al backend para actualizar:", backendData)
-    console.log("Precio original:", productoActual.precio)
-    console.log("Precio enviado:", precio)
 
     const response = await fetch(`${API_URL}/productos/${id}`, {
       method: "PUT",
@@ -178,6 +234,9 @@ export const updateProducto = async (id, productoData) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error al actualizar el producto")
     }
+
+    // Limpiar cache después de actualizar
+    clearProductosCache()
 
     return await response.json()
   } catch (error) {
@@ -199,6 +258,9 @@ export const deleteProducto = async (id) => {
       throw new Error(errorData.message || "Error al eliminar el producto")
     }
 
+    // Limpiar cache después de eliminar
+    clearProductosCache()
+
     return await response.json()
   } catch (error) {
     console.error("Error en deleteProducto:", error)
@@ -219,22 +281,23 @@ export const adaptProductoToFrontend = (producto) => {
     stock: producto.stock || 0,
     pointOfSale: producto.punto_venta,
     punto_venta_id: producto.punto_venta_id,
-    discount: producto.descuento
-      ? {
-          id: producto.descuento.id,
-          percentage: producto.descuento.porcentaje,
-          startDate: producto.descuento.fecha_inicio,
-          endDate: producto.descuento.fecha_fin,
-        }
-      : null,
+    discount:
+      producto.descuento_id && producto.descuento_porcentaje
+        ? {
+            id: producto.descuento_id,
+            percentage: producto.descuento_porcentaje,
+            startDate: producto.descuento_fecha_inicio,
+            endDate: producto.descuento_fecha_fin,
+          }
+        : null,
   }
 }
 
 // Obtener productos por punto de venta
 export const getProductosByPuntoVenta = async (puntoVentaId) => {
   try {
-    // Utilizamos la función de búsqueda existente con el filtro de punto de venta
-    return await searchProductos({ punto_venta_id: puntoVentaId })
+    const result = await getProductosPaginados(1, 1000, { punto_venta_id: puntoVentaId })
+    return result.data || []
   } catch (error) {
     console.error("Error en getProductosByPuntoVenta:", error)
     throw error

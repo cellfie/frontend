@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { AnimatePresence } from "framer-motion"
@@ -8,9 +8,9 @@ import { ProductHeader } from "./ProductHeader"
 import { ProductTable } from "./ProductTable"
 import { AddProductModal } from "./AddProductModal"
 import { DiscountModal } from "./DiscountModal"
+import { PaginationControls } from "@/lib/PaginationControls"
 import {
-  getProductos,
-  searchProductos,
+  getProductosPaginados,
   createProducto,
   updateProducto,
   deleteProducto,
@@ -20,24 +20,54 @@ import { createDescuento, desactivarDescuentosProducto } from "../../../services
 import { getPuntosVenta } from "../../../services/puntosVentaService"
 import { getCategorias } from "../../../services/categoriasService"
 
+// Hook personalizado para debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
 export const ProductosPrincipal = () => {
+  // Estados principales
   const [products, setProducts] = useState([])
-  const [filteredProducts, setFilteredProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedProducts, setSelectedProducts] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [showDiscountModal, setShowDiscountModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [discountProduct, setDiscountProduct] = useState(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [stockRange, setStockRange] = useState([0, 100])
-  const [pointOfSale, setPointOfSale] = useState("todos")
-  const [selectedCategory, setSelectedCategory] = useState("todas")
   const [showDetails, setShowDetails] = useState(null)
+
+  // Estados de filtros
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState("todas")
+  const [pointOfSale, setPointOfSale] = useState("todos")
+  const [stockRange, setStockRange] = useState([0, 100])
+
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(50)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+
+  // Estados de datos auxiliares
   const [puntosVenta, setPuntosVenta] = useState([])
   const [categorias, setCategorias] = useState([])
   const [selectedPuntoVentaId, setSelectedPuntoVentaId] = useState(null)
   const [maxStockAvailable, setMaxStockAvailable] = useState(100)
+
+  // Debounce para la búsqueda
+  const debouncedSearchTerm = useDebounce(searchTerm, 500)
 
   // Cargar puntos de venta
   useEffect(() => {
@@ -46,7 +76,6 @@ export const ProductosPrincipal = () => {
         const data = await getPuntosVenta()
         setPuntosVenta(data)
 
-        // Establecer el punto de venta por defecto (ID 1 o el primero disponible)
         if (data.length > 0) {
           const defaultPuntoVenta = data.find((pv) => pv.id === 1) || data[0]
           setSelectedPuntoVentaId(defaultPuntoVenta.id)
@@ -75,94 +104,90 @@ export const ProductosPrincipal = () => {
     fetchCategorias()
   }, [])
 
-  // Cargar productos
-  useEffect(() => {
-    const fetchProducts = async () => {
+  // Función para construir filtros
+  const buildFilters = useCallback(() => {
+    const filters = {}
+
+    if (debouncedSearchTerm) {
+      filters.search = debouncedSearchTerm
+    }
+
+    if (selectedCategory !== "todas") {
+      const categoria = categorias.find((cat) => cat.nombre === selectedCategory)
+      if (categoria) filters.categoria_id = categoria.id
+    }
+
+    if (pointOfSale !== "todos") {
+      const puntoVenta = puntosVenta.find((pv) => pv.nombre === pointOfSale)
+      if (puntoVenta) filters.punto_venta_id = puntoVenta.id
+    }
+
+    if (stockRange[0] > 0) filters.min_stock = stockRange[0]
+    if (stockRange[1] < maxStockAvailable) filters.max_stock = stockRange[1]
+
+    return filters
+  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, categorias, puntosVenta, maxStockAvailable])
+
+  // Cargar productos con paginación
+  const fetchProducts = useCallback(
+    async (page = 1, resetPage = false) => {
       setIsLoading(true)
       try {
-        const data = await getProductos()
-        // Adaptar los datos del backend al formato que espera el frontend
-        const adaptedProducts = data.map(adaptProductoToFrontend)
+        const filters = buildFilters()
+        const actualPage = resetPage ? 1 : page
 
-        // Calculate maximum stock available
-        if (adaptedProducts.length > 0) {
-          const maxStock = Math.max(...adaptedProducts.map((p) => p.stock))
-          setMaxStockAvailable(maxStock > 0 ? maxStock : 100)
-          setStockRange([0, maxStock > 0 ? maxStock : 100])
-        }
+        const result = await getProductosPaginados(actualPage, itemsPerPage, filters)
+
+        const adaptedProducts = result.data.map(adaptProductoToFrontend)
 
         setProducts(adaptedProducts)
-        setFilteredProducts(adaptedProducts)
+        setCurrentPage(result.pagination.currentPage)
+        setTotalPages(result.pagination.totalPages)
+        setTotalItems(result.pagination.totalItems)
+
+        if (resetPage) {
+          setCurrentPage(1)
+        }
+
+        // Actualizar el stock máximo disponible si es necesario
+        if (adaptedProducts.length > 0) {
+          const maxStock = Math.max(...adaptedProducts.map((p) => p.stock))
+          if (maxStock > maxStockAvailable) {
+            setMaxStockAvailable(maxStock)
+            setStockRange([0, maxStock])
+          }
+        }
       } catch (error) {
         console.error("Error al cargar productos:", error)
         toast.error("Error al cargar productos")
       } finally {
         setIsLoading(false)
       }
-    }
+    },
+    [buildFilters, itemsPerPage, maxStockAvailable],
+  )
 
-    fetchProducts()
-  }, [])
-
-  // Filtrar productos
+  // Efecto para cargar productos cuando cambian los filtros
   useEffect(() => {
-    const applyFilters = async () => {
-      setIsLoading(true)
-      try {
-        if (
-          searchTerm ||
-          selectedCategory !== "todas" ||
-          stockRange[0] > 0 ||
-          stockRange[1] < maxStockAvailable ||
-          pointOfSale !== "todos"
-        ) {
-          // Preparar parámetros para la búsqueda
-          const params = {}
-          if (searchTerm) params.query = searchTerm
-          if (stockRange[0] > 0) params.min_stock = stockRange[0]
-          if (stockRange[1] < maxStockAvailable) params.max_stock = stockRange[1]
+    fetchProducts(1, true)
+  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, itemsPerPage])
 
-          // Si se selecciona un punto de venta específico
-          if (pointOfSale !== "todos") {
-            const puntoVenta = puntosVenta.find((pv) => pv.nombre === pointOfSale)
-            if (puntoVenta) params.punto_venta_id = puntoVenta.id
-          }
-
-          // Si se selecciona una categoría específica
-          if (selectedCategory !== "todas") {
-            const categoria = categorias.find((cat) => cat.nombre === selectedCategory)
-            if (categoria) params.categoria_id = categoria.id
-          }
-
-          // Realizar la búsqueda con los filtros
-          const data = await searchProductos(params)
-          const adaptedProducts = data.map(adaptProductoToFrontend)
-          setFilteredProducts(adaptedProducts)
-        } else {
-          // Si no hay filtros, mostrar todos los productos
-          setFilteredProducts(products)
-        }
-      } catch (error) {
-        console.error("Error al filtrar productos:", error)
-        toast.error("Error al filtrar productos")
-      } finally {
-        setIsLoading(false)
-      }
+  // Efecto para cargar productos cuando cambia la página
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchProducts(currentPage, false)
     }
+  }, [currentPage])
 
-    applyFilters()
-  }, [searchTerm, selectedCategory, stockRange, pointOfSale, products, puntosVenta, categorias, maxStockAvailable])
-
+  // Funciones de manejo de productos
   const handleAddProduct = async (newProduct) => {
     try {
       setIsLoading(true)
       const result = await createProducto(newProduct)
 
-      // Obtener todos los productos actualizados
-      const updatedProducts = await getProductos()
-      const adaptedProducts = updatedProducts.map(adaptProductoToFrontend)
+      // Recargar la página actual
+      await fetchProducts(currentPage)
 
-      setProducts(adaptedProducts)
       toast.success("Producto agregado exitosamente")
       return result
     } catch (error) {
@@ -174,15 +199,10 @@ export const ProductosPrincipal = () => {
     }
   }
 
-  // Modificar la función handleUpdateProduct para manejar correctamente el cambio de punto de venta
   const handleUpdateProduct = async (updatedProduct) => {
     try {
       setIsLoading(true)
 
-      // Log para depuración
-      console.log("Producto a actualizar:", updatedProduct)
-
-      // Actualizar el producto sin cambiar el punto de venta
       await updateProducto(updatedProduct.id, {
         code: updatedProduct.code,
         name: updatedProduct.name,
@@ -190,23 +210,10 @@ export const ProductosPrincipal = () => {
         price: updatedProduct.price,
         categoria_id: updatedProduct.categoria_id === "0" ? null : Number(updatedProduct.categoria_id),
         stock: Number(updatedProduct.stock),
-        // No incluimos punto_venta_id aquí, se mantendrá el original en el backend
       })
 
-      // Actualizar la lista de productos
-      const updatedProducts = await getProductos()
-      const adaptedProducts = updatedProducts.map(adaptProductoToFrontend)
-
-      // Log para depuración
-      console.log("Productos actualizados:", adaptedProducts)
-
-      setProducts(adaptedProducts)
-      setFilteredProducts((prev) => {
-        // Actualizar también los productos filtrados para reflejar los cambios inmediatamente
-        return prev.map((p) =>
-          p.id === updatedProduct.id ? adaptedProducts.find((ap) => ap.id === updatedProduct.id) : p,
-        )
-      })
+      // Recargar la página actual
+      await fetchProducts(currentPage)
 
       toast.success("Producto actualizado correctamente")
       return updatedProduct
@@ -224,20 +231,16 @@ export const ProductosPrincipal = () => {
       setIsLoading(true)
 
       if (discountOnly) {
-        // Solo eliminar el descuento
         await desactivarDescuentosProducto(productId)
         toast.success("Descuento cancelado correctamente")
       } else {
-        // Eliminar el producto completo
         await deleteProducto(productId)
         toast.success("Producto eliminado")
       }
 
-      // Actualizar la lista de productos
-      const updatedProducts = await getProductos()
-      const adaptedProducts = updatedProducts.map(adaptProductoToFrontend)
+      // Recargar la página actual
+      await fetchProducts(currentPage)
 
-      setProducts(adaptedProducts)
       return true
     } catch (error) {
       console.error("Error al eliminar producto:", error)
@@ -253,20 +256,16 @@ export const ProductosPrincipal = () => {
       setIsLoading(true)
 
       if (discountData.removeDiscount) {
-        // Eliminar el descuento
         await desactivarDescuentosProducto(discountData.productId)
         toast.success("Descuento eliminado correctamente")
       } else {
-        // Crear o actualizar el descuento
         await createDescuento(discountData)
         toast.success("Descuento aplicado correctamente")
       }
 
-      // Actualizar la lista de productos
-      const updatedProducts = await getProductos()
-      const adaptedProducts = updatedProducts.map(adaptProductoToFrontend)
+      // Recargar la página actual
+      await fetchProducts(currentPage)
 
-      setProducts(adaptedProducts)
       return true
     } catch (error) {
       console.error("Error al gestionar el descuento:", error)
@@ -277,13 +276,13 @@ export const ProductosPrincipal = () => {
     }
   }
 
+  // Funciones de modal
   const openAddModal = () => {
     setEditingProduct(null)
     setShowModal(true)
   }
 
   const openEditModal = (product) => {
-    // Guardar una copia profunda del producto para poder comparar después
     setEditingProduct(JSON.parse(JSON.stringify(product)))
     setShowModal(true)
   }
@@ -303,6 +302,7 @@ export const ProductosPrincipal = () => {
     setDiscountProduct(null)
   }
 
+  // Funciones de selección
   const toggleProductSelection = (productId) => {
     setSelectedProducts((prev) =>
       prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId],
@@ -310,17 +310,36 @@ export const ProductosPrincipal = () => {
   }
 
   const toggleSelectAll = (isSelected) => {
-    setSelectedProducts(isSelected ? filteredProducts.map((p) => p.id) : [])
+    setSelectedProducts(isSelected ? products.map((p) => p.id) : [])
   }
 
   const handleExportSelected = () => {
-    // Implementar exportación real si es necesario
     console.log("Exportando productos:", selectedProducts)
     toast.info(`Exportando ${selectedProducts.length} producto(s)`)
   }
 
   const toggleDetails = (productId) => {
     setShowDetails((prev) => (prev === productId ? null : productId))
+  }
+
+  // Funciones de paginación
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    setShowDetails(null) // Cerrar detalles al cambiar página
+  }
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage)
+    setCurrentPage(1)
+  }
+
+  // Función para limpiar filtros
+  const clearFilters = () => {
+    setSearchTerm("")
+    setSelectedCategory("todas")
+    setPointOfSale("todos")
+    setStockRange([0, maxStockAvailable])
+    setCurrentPage(1)
   }
 
   return (
@@ -335,13 +354,14 @@ export const ProductosPrincipal = () => {
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
         onAddClick={openAddModal}
-        totalProducts={filteredProducts.length}
+        totalProducts={totalItems}
         puntosVenta={puntosVenta}
         maxStockAvailable={maxStockAvailable}
+        onClearFilters={clearFilters}
       />
 
       <ProductTable
-        products={filteredProducts}
+        products={products}
         isLoading={isLoading}
         selectedProducts={selectedProducts}
         toggleProductSelection={toggleProductSelection}
@@ -352,6 +372,16 @@ export const ProductosPrincipal = () => {
         showDetails={showDetails}
         toggleDetails={toggleDetails}
         onAddDiscount={openDiscountModal}
+      />
+
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={handlePageChange}
+        onItemsPerPageChange={handleItemsPerPageChange}
+        isLoading={isLoading}
       />
 
       <AnimatePresence>
@@ -378,7 +408,6 @@ export const ProductosPrincipal = () => {
         )}
       </AnimatePresence>
 
-      {/* React-Toastify - Solo un contenedor */}
       <ToastContainer
         position="bottom-right"
         autoClose={3000}
