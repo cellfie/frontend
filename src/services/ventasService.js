@@ -129,6 +129,33 @@ export const searchVentasRapido = async (query) => {
   }
 }
 
+// NUEVA FUNCIÓN: Búsqueda de ventas por producto
+export const searchVentasByProducto = async (productoQuery) => {
+  try {
+    if (!productoQuery || productoQuery.length < 2) {
+      return []
+    }
+
+    const response = await fetch(
+      `${API_URL}/ventas/search-by-producto?producto_query=${encodeURIComponent(productoQuery)}`,
+      {
+        method: "GET",
+        credentials: "include",
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error en búsqueda de ventas por producto")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en searchVentasByProducto:", error)
+    throw error
+  }
+}
+
 // Limpiar cache cuando sea necesario
 export const clearVentasCache = () => {
   cache.clear()
@@ -320,6 +347,8 @@ export const adaptVentaToFrontend = (venta) => {
     fechaAnulacion: venta.fecha_anulacion,
     motivoAnulacion: venta.motivo_anulacion,
     tieneDevoluciones: venta.tiene_devoluciones === 1,
+    productosNombres: venta.productos_nombres,
+    cantidadProductos: venta.cantidad_productos,
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,

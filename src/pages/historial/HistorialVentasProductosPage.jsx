@@ -17,13 +17,16 @@ import {
   AlertTriangle,
   ShoppingBag,
   Package,
-  CheckCircle,
-  XCircle,
   ArrowLeftRight,
-  Plus,
   DollarSign,
   Tag,
   Calendar,
+  Loader2,
+  X,
+  CheckCircle,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +36,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { DateRangePicker } from "@/lib/DatePickerWithRange"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -42,13 +50,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { DateRangePicker } from "@/lib/DatePickerWithRange"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PaginationControls } from "@/lib/PaginationControls"
 
 import {
   getVentasPaginadas,
@@ -56,15 +57,14 @@ import {
   anularVenta,
   adaptVentaToFrontend,
   clearVentasCache,
+  searchVentasByProducto,
 } from "@/services/ventasService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getMetodosPago } from "@/services/metodosPagoService"
 import { getDevolucionesByVenta } from "@/services/devolucionesService"
 import { searchProductosRapido } from "@/services/productosService"
 import { useAuth } from "@/context/AuthContext"
-
-import DevolucionDialog from "@/components/devoluciones/DevolucionDialog"
-import DevolucionesList from "@/components/devoluciones/DevolucionesList"
+import DevolucionVentaForm from "@/components/DevolucionVentaForm"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -124,11 +124,14 @@ const HistorialVentas = () => {
     to: null,
   })
 
-  // Estados para búsqueda de productos
+  // MEJORADO: Estados para búsqueda de productos
   const [busquedaProducto, setBusquedaProducto] = useState("")
   const [productos, setProductos] = useState([])
   const [productoSeleccionado, setProductoSeleccionado] = useState(null)
   const [cargandoProductos, setCargandoProductos] = useState(false)
+  const [mostrarResultadosProductos, setMostrarResultadosProductos] = useState(false)
+  const [ventasPorProducto, setVentasPorProducto] = useState([])
+  const [cargandoVentasProducto, setCargandoVentasProducto] = useState(false)
 
   // Estados de datos auxiliares
   const [puntosVenta, setPuntosVenta] = useState([])
@@ -153,6 +156,7 @@ const HistorialVentas = () => {
 
   // Debounce para la búsqueda
   const debouncedSearchTerm = useDebounce(searchTerm, 500)
+  const debouncedBusquedaProducto = useDebounce(busquedaProducto, 300)
 
   // Calcular el total de ventas filtradas
   const totalVentasFiltradas = useMemo(() => {
@@ -210,6 +214,57 @@ const HistorialVentas = () => {
 
     cargarDatosIniciales()
   }, [isAdmin])
+
+  // MEJORADO: Búsqueda de productos con debounce
+  useEffect(() => {
+    const buscarProductos = async () => {
+      if (debouncedBusquedaProducto.length < 2) {
+        setProductos([])
+        setMostrarResultadosProductos(false)
+        return
+      }
+
+      setCargandoProductos(true)
+      try {
+        const productosData = await searchProductosRapido(debouncedBusquedaProducto)
+        setProductos(productosData)
+        setMostrarResultadosProductos(true)
+      } catch (error) {
+        console.error("Error al buscar productos:", error)
+        toast.error("Error al buscar productos")
+        setProductos([])
+        setMostrarResultadosProductos(false)
+      } finally {
+        setCargandoProductos(false)
+      }
+    }
+
+    buscarProductos()
+  }, [debouncedBusquedaProducto])
+
+  // NUEVA: Búsqueda de ventas por producto seleccionado
+  useEffect(() => {
+    const buscarVentasPorProducto = async () => {
+      if (!productoSeleccionado) {
+        setVentasPorProducto([])
+        return
+      }
+
+      setCargandoVentasProducto(true)
+      try {
+        const ventasData = await searchVentasByProducto(productoSeleccionado.nombre)
+        setVentasPorProducto(ventasData)
+      } catch (error) {
+        console.error("Error al buscar ventas por producto:", error)
+        toast.error("Error al buscar ventas por producto")
+        setVentasPorProducto([])
+      } finally {
+        setCargandoVentasProducto(false)
+      }
+    }
+
+    buscarVentasPorProducto()
+  }, [productoSeleccionado])
 
   // Función para construir filtros (mejorada)
   const buildFilters = useCallback(() => {
@@ -311,33 +366,24 @@ const HistorialVentas = () => {
     }
   }, [currentPage])
 
-  // Buscar productos
-  const buscarProductos = async (query) => {
-    if (!query || query.length < 3) {
-      setProductos([])
-      return
-    }
-
-    setCargandoProductos(true)
-    try {
-      const productosData = await searchProductosRapido(query)
-      setProductos(productosData)
-    } catch (error) {
-      console.error("Error al buscar productos:", error)
-      toast.error("Error al buscar productos")
-      setProductos([])
-    } finally {
-      setCargandoProductos(false)
-    }
-  }
-
-  const handleBusquedaProductoChange = (value) => {
-    setBusquedaProducto(value)
-    buscarProductos(value)
-  }
-
+  // MEJORADO: Manejar selección de producto
   const handleSeleccionarProducto = (producto) => {
     setProductoSeleccionado(producto)
+    setBusquedaProducto(producto.nombre)
+    setMostrarResultadosProductos(false)
+    toast.success(`Filtrando ventas por: ${producto.nombre}`, {
+      position: "bottom-right",
+      autoClose: 2000,
+    })
+  }
+
+  // NUEVA: Limpiar filtro de producto
+  const limpiarFiltroProducto = () => {
+    setProductoSeleccionado(null)
+    setBusquedaProducto("")
+    setProductos([])
+    setMostrarResultadosProductos(false)
+    setVentasPorProducto([])
   }
 
   const formatearFechaHora = (fechaString) => {
@@ -389,8 +435,7 @@ const HistorialVentas = () => {
     setSelectedPuntoVenta("todos")
     setSelectedMetodoPago("todos")
     setMostrarAnuladas(false)
-    setProductoSeleccionado(null)
-    setBusquedaProducto("")
+    limpiarFiltroProducto()
     setCurrentPage(1)
     setDetalleVentaAbierto(null)
   }
@@ -642,8 +687,8 @@ const HistorialVentas = () => {
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Historial de Ventas Optimizado</h1>
-          <p className="text-gray-500">Consulta y gestiona el historial de ventas con paginación optimizada</p>
+          <h1 className="text-2xl font-bold text-gray-900">Historial de Ventas por Productos</h1>
+          <p className="text-gray-500">Busca y filtra ventas por productos específicos</p>
         </div>
       </div>
 
@@ -684,7 +729,7 @@ const HistorialVentas = () => {
         </Card>
       )}
 
-      {/* Header mejorado y responsivo */}
+      {/* MEJORADO: Header de filtros con búsqueda por productos */}
       <div className="bg-white rounded-lg shadow-md border-0 overflow-hidden mb-6">
         <div className="bg-[#131321] p-4 text-white">
           <div className="flex items-center justify-between">
@@ -699,8 +744,90 @@ const HistorialVentas = () => {
         </div>
 
         <div className="p-4">
-          <div className="flex flex-col gap-3">
-            {/* Primera fila: Búsqueda y controles principales */}
+          <div className="flex flex-col gap-4">
+            {/* NUEVA: Búsqueda por productos destacada */}
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Package className="h-5 w-5 text-orange-600" />
+                <h3 className="font-medium text-orange-800">Buscar Ventas por Producto</h3>
+              </div>
+
+              <div className="relative">
+                <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-500 h-4 w-4" />
+                <Input
+                  placeholder="Buscar producto por nombre o código..."
+                  className="pl-10 pr-10 border-orange-300 focus:border-orange-500 focus:ring-orange-500"
+                  value={busquedaProducto}
+                  onChange={(e) => setBusquedaProducto(e.target.value)}
+                />
+                {busquedaProducto && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 text-orange-500 hover:text-orange-700"
+                    onClick={limpiarFiltroProducto}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+
+                {/* Indicador de carga */}
+                {cargandoProductos && (
+                  <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+                  </div>
+                )}
+              </div>
+
+              {/* Resultados de búsqueda de productos */}
+              <AnimatePresence>
+                {mostrarResultadosProductos && productos.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-3 bg-white border border-orange-200 rounded-md shadow-sm max-h-48 overflow-y-auto"
+                  >
+                    {productos.map((producto) => (
+                      <div
+                        key={producto.id}
+                        className="p-3 hover:bg-orange-50 cursor-pointer border-b border-orange-100 last:border-b-0 flex justify-between items-center"
+                        onClick={() => handleSeleccionarProducto(producto)}
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{producto.nombre}</p>
+                          <p className="text-sm text-gray-500">Código: {producto.codigo}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-orange-600">${formatearPrecio(producto.precio || 0)}</p>
+                          <p className="text-xs text-gray-500">Stock: {producto.stock || 0}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Producto seleccionado */}
+              {productoSeleccionado && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Badge className="bg-orange-600 text-white hover:bg-orange-700">
+                    <Package className="h-3 w-3 mr-1" />
+                    Filtrando por: {productoSeleccionado.nombre}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={limpiarFiltroProducto}
+                    className="h-6 text-xs text-orange-600 hover:text-orange-800"
+                  >
+                    Limpiar filtro
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Primera fila: Búsqueda general y controles principales */}
             <div className="flex flex-col md:flex-row gap-3 items-center">
               <div className="relative flex-1 w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -746,62 +873,6 @@ const HistorialVentas = () => {
             {/* Segunda fila: Filtros específicos */}
             <div className="flex flex-col lg:flex-row gap-3">
               <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                {/* Búsqueda por producto */}
-                <div className="relative w-full sm:w-auto sm:min-w-[200px]">
-                  <Tag className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                  <Input
-                    placeholder="Buscar por producto..."
-                    className="pl-9"
-                    value={busquedaProducto}
-                    onChange={(e) => handleBusquedaProductoChange(e.target.value)}
-                  />
-                  {busquedaProducto && busquedaProducto.length > 0 && (
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={() => {
-                          setBusquedaProducto("")
-                          setProductos([])
-                          setProductoSeleccionado(null)
-                        }}
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                  {busquedaProducto && busquedaProducto.length > 0 && (
-                    <div className="relative mt-1">
-                      <div className="absolute z-10 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                        {cargandoProductos ? (
-                          <div className="p-2 text-center text-gray-500">Buscando productos...</div>
-                        ) : productos.length === 0 ? (
-                          <div className="p-2 text-center text-gray-500">No se encontraron productos</div>
-                        ) : (
-                          <ul className="py-1">
-                            {productos.map((producto) => (
-                              <li
-                                key={producto.id}
-                                className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
-                                  productoSeleccionado?.id === producto.id ? "bg-orange-50" : ""
-                                }`}
-                                onClick={() => {
-                                  handleSeleccionarProducto(producto)
-                                  setBusquedaProducto(producto.nombre)
-                                }}
-                              >
-                                <div className="font-medium">{producto.nombre}</div>
-                                <div className="text-xs text-gray-500">Código: {producto.codigo}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 {/* Punto de venta */}
                 <Select value={selectedPuntoVenta} onValueChange={setSelectedPuntoVenta}>
                   <SelectTrigger
@@ -864,16 +935,6 @@ const HistorialVentas = () => {
               </div>
             </div>
 
-            {/* Producto seleccionado */}
-            {productoSeleccionado && (
-              <div className="flex items-center gap-2">
-                <Badge className="bg-orange-100 text-orange-800 border-orange-300">
-                  <Tag className="h-3 w-3 mr-1" />
-                  {productoSeleccionado.nombre}
-                </Badge>
-              </div>
-            )}
-
             {/* Indicadores de filtros activos */}
             {(searchTerm ||
               selectedPuntoVenta !== "todos" ||
@@ -902,7 +963,7 @@ const HistorialVentas = () => {
                     </Badge>
                   )}
                   {productoSeleccionado && (
-                    <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
+                    <Badge variant="outline" className="ml-1 text-xs bg-orange-50 text-orange-700 border-orange-300">
                       Producto: {productoSeleccionado.nombre}
                     </Badge>
                   )}
@@ -946,12 +1007,59 @@ const HistorialVentas = () => {
         </div>
       </div>
 
+      {/* NUEVA: Vista previa de ventas por producto */}
+      {productoSeleccionado && ventasPorProducto.length > 0 && (
+        <Card className="mb-6 border-orange-200 bg-orange-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-orange-800 flex items-center gap-2">
+              <Package size={18} />
+              Ventas que contienen: {productoSeleccionado.nombre}
+            </CardTitle>
+            <CardDescription className="text-orange-600">
+              {ventasPorProducto.length} ventas encontradas con este producto
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {cargandoVentasProducto ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-48 overflow-y-auto">
+                {ventasPorProducto.slice(0, 12).map((venta) => (
+                  <div
+                    key={venta.id}
+                    className="bg-white p-3 rounded-md border border-orange-200 hover:border-orange-400 cursor-pointer transition-colors"
+                    onClick={() => abrirDetalleVenta(venta.id)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-sm">{venta.numero_factura}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {venta.cantidad} unid.
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-600 mb-1">{venta.cliente_nombre || "Cliente General"}</p>
+                    <p className="text-xs text-gray-500">{formatearFechaHora(venta.fecha)}</p>
+                    <p className="font-bold text-orange-600 text-sm mt-1">{formatearPrecio(venta.total)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ventasPorProducto.length > 12 && (
+              <p className="text-center text-sm text-orange-600 mt-3">
+                Y {ventasPorProducto.length - 12} ventas más...
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tabla de ventas */}
       <Card className="border-0 shadow-md">
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
             <FileText size={20} />
-            Listado de Ventas Paginado
+            {productoSeleccionado ? `Ventas con ${productoSeleccionado.nombre}` : "Listado de Ventas"}
           </CardTitle>
           <CardDescription className="text-gray-300">
             {totalItems} ventas encontradas - Página {currentPage} de {totalPages}
@@ -968,6 +1076,7 @@ const HistorialVentas = () => {
                     <TableHead className="bg-white">Cliente</TableHead>
                     <TableHead className="bg-white">Punto de Venta</TableHead>
                     <TableHead className="bg-white">Método de Pago</TableHead>
+                    {productoSeleccionado && <TableHead className="bg-white">Productos</TableHead>}
                     <TableHead className="bg-white">Total</TableHead>
                     <TableHead className="bg-white text-right">Acciones</TableHead>
                   </TableRow>
@@ -977,12 +1086,17 @@ const HistorialVentas = () => {
                     renderSkeletons()
                   ) : ventas.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                      <TableCell
+                        colSpan={productoSeleccionado ? 8 : 7}
+                        className="text-center py-12 text-muted-foreground"
+                      >
                         <div className="flex flex-col items-center justify-center gap-2">
                           <ShoppingBag className="h-12 w-12 text-gray-300" />
                           <h3 className="text-lg font-medium text-gray-500">No hay ventas disponibles</h3>
                           <p className="text-sm text-gray-400">
-                            No se encontraron ventas que coincidan con los criterios de búsqueda
+                            {productoSeleccionado
+                              ? `No se encontraron ventas con el producto "${productoSeleccionado.nombre}"`
+                              : "No se encontraron ventas que coincidan con los criterios de búsqueda"}
                           </p>
                         </div>
                       </TableCell>
@@ -1030,6 +1144,18 @@ const HistorialVentas = () => {
                               {venta.tipoPago ? venta.tipoPago.nombre : "N/A"}
                             </Badge>
                           </TableCell>
+                          {productoSeleccionado && (
+                            <TableCell>
+                              <div className="max-w-xs">
+                                <p className="text-xs text-gray-600 truncate">
+                                  {venta.productosNombres || "Productos varios"}
+                                </p>
+                                <Badge variant="outline" className="text-xs mt-1">
+                                  {venta.cantidadProductos || 0} productos
+                                </Badge>
+                              </div>
+                            </TableCell>
+                          )}
                           <TableCell className="font-medium">{formatearPrecio(venta.total)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
@@ -1048,24 +1174,7 @@ const HistorialVentas = () => {
                                       }
                                     >
                                       {loadingDetalle && detalleVentaAbierto === venta.id ? (
-                                        <div className="animate-spin">
-                                          <svg className="h-4 w-4" viewBox="0 0 24 24">
-                                            <circle
-                                              className="opacity-25"
-                                              cx="12"
-                                              cy="12"
-                                              r="10"
-                                              stroke="currentColor"
-                                              strokeWidth="4"
-                                              fill="none"
-                                            />
-                                            <path
-                                              className="opacity-75"
-                                              fill="currentColor"
-                                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                            />
-                                          </svg>
-                                        </div>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : detalleVentaAbierto === venta.id ? (
                                         <ChevronUp className="h-4 w-4" />
                                       ) : (
@@ -1113,7 +1222,7 @@ const HistorialVentas = () => {
                         <AnimatePresence>
                           {detalleVentaAbierto === venta.id && (
                             <TableRow>
-                              <TableCell colSpan={7} className="p-0 border-0">
+                              <TableCell colSpan={productoSeleccionado ? 8 : 7} className="p-0 border-0">
                                 <motion.div
                                   initial={{ opacity: 0, height: 0 }}
                                   animate={{ opacity: 1, height: "auto" }}
@@ -1131,24 +1240,7 @@ const HistorialVentas = () => {
                                       {loadingDetalle ? (
                                         <div className="flex justify-center items-center py-8">
                                           <div className="flex items-center gap-3">
-                                            <div className="animate-spin">
-                                              <svg className="h-6 w-6 text-orange-600" viewBox="0 0 24 24">
-                                                <circle
-                                                  className="opacity-25"
-                                                  cx="12"
-                                                  cy="12"
-                                                  r="10"
-                                                  stroke="currentColor"
-                                                  strokeWidth="4"
-                                                  fill="none"
-                                                />
-                                                <path
-                                                  className="opacity-75"
-                                                  fill="currentColor"
-                                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                />
-                                              </svg>
-                                            </div>
+                                            <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
                                             <span className="text-gray-600">Cargando detalles de la venta...</span>
                                           </div>
                                         </div>
@@ -1259,6 +1351,11 @@ const HistorialVentas = () => {
                                                 <div className="flex items-center gap-2 text-orange-700 mb-3">
                                                   <Package size={16} />
                                                   <h3 className="font-medium">Productos</h3>
+                                                  {productoSeleccionado && (
+                                                    <Badge className="bg-orange-100 text-orange-800 border-orange-300">
+                                                      Filtrado por: {productoSeleccionado.nombre}
+                                                    </Badge>
+                                                  )}
                                                 </div>
 
                                                 <div className="rounded border overflow-hidden">
@@ -1277,214 +1374,199 @@ const HistorialVentas = () => {
                                                         .map((detalle) => (
                                                           <TableRow
                                                             key={detalle.id}
-                                                            className={detalle.devueltoParcial ? "bg-blue-50/50" : ""}
+                                                            className={`${
+                                                              detalle.devueltoParcial ? "bg-blue-50/50" : ""
+                                                            } ${
+                                                              productoSeleccionado &&
+                                                              detalle.producto.id === productoSeleccionado.id
+                                                                ? "bg-orange-50 border-l-4 border-orange-400"
+                                                                : ""
+                                                            }`}
                                                           >
                                                             <TableCell>
                                                               <div>
-                                                                <div className="font-medium">
+                                                                <div className="font-medium flex items-center gap-2">
                                                                   {detalle.producto.nombre}
+                                                                  {productoSeleccionado &&
+                                                                    detalle.producto.id === productoSeleccionado.id && (
+                                                                      <Badge className="bg-orange-600 text-white text-xs">
+                                                                        Producto filtrado
+                                                                      </Badge>
+                                                                    )}
                                                                 </div>
                                                                 <div className="text-xs text-gray-500">
                                                                   Código: {detalle.producto.codigo}
                                                                 </div>
                                                                 {detalle.es_reemplazo && (
                                                                   <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
-                                                                    <Plus className="h-3 w-3 mr-1" />
-                                                                    Producto de reemplazo
-                                                                  </Badge>
-                                                                )}
-                                                                {detalle.devueltoParcial && (
-                                                                  <Badge className="mt-1 bg-blue-100 text-blue-800 border-blue-300">
-                                                                    <ArrowLeftRight className="h-3 w-3 mr-1" />
-                                                                    Devuelto parcial ({detalle.cantidadDevuelta}/
-                                                                    {detalle.cantidad})
+                                                                    Reemplazo
                                                                   </Badge>
                                                                 )}
                                                               </div>
                                                             </TableCell>
                                                             <TableCell className="text-right">
-                                                              {detalle.precioUnitario !== detalle.precioConDescuento ? (
-                                                                <div>
-                                                                  <div className="text-orange-600">
-                                                                    {formatearPrecio(detalle.precioConDescuento)}
-                                                                  </div>
-                                                                  <div className="text-xs text-gray-500 line-through">
-                                                                    {formatearPrecio(detalle.precioUnitario)}
-                                                                  </div>
-                                                                </div>
-                                                              ) : (
-                                                                <span>{formatearPrecio(detalle.precioUnitario)}</span>
-                                                              )}
+                                                              {formatearPrecio(detalle.precio)}
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                              {detalle.cantidad - (detalle.cantidadDevuelta || 0)}
+                                                              {detalle.cantidad}
                                                             </TableCell>
-                                                            <TableCell className="text-right font-medium">
-                                                              {formatearPrecio(
-                                                                (detalle.cantidad - (detalle.cantidadDevuelta || 0)) *
-                                                                  detalle.precioConDescuento,
-                                                              )}
+                                                            <TableCell className="text-right">
+                                                              {formatearPrecio(detalle.precio * detalle.cantidad)}
                                                             </TableCell>
                                                           </TableRow>
                                                         ))}
-
                                                       {ventaSeleccionada.productosReemplazo &&
-                                                        ventaSeleccionada.productosReemplazo.length > 0 && (
-                                                          <>
-                                                            <TableRow>
-                                                              <TableCell colSpan={4} className="bg-gray-100 py-1">
-                                                                <div className="text-xs font-medium text-gray-600 flex items-center">
-                                                                  <ArrowLeftRight className="h-3 w-3 mr-1" />
-                                                                  Productos de reemplazo
+                                                        ventaSeleccionada.productosReemplazo.map((producto) => (
+                                                          <TableRow
+                                                            key={producto.id + "_" + producto.devolucionId}
+                                                            className="bg-green-50 border-l-4 border-green-400"
+                                                          >
+                                                            <TableCell>
+                                                              <div>
+                                                                <div className="font-medium flex items-center gap-2">
+                                                                  {producto.nombre}
+                                                                  <Badge className="bg-green-600 text-white text-xs">
+                                                                    Reemplazo
+                                                                  </Badge>
                                                                 </div>
-                                                              </TableCell>
-                                                            </TableRow>
-
-                                                            {ventaSeleccionada.productosReemplazo.map(
-                                                              (producto, index) => (
-                                                                <TableRow
-                                                                  key={`reemplazo-${index}`}
-                                                                  className="bg-green-50"
-                                                                >
-                                                                  <TableCell>
-                                                                    <div>
-                                                                      <div className="font-medium">
-                                                                        {producto.nombre}
-                                                                      </div>
-                                                                      <div className="text-xs text-gray-500">
-                                                                        Código: {producto.codigo}
-                                                                      </div>
-                                                                      <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
-                                                                        <Plus className="h-3 w-3 mr-1" />
-                                                                        Producto de reemplazo
-                                                                      </Badge>
-                                                                    </div>
-                                                                  </TableCell>
-                                                                  <TableCell className="text-right">
-                                                                    {formatearPrecio(producto.precio)}
-                                                                  </TableCell>
-                                                                  <TableCell className="text-center">
-                                                                    {producto.cantidad}
-                                                                  </TableCell>
-                                                                  <TableCell className="text-right font-medium">
-                                                                    {formatearPrecio(
-                                                                      producto.precio * producto.cantidad,
-                                                                    )}
-                                                                  </TableCell>
-                                                                </TableRow>
-                                                              ),
-                                                            )}
-                                                          </>
-                                                        )}
+                                                                <div className="text-xs text-gray-500">
+                                                                  Código: {producto.codigo}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                  Devolución:{" "}
+                                                                  {formatearFechaHora(producto.fechaDevolucion)}
+                                                                </div>
+                                                              </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                              {formatearPrecio(producto.precio)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                              {producto.cantidad}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                              {formatearPrecio(producto.precio * producto.cantidad)}
+                                                            </TableCell>
+                                                          </TableRow>
+                                                        ))}
                                                     </TableBody>
                                                   </Table>
                                                 </div>
 
-                                                {/* Resumen de totales */}
-                                                <div className="mt-4 bg-gray-50 p-3 rounded border">
-                                                  <div className="space-y-1">
-                                                    <div className="flex justify-between">
-                                                      <span className="text-gray-500">Subtotal:</span>
-                                                      <span>{formatearPrecio(ventaSeleccionada.subtotal)}</span>
+                                                <div className="mt-4 flex justify-end space-x-4">
+                                                  <div>
+                                                    <div className="text-right text-gray-500">Subtotal:</div>
+                                                    <div className="text-right text-gray-500">IVA (21%):</div>
+                                                    <div className="text-right font-medium">Total:</div>
+                                                  </div>
+                                                  <div>
+                                                    <div className="text-right">
+                                                      {formatearPrecio(ventaSeleccionada.subtotal)}
                                                     </div>
-
-                                                    {ventaSeleccionada.porcentajeInteres > 0 && (
-                                                      <div className="flex justify-between">
-                                                        <span className="text-gray-500">
-                                                          Interés ({ventaSeleccionada.porcentajeInteres}%):
-                                                        </span>
-                                                        <span className="text-orange-600">
-                                                          +{formatearPrecio(ventaSeleccionada.montoInteres)}
-                                                        </span>
-                                                      </div>
-                                                    )}
-
-                                                    {ventaSeleccionada.porcentajeDescuento > 0 && (
-                                                      <div className="flex justify-between">
-                                                        <span className="text-gray-500">
-                                                          Descuento ({ventaSeleccionada.porcentajeDescuento}%):
-                                                        </span>
-                                                        <span className="text-green-600">
-                                                          -{formatearPrecio(ventaSeleccionada.montoDescuento)}
-                                                        </span>
-                                                      </div>
-                                                    )}
-
-                                                    <Separator className="my-1" />
-                                                    <div className="flex justify-between font-bold">
-                                                      <span>Total:</span>
-                                                      <span className="text-orange-600">
-                                                        {formatearPrecio(ventaSeleccionada.total)}
-                                                      </span>
+                                                    <div className="text-right">
+                                                      {formatearPrecio(ventaSeleccionada.iva)}
+                                                    </div>
+                                                    <div className="text-right font-medium">
+                                                      {formatearPrecio(ventaSeleccionada.total)}
                                                     </div>
                                                   </div>
                                                 </div>
-
-                                                {!ventaSeleccionada.anulada && (
-                                                  <div className="mt-4 flex justify-end">
-                                                    <Button
-                                                      onClick={abrirDialogDevolucion}
-                                                      className="bg-blue-600 hover:bg-blue-700"
-                                                    >
-                                                      <ArrowLeftRight className="h-4 w-4 mr-2" />
-                                                      Registrar devolución
-                                                    </Button>
-                                                  </div>
-                                                )}
                                               </div>
                                             </div>
                                           </TabsContent>
 
                                           <TabsContent value="devoluciones">
                                             {cargandoDevoluciones ? (
-                                              <div className="flex justify-center py-8">
-                                                <div className="animate-spin">
-                                                  <svg
-                                                    className="h-8 w-8 text-blue-600"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                  >
-                                                    <circle
-                                                      className="opacity-25"
-                                                      cx="12"
-                                                      cy="12"
-                                                      r="10"
-                                                      stroke="currentColor"
-                                                      strokeWidth="4"
-                                                    />
-                                                    <path
-                                                      className="opacity-75"
-                                                      fill="currentColor"
-                                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                                    />
-                                                  </svg>
+                                              <div className="flex justify-center items-center py-8">
+                                                <div className="flex items-center gap-3">
+                                                  <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
+                                                  <span className="text-gray-600">Cargando devoluciones...</span>
+                                                </div>
+                                              </div>
+                                            ) : devolucionesVenta.length > 0 ? (
+                                              <div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                  {devolucionesVenta.map((devolucion) => (
+                                                    <Card key={devolucion.id} className="shadow-sm border">
+                                                      <CardHeader>
+                                                        <CardTitle className="text-sm font-medium">
+                                                          Devolución #{devolucion.id}
+                                                          {devolucion.anulada === 1 && (
+                                                            <Badge variant="destructive" className="ml-2">
+                                                              Anulada
+                                                            </Badge>
+                                                          )}
+                                                        </CardTitle>
+                                                        <CardDescription className="text-xs text-gray-500">
+                                                          Fecha: {formatearFechaHora(devolucion.fecha)}
+                                                        </CardDescription>
+                                                      </CardHeader>
+                                                      <CardContent className="text-sm">
+                                                        {devolucion.productos_devueltos &&
+                                                          devolucion.productos_devueltos.length > 0 && (
+                                                            <div>
+                                                              <h4 className="text-gray-700 font-medium mb-2">
+                                                                Productos Devueltos:
+                                                              </h4>
+                                                              <ul>
+                                                                {devolucion.productos_devueltos.map((producto) => (
+                                                                  <li
+                                                                    key={producto.id}
+                                                                    className="flex justify-between"
+                                                                  >
+                                                                    <span>{producto.producto_nombre}</span>
+                                                                    <span>Cantidad: {producto.cantidad}</span>
+                                                                  </li>
+                                                                ))}
+                                                              </ul>
+                                                            </div>
+                                                          )}
+                                                        {devolucion.productos_reemplazo &&
+                                                          devolucion.productos_reemplazo.length > 0 && (
+                                                            <div>
+                                                              <h4 className="text-gray-700 font-medium mb-2">
+                                                                Productos de Reemplazo:
+                                                              </h4>
+                                                              <ul>
+                                                                {devolucion.productos_reemplazo.map((producto) => (
+                                                                  <li
+                                                                    key={producto.id}
+                                                                    className="flex justify-between"
+                                                                  >
+                                                                    <span>{producto.producto_nombre}</span>
+                                                                    <span>Cantidad: {producto.cantidad}</span>
+                                                                  </li>
+                                                                ))}
+                                                              </ul>
+                                                            </div>
+                                                          )}
+                                                        {devolucion.motivo && (
+                                                          <div>
+                                                            <h4 className="text-gray-700 font-medium mb-2">Motivo:</h4>
+                                                            <p>{devolucion.motivo}</p>
+                                                          </div>
+                                                        )}
+                                                      </CardContent>
+                                                    </Card>
+                                                  ))}
+                                                </div>
+                                                <div className="mt-4">
+                                                  <Button onClick={abrirDialogDevolucion}>Gestionar Devolución</Button>
                                                 </div>
                                               </div>
                                             ) : (
-                                              <DevolucionesList
-                                                devoluciones={devolucionesVenta}
-                                                formatearPrecio={formatearPrecio}
-                                                formatearFechaHora={formatearFechaHora}
-                                              />
-                                            )}
-
-                                            {!ventaSeleccionada.anulada && (
-                                              <div className="mt-4 flex justify-end">
-                                                <Button
-                                                  onClick={abrirDialogDevolucion}
-                                                  className="bg-blue-600 hover:bg-blue-700"
-                                                >
-                                                  <ArrowLeftRight className="h-4 w-4 mr-2" />
-                                                  Registrar nueva devolución
-                                                </Button>
+                                              <div className="text-center py-6">
+                                                <p className="text-gray-500">
+                                                  No hay devoluciones registradas para esta venta.
+                                                </p>
+                                                <Button onClick={abrirDialogDevolucion}>Gestionar Devolución</Button>
                                               </div>
                                             )}
                                           </TabsContent>
                                         </Tabs>
                                       ) : (
-                                        <div className="text-center py-8 text-gray-500">
-                                          Error al cargar los detalles de la venta
+                                        <div className="text-center py-6">
+                                          <p className="text-gray-500">Error al cargar los detalles de la venta.</p>
                                         </div>
                                       )}
                                     </CardContent>
@@ -1504,133 +1586,120 @@ const HistorialVentas = () => {
         </CardContent>
       </Card>
 
-      {/* Controles de paginación */}
-      <PaginationControls
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        itemsPerPage={itemsPerPage}
-        onPageChange={handlePageChange}
-        onItemsPerPageChange={handleItemsPerPageChange}
-        isLoading={isLoading}
-      />
+      {/* Paginación */}
+      <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">Mostrar:</span>
+          <Select value={String(itemsPerPage)} onValueChange={handleItemsPerPageChange}>
+            <SelectTrigger className="w-[70px]">{itemsPerPage}</SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-sm text-gray-500">resultados por página</span>
+        </div>
 
-      {/* Diálogo de anulación */}
-      <Dialog open={dialogAnularAbierto} onOpenChange={setDialogAnularAbierto}>
-        <DialogContent>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Dialogo de Devolución */}
+      <Dialog open={dialogDevolucionAbierto} onOpenChange={setDialogDevolucionAbierto}>
+        <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
-            <DialogTitle className="text-red-600 flex items-center gap-2">
-              <AlertTriangle size={18} />
-              Anular Venta
-            </DialogTitle>
-            <DialogDescription>
-              Esta acción anulará la venta y restaurará el stock de los productos. No se puede deshacer.
-            </DialogDescription>
+            <DialogTitle>Gestionar Devolución</DialogTitle>
+            <DialogDescription>Realizar una devolución completa o parcial de la venta.</DialogDescription>
           </DialogHeader>
-
-          <div className="py-4">
-            <div className="bg-gray-50 p-3 rounded border mb-4">
-              <div className="text-sm">
-                <div className="flex justify-between mb-1">
-                  <span className="text-gray-500">Factura:</span>
-                  <span className="font-medium">{ventaAnular?.numeroFactura}</span>
-                </div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-gray-500">Fecha:</span>
-                  <span>{ventaAnular && formatearFechaHora(ventaAnular.fecha)}</span>
-                </div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-gray-500">Cliente:</span>
-                  <span>{ventaAnular?.cliente ? ventaAnular.cliente.nombre : "Cliente General"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Total:</span>
-                  <span className="font-medium">{ventaAnular && formatearPrecio(ventaAnular.total)}</span>
-                </div>
-              </div>
-            </div>
-
-            {estadoAnulacion.exito && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium">Anulación exitosa</p>
-                  <p className="text-sm">{estadoAnulacion.mensaje}</p>
-                </div>
-              </div>
-            )}
-
-            {estadoAnulacion.error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 flex items-start gap-2">
-                <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium">Error al anular</p>
-                  <p className="text-sm">{estadoAnulacion.mensaje}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="motivo">
-                Motivo de anulación <span className="text-red-500">*</span>
-              </Label>
-              <Textarea
-                id="motivo"
-                placeholder="Ingrese el motivo de la anulación"
-                value={motivoAnulacion}
-                onChange={(e) => setMotivoAnulacion(e.target.value)}
-                className="resize-none"
-                rows={3}
-                disabled={estadoAnulacion.exito || procesandoAnulacion}
-              />
-            </div>
-          </div>
-
+          <DevolucionVentaForm
+            venta={ventaSeleccionada}
+            onDevolucionCompleta={handleDevolucionCompleta}
+            onClose={() => setDialogDevolucionAbierto(false)}
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogAnularAbierto(false)} disabled={procesandoAnulacion}>
-              {estadoAnulacion.exito ? "Cerrar" : "Cancelar"}
+            <Button type="button" variant="secondary" onClick={() => setDialogDevolucionAbierto(false)}>
+              Cancelar
             </Button>
-            {!estadoAnulacion.exito && (
-              <Button
-                variant="destructive"
-                onClick={confirmarAnulacion}
-                disabled={!motivoAnulacion.trim() || procesandoAnulacion}
-                className="gap-1"
-              >
-                {procesandoAnulacion ? (
-                  <>
-                    <span className="mr-1">Procesando</span>
-                    <span className="animate-spin">
-                      <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={16} /> Anular Venta
-                  </>
-                )}
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de devolución */}
-      <DevolucionDialog
-        open={dialogDevolucionAbierto}
-        setOpen={setDialogDevolucionAbierto}
-        venta={ventaSeleccionada}
-        cliente={ventaSeleccionada?.cliente}
-        onDevolucionCompleta={handleDevolucionCompleta}
-        formatearPrecio={formatearPrecio}
-      />
+      {/* Diálogo de Anulación */}
+      <Dialog open={dialogAnularAbierto} onOpenChange={setDialogAnularAbierto}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Anular Venta</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres anular esta venta? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="motivo" className="text-right">
+                Motivo
+              </Label>
+              <Input
+                type="text"
+                id="motivo"
+                value={motivoAnulacion}
+                onChange={(e) => setMotivoAnulacion(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          {estadoAnulacion.mensaje && (
+            <div
+              className={`p-3 rounded-md ${
+                estadoAnulacion.exito ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+              }`}
+            >
+              {estadoAnulacion.exito ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  {estadoAnulacion.mensaje}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4" />
+                  {estadoAnulacion.mensaje}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setDialogAnularAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" onClick={confirmarAnulacion} disabled={procesandoAnulacion}>
+              {procesandoAnulacion ? (
+                <>
+                  Anulando...
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "Anular Venta"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
