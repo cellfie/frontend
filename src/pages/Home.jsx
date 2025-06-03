@@ -33,7 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getCurrentUser } from "../services/authService"
 import { getVentas } from "../services/ventasService"
-import { searchProductos } from "../services/productosService"
+import { searchProductos, searchProductosRapido } from "../services/productosService"
 import { getVentasEquipos } from "../services/ventasEquiposService"
 import { getNotas, createNota, deleteNota, toggleNotaCompletada } from "../services/notasService"
 import { getReparaciones } from "../services/reparacionesService"
@@ -48,8 +48,12 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState([])
   const [showResults, setShowResults] = useState(false)
   const [showAllResults, setShowAllResults] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
   const [username, setUsername] = useState("Usuario")
   const [userInitials, setUserInitials] = useState("US")
+  const searchTimeoutRef = useRef(null)
+  const searchInputRef = useRef(null)
+
   const {
     dollarPrice,
     updateDollarPrice,
@@ -124,6 +128,111 @@ export default function Home() {
       }, 100)
     }
   }, [isDollarDialogOpen])
+
+  // Función optimizada de búsqueda con debounce mejorado
+  const performSearch = useCallback(
+    async (query) => {
+      if (!query || query.trim().length < 2) {
+        setSearchResults([])
+        setShowResults(false)
+        setShowAllResults(false)
+        setIsSearching(false)
+        return
+      }
+
+      setIsSearching(true)
+
+      try {
+        // Usar la función de búsqueda rápida optimizada
+        const results = await searchProductosRapido(query.trim())
+
+        // Solo actualizar si el término de búsqueda sigue siendo el mismo
+        if (query === searchTerm) {
+          setSearchResults(results)
+          setShowResults(true)
+          setShowAllResults(false)
+        }
+      } catch (error) {
+        console.error("Error al buscar productos:", error)
+        if (query === searchTerm) {
+          setSearchResults([])
+          setShowResults(false)
+          toast.error("Error al buscar productos", {
+            position: "bottom-right",
+            autoClose: 2000,
+          })
+        }
+      } finally {
+        if (query === searchTerm) {
+          setIsSearching(false)
+        }
+      }
+    },
+    [searchTerm],
+  )
+
+  // Función para buscar todos los resultados cuando se solicita
+  const searchAllResults = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) return
+
+    setIsSearching(true)
+
+    try {
+      // Para "ver todos", usar la búsqueda completa
+      const results = await searchProductos({ search: query.trim() })
+      setSearchResults(results)
+      setShowAllResults(true)
+    } catch (error) {
+      console.error("Error al buscar todos los productos:", error)
+      toast.error("Error al buscar productos", {
+        position: "bottom-right",
+        autoClose: 2000,
+      })
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  // Efecto mejorado para la búsqueda con debounce optimizado
+  useEffect(() => {
+    // Limpiar timeout anterior
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Si el término está vacío, limpiar inmediatamente
+    if (!searchTerm || searchTerm.trim().length === 0) {
+      setSearchResults([])
+      setShowResults(false)
+      setShowAllResults(false)
+      setIsSearching(false)
+      return
+    }
+
+    // Si el término es muy corto, no buscar aún
+    if (searchTerm.trim().length < 2) {
+      setSearchResults([])
+      setShowResults(false)
+      setShowAllResults(false)
+      setIsSearching(false)
+      return
+    }
+
+    // Mostrar indicador de búsqueda inmediatamente para términos válidos
+    setIsSearching(true)
+
+    // Configurar debounce con timeout más corto para mejor UX
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(searchTerm)
+    }, 200) // Reducido de 300ms a 200ms
+
+    // Cleanup
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchTerm, performSearch])
 
   // Función para cargar las reparaciones pendientes
   const fetchReparacionesPendientes = useCallback(async () => {
@@ -361,34 +470,6 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Efecto mejorado para la búsqueda
-  useEffect(() => {
-    const fetchSearchResults = async () => {
-      if (searchTerm.trim().length > 1) {
-        try {
-          const results = await searchProductos({ query: searchTerm.trim() })
-          setSearchResults(results)
-          setShowResults(true)
-          setShowAllResults(false) // Reset al hacer nueva búsqueda
-        } catch (error) {
-          console.error("Error al buscar productos:", error)
-          setSearchResults([])
-          setShowResults(false)
-        }
-      } else {
-        // Limpiar completamente cuando no hay término de búsqueda
-        setSearchResults([])
-        setShowResults(false)
-        setShowAllResults(false)
-      }
-    }
-
-    // Debounce para evitar muchas consultas
-    const timeoutId = setTimeout(fetchSearchResults, 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [searchTerm])
-
   // Función para manejar la selección de un producto
   const handleProductSelect = (product) => {
     setSelectedProduct(product)
@@ -397,9 +478,9 @@ export default function Home() {
     setSearchTerm("") // Limpiar búsqueda al seleccionar
   }
 
-  // Función para mostrar todos los resultados
+  // Función mejorada para mostrar todos los resultados
   const handleShowAllResults = () => {
-    setShowAllResults(true)
+    searchAllResults(searchTerm)
   }
 
   // Función para limpiar la búsqueda
@@ -408,6 +489,24 @@ export default function Home() {
     setSearchResults([])
     setShowResults(false)
     setShowAllResults(false)
+    setIsSearching(false)
+
+    // Limpiar timeout si existe
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Enfocar el input de búsqueda
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }
+
+  // Función para manejar teclas en el input de búsqueda
+  const handleSearchKeyDown = (e) => {
+    if (e.key === "Escape") {
+      clearSearch()
+    }
   }
 
   // Función para abrir el diálogo de edición del dólar
@@ -615,8 +714,8 @@ export default function Home() {
   }
 
   // Determinar qué productos mostrar
-  const displayedResults = showAllResults ? searchResults : searchResults.slice(0, 5)
-  const hasMoreResults = searchResults.length > 5 && !showAllResults
+  const displayedResults = showAllResults ? searchResults : searchResults.slice(0, 8)
+  const hasMoreResults = searchResults.length > 8 && !showAllResults
 
   return (
     <div className="container mx-auto p-4 max-w-7xl bg-gray-200">
@@ -694,7 +793,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Barra de búsqueda mejorada */}
+      {/* Barra de búsqueda mejorada y optimizada */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -704,87 +803,145 @@ export default function Home() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             type="text"
-            placeholder="Buscar productos"
-            className="pl-10 pr-10 py-6 text-base bg-white"
+            placeholder="Buscar productos (mínimo 2 caracteres)..."
+            className="pl-10 pr-10 py-6 text-base bg-white transition-all duration-200 focus:ring-2 focus:ring-orange-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
           />
-          {searchTerm && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-gray-700"
-              onClick={clearSearch}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+            {isSearching && <Loader2 className="h-4 w-4 text-orange-600 animate-spin" />}
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-gray-700"
+                onClick={clearSearch}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Resultados de búsqueda mejorados */}
+        {/* Resultados de búsqueda mejorados y más rápidos */}
         <AnimatePresence>
           {showResults && searchResults.length > 0 && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute z-10 mt-2 w-full bg-white rounded-lg border shadow-lg"
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute z-10 mt-2 w-full bg-white rounded-lg border shadow-xl border-gray-200"
             >
               <div className="p-2">
-                <p className="text-sm text-muted-foreground px-3 py-2 flex items-center gap-2">
-                  <Search className="h-3.5 w-3.5" />
-                  {searchResults.length} resultados encontrados
-                </p>
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Search className="h-3.5 w-3.5" />
+                    {searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""} encontrado
+                    {searchResults.length !== 1 ? "s" : ""}
+                  </p>
+                  {searchResults.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {showAllResults ? "Todos los resultados" : "Búsqueda rápida"}
+                    </Badge>
+                  )}
+                </div>
 
-                {/* Contenedor con scroll para todos los resultados */}
-                <div className={`${showAllResults ? "max-h-96 overflow-y-auto" : ""}`}>
-                  {displayedResults.map((product) => (
-                    <div
+                {/* Contenedor con scroll mejorado */}
+                <div className={`${showAllResults ? "max-h-96 overflow-y-auto" : ""} mt-2`}>
+                  {displayedResults.map((product, index) => (
+                    <motion.div
                       key={product.id}
-                      className="px-3 py-2 hover:bg-gray-300 rounded-md cursor-pointer flex justify-between items-center"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.1, delay: index * 0.02 }}
+                      className="px-3 py-3 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 rounded-md cursor-pointer flex justify-between items-center transition-all duration-200 group"
                       onClick={() => handleProductSelect(product)}
                     >
-                      <div>
-                        <p className="font-medium">{product.nombre}</p>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 group-hover:text-orange-800 transition-colors">
+                          {product.nombre}
+                        </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs py-0 h-5">
+                          <Badge variant="outline" className="text-xs py-0 h-5 border-gray-300">
                             {product.categoria || "Sin categoría"}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">Stock: {product.stock || 0}</span>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <span>Stock:</span>
+                            <span
+                              className={`font-medium ${
+                                product.stock > 10
+                                  ? "text-green-600"
+                                  : product.stock > 0
+                                    ? "text-amber-600"
+                                    : "text-red-600"
+                              }`}
+                            >
+                              {product.stock || 0}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-[#0b0044]">${formatNumberARS(product.precio || 0)}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="font-bold text-[#0b0044] text-lg">${formatNumberARS(product.precio || 0)}</p>
+                        <p className="text-xs mt-1">
                           {product.stock > 10 ? (
-                            <span className="text-green-600">Disponible</span>
+                            <span className="text-green-600 font-medium">✓ Disponible</span>
                           ) : product.stock > 0 ? (
-                            <span className="text-amber-600">Stock bajo</span>
+                            <span className="text-amber-600 font-medium">⚠ Stock bajo</span>
                           ) : (
-                            <span className="text-red-600">Sin stock</span>
+                            <span className="text-red-600 font-medium">✗ Sin stock</span>
                           )}
                         </p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
 
-                {/* Botón para mostrar más resultados */}
+                {/* Botón mejorado para mostrar más resultados */}
                 {hasMoreResults && (
-                  <div
-                    className="text-sm text-center text-[#0b0044] p-2 border-t hover:bg-gray-100 cursor-pointer font-medium"
-                    onClick={handleShowAllResults}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="border-t border-gray-100 mt-2"
                   >
-                    Ver todos los {searchResults.length} productos
-                  </div>
+                    <button
+                      className="w-full text-sm text-center text-[#0b0044] p-3 hover:bg-orange-50 transition-colors duration-200 font-medium flex items-center justify-center gap-2"
+                      onClick={handleShowAllResults}
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                      Ver todos los {searchResults.length} productos
+                    </button>
+                  </motion.div>
                 )}
               </div>
             </motion.div>
           )}
 
-          {/* Mensaje cuando no hay resultados */}
-          {showResults && searchResults.length === 0 && searchTerm.trim().length > 1 && (
+          {/* Mensaje mejorado cuando no hay resultados */}
+          {showResults && searchResults.length === 0 && searchTerm.trim().length > 1 && !isSearching && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute z-10 mt-2 w-full bg-white rounded-lg border shadow-lg"
+            >
+              <div className="p-6 text-center text-muted-foreground">
+                <Search className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-lg font-medium mb-1">No se encontraron productos</p>
+                <p className="text-sm">Intenta con diferentes términos de búsqueda</p>
+                <p className="text-xs mt-2 text-gray-400">Búsqueda: "{searchTerm}"</p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Indicador de búsqueda */}
+          {isSearching && searchTerm.trim().length >= 2 && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -792,8 +949,8 @@ export default function Home() {
               className="absolute z-10 mt-2 w-full bg-white rounded-lg border shadow-lg"
             >
               <div className="p-4 text-center text-muted-foreground">
-                <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p>No se encontraron productos para "{searchTerm}"</p>
+                <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin text-orange-600" />
+                <p className="text-sm">Buscando productos...</p>
               </div>
             </motion.div>
           )}
