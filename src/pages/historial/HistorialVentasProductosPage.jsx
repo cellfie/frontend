@@ -357,9 +357,7 @@ const HistorialVentas = () => {
     }
 
     setProductoSeleccionado(producto)
-    // NUEVO: Limpiar el campo de búsqueda después de seleccionar
-    setBusquedaProducto("")
-    setProductos([])
+    setBusquedaProducto(producto.nombre)
     setMostrarDropdownProductos(false)
     setProductosFocused(false)
 
@@ -998,6 +996,7 @@ const HistorialVentas = () => {
                       </motion.div>
                     )}
                   </AnimatePresence>
+
                 </div>
               </CardContent>
             </Card>
