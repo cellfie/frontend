@@ -357,7 +357,9 @@ const HistorialVentas = () => {
     }
 
     setProductoSeleccionado(producto)
-    setBusquedaProducto(producto.nombre)
+    // NUEVO: Limpiar el campo de búsqueda después de seleccionar
+    setBusquedaProducto("")
+    setProductos([])
     setMostrarDropdownProductos(false)
     setProductosFocused(false)
 
@@ -996,24 +998,6 @@ const HistorialVentas = () => {
                       </motion.div>
                     )}
                   </AnimatePresence>
-
-                  {/* Ayuda y consejos */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        <Search className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-blue-900 mb-1">Consejos de búsqueda</h4>
-                        <ul className="text-sm text-blue-700 space-y-1">
-                          <li>• Escribe al menos 2 caracteres para comenzar la búsqueda</li>
-                          <li>• Puedes buscar por nombre del producto o código</li>
-                          <li>• Los resultados se actualizan automáticamente mientras escribes</li>
-                          <li>• El producto seleccionado se mantiene marcado hasta que lo cambies</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </CardContent>
             </Card>
