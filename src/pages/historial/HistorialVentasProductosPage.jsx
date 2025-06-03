@@ -1009,6 +1009,9 @@ const HistorialVentas = () => {
                         <h4 className="font-medium text-blue-900 mb-1">Consejos de búsqueda</h4>
                         <ul className="text-sm text-blue-700 space-y-1">
                           <li>• Escribe al menos 2 caracteres para comenzar la búsqueda</li>
+                          <li>• Puedes buscar por nombre del producto o código</li>
+                          <li>• Los resultados se actualizan automáticamente mientras escribes</li>
+                          <li>• El producto seleccionado se mantiene marcado hasta que lo cambies</li>
                         </ul>
                       </div>
                     </div>
