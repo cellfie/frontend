@@ -64,7 +64,8 @@ import { getMetodosPago } from "@/services/metodosPagoService"
 import { getDevolucionesByVenta } from "@/services/devolucionesService"
 import { searchProductosRapido } from "@/services/productosService"
 import { useAuth } from "@/context/AuthContext"
-import DevolucionVentaForm from "@/components/DevolucionVentaForm"
+import DevolucionDialog from "@/components/devoluciones/DevolucionDialog"
+import DevolucionesList from "@/components/devoluciones/DevolucionesList"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -565,10 +566,6 @@ const HistorialVentas = () => {
     } finally {
       setCargandoDevoluciones(false)
     }
-  }
-
-  const abrirDialogDevolucion = () => {
-    setDialogDevolucionAbierto(true)
   }
 
   const handleDevolucionCompleta = () => {
@@ -1476,92 +1473,11 @@ const HistorialVentas = () => {
                                           </TabsContent>
 
                                           <TabsContent value="devoluciones">
-                                            {cargandoDevoluciones ? (
-                                              <div className="flex justify-center items-center py-8">
-                                                <div className="flex items-center gap-3">
-                                                  <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
-                                                  <span className="text-gray-600">Cargando devoluciones...</span>
-                                                </div>
-                                              </div>
-                                            ) : devolucionesVenta.length > 0 ? (
-                                              <div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                  {devolucionesVenta.map((devolucion) => (
-                                                    <Card key={devolucion.id} className="shadow-sm border">
-                                                      <CardHeader>
-                                                        <CardTitle className="text-sm font-medium">
-                                                          Devolución #{devolucion.id}
-                                                          {devolucion.anulada === 1 && (
-                                                            <Badge variant="destructive" className="ml-2">
-                                                              Anulada
-                                                            </Badge>
-                                                          )}
-                                                        </CardTitle>
-                                                        <CardDescription className="text-xs text-gray-500">
-                                                          Fecha: {formatearFechaHora(devolucion.fecha)}
-                                                        </CardDescription>
-                                                      </CardHeader>
-                                                      <CardContent className="text-sm">
-                                                        {devolucion.productos_devueltos &&
-                                                          devolucion.productos_devueltos.length > 0 && (
-                                                            <div>
-                                                              <h4 className="text-gray-700 font-medium mb-2">
-                                                                Productos Devueltos:
-                                                              </h4>
-                                                              <ul>
-                                                                {devolucion.productos_devueltos.map((producto) => (
-                                                                  <li
-                                                                    key={producto.id}
-                                                                    className="flex justify-between"
-                                                                  >
-                                                                    <span>{producto.producto_nombre}</span>
-                                                                    <span>Cantidad: {producto.cantidad}</span>
-                                                                  </li>
-                                                                ))}
-                                                              </ul>
-                                                            </div>
-                                                          )}
-                                                        {devolucion.productos_reemplazo &&
-                                                          devolucion.productos_reemplazo.length > 0 && (
-                                                            <div>
-                                                              <h4 className="text-gray-700 font-medium mb-2">
-                                                                Productos de Reemplazo:
-                                                              </h4>
-                                                              <ul>
-                                                                {devolucion.productos_reemplazo.map((producto) => (
-                                                                  <li
-                                                                    key={producto.id}
-                                                                    className="flex justify-between"
-                                                                  >
-                                                                    <span>{producto.producto_nombre}</span>
-                                                                    <span>Cantidad: {producto.cantidad}</span>
-                                                                  </li>
-                                                                ))}
-                                                              </ul>
-                                                            </div>
-                                                          )}
-                                                        {devolucion.motivo && (
-                                                          <div>
-                                                            <h4 className="text-gray-700 font-medium mb-2">Motivo:</h4>
-                                                            <p>{devolucion.motivo}</p>
-                                                          </div>
-                                                        )}
-                                                      </CardContent>
-                                                    </Card>
-                                                  ))}
-                                                </div>
-                                                <div className="mt-4">
-                                                  <Button onClick={abrirDialogDevolucion}>Gestionar Devolución</Button>
-                                                </div>
-                                              </div>
-                                            ) : (
-                                              <div className="text-center py-6">
-                                                <p className="text-gray-500">
-                                                  No hay devoluciones registradas para esta venta.
-                                                </p>
-                                                <Button onClick={abrirDialogDevolucion}>Gestionar Devolución</Button>
-                                              </div>
-                                            )}
+                                            <DevolucionesList
+                                              devoluciones={devolucionesVenta}
+                                              formatearPrecio={formatearPrecio}
+                                              formatearFechaHora={formatearFechaHora}
+                                            />
                                           </TabsContent>
                                         </Tabs>
                                       ) : (
@@ -1622,24 +1538,14 @@ const HistorialVentas = () => {
       </div>
 
       {/* Dialogo de Devolución */}
-      <Dialog open={dialogDevolucionAbierto} onOpenChange={setDialogDevolucionAbierto}>
-        <DialogContent className="sm:max-w-[625px]">
-          <DialogHeader>
-            <DialogTitle>Gestionar Devolución</DialogTitle>
-            <DialogDescription>Realizar una devolución completa o parcial de la venta.</DialogDescription>
-          </DialogHeader>
-          <DevolucionVentaForm
-            venta={ventaSeleccionada}
-            onDevolucionCompleta={handleDevolucionCompleta}
-            onClose={() => setDialogDevolucionAbierto(false)}
-          />
-          <DialogFooter>
-            <Button type="button" variant="secondary" onClick={() => setDialogDevolucionAbierto(false)}>
-              Cancelar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DevolucionDialog
+        open={dialogDevolucionAbierto}
+        setOpen={setDialogDevolucionAbierto}
+        venta={ventaSeleccionada}
+        cliente={ventaSeleccionada?.cliente}
+        onDevolucionCompleta={handleDevolucionCompleta}
+        formatearPrecio={formatearPrecio}
+      />
 
       {/* Diálogo de Anulación */}
       <Dialog open={dialogAnularAbierto} onOpenChange={setDialogAnularAbierto}>
