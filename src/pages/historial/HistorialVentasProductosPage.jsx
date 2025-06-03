@@ -27,6 +27,8 @@ import {
   X,
   Star,
   TrendingUp,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -134,6 +136,9 @@ const HistorialVentas = () => {
   const [cargandoProductos, setCargandoProductos] = useState(false)
   const [mostrarDropdownProductos, setMostrarDropdownProductos] = useState(false)
   const [productosFocused, setProductosFocused] = useState(false)
+
+  // NUEVO: Estado para controlar la visibilidad de la búsqueda de productos
+  const [mostrarBusquedaProductos, setMostrarBusquedaProductos] = useState(false)
 
   // Estados de datos auxiliares
   const [puntosVenta, setPuntosVenta] = useState([])
@@ -344,12 +349,18 @@ const HistorialVentas = () => {
     }
   }, [currentPage])
 
-  // MEJORADO: Manejar selección de producto
+  // MEJORADO: Manejar selección de producto con mejor persistencia
   const handleSeleccionarProducto = (producto) => {
+    // Si ya está seleccionado, no hacer nada (mantener la selección)
+    if (productoSeleccionado?.id === producto.id) {
+      return
+    }
+
     setProductoSeleccionado(producto)
     setBusquedaProducto(producto.nombre)
     setMostrarDropdownProductos(false)
     setProductosFocused(false)
+
     toast.success(`Filtrando ventas por: ${producto.nombre}`, {
       position: "bottom-right",
       autoClose: 2000,
@@ -363,6 +374,17 @@ const HistorialVentas = () => {
     setProductos([])
     setMostrarDropdownProductos(false)
     setProductosFocused(false)
+  }
+
+  // NUEVO: Toggle para mostrar/ocultar búsqueda de productos
+  const toggleBusquedaProductos = () => {
+    setMostrarBusquedaProductos(!mostrarBusquedaProductos)
+    // Si se oculta y hay un producto seleccionado, mantenerlo
+    if (mostrarBusquedaProductos && !productoSeleccionado) {
+      setBusquedaProducto("")
+      setProductos([])
+      setMostrarDropdownProductos(false)
+    }
   }
 
   const formatearFechaHora = (fechaString) => {
@@ -417,6 +439,7 @@ const HistorialVentas = () => {
     limpiarFiltroProducto()
     setCurrentPage(1)
     setDetalleVentaAbierto(null)
+    // No ocultar la búsqueda de productos al limpiar filtros
   }
 
   // MEJORADO: Abrir detalle de venta con scroll automático y mejor manejo de errores
@@ -708,225 +731,295 @@ const HistorialVentas = () => {
         </Card>
       )}
 
-      {/* INTERFAZ MEJORADA: Búsqueda de productos destacada */}
-      <Card className="mb-6 border-0 shadow-lg bg-gradient-to-br from-orange-50 via-white to-orange-50">
-        <CardHeader className="bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-t-lg">
-          <CardTitle className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-lg">
-              <Package className="h-6 w-6" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold">Búsqueda Inteligente por Productos</h3>
-              <p className="text-orange-100 text-sm font-normal">
-                Encuentra ventas específicas filtrando por productos
-              </p>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            {/* Campo de búsqueda mejorado */}
-            <div className="relative">
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-                  <Search className="h-5 w-5 text-orange-500" />
-                  <span className="text-gray-400 text-sm">|</span>
-                </div>
-                <Input
-                  placeholder="Buscar productos por nombre o código..."
-                  className="pl-16 pr-12 py-4 text-lg border-2 border-orange-200 focus:border-orange-500 focus:ring-orange-500 bg-white shadow-sm rounded-xl transition-all duration-200"
-                  value={busquedaProducto}
-                  onChange={(e) => setBusquedaProducto(e.target.value)}
-                  onFocus={() => {
-                    setProductosFocused(true)
-                    if (productos.length > 0) setMostrarDropdownProductos(true)
-                  }}
-                  onBlur={() => {
-                    // Delay para permitir clicks en el dropdown
-                    setTimeout(() => {
-                      setProductosFocused(false)
-                      setMostrarDropdownProductos(false)
-                    }, 200)
-                  }}
-                />
+      {/* NUEVO: Botón para mostrar/ocultar búsqueda de productos */}
+      <div className="mb-4">
+        <Button
+          onClick={toggleBusquedaProductos}
+          variant={mostrarBusquedaProductos ? "default" : "outline"}
+          className={`${
+            mostrarBusquedaProductos
+              ? "bg-orange-600 hover:bg-orange-700 text-white"
+              : "border-orange-300 text-orange-600 hover:bg-orange-50"
+          } transition-all duration-200`}
+        >
+          {mostrarBusquedaProductos ? (
+            <>
+              <EyeOff className="h-4 w-4 mr-2" />
+              Ocultar Búsqueda por Productos
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4 mr-2" />
+              Mostrar Búsqueda por Productos
+            </>
+          )}
+          {productoSeleccionado && (
+            <Badge className="ml-2 bg-white/20 text-white border-white/30">Activo: {productoSeleccionado.nombre}</Badge>
+          )}
+        </Button>
+      </div>
 
-                {/* Indicadores en el input */}
-                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-                  {cargandoProductos && <Loader2 className="h-5 w-5 animate-spin text-orange-500" />}
-                  {busquedaProducto && !cargandoProductos && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-gray-400 hover:text-orange-600 hover:bg-orange-50"
-                      onClick={limpiarFiltroProducto}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Dropdown de resultados mejorado */}
-              <AnimatePresence>
-                {mostrarDropdownProductos && productos.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute z-50 mt-2 w-full bg-white border-2 border-orange-200 rounded-xl shadow-2xl overflow-hidden"
+      {/* MEJORADO: Búsqueda de productos colapsable */}
+      <AnimatePresence>
+        {mostrarBusquedaProductos && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: "auto", marginBottom: 24 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 via-white to-orange-50">
+              <CardHeader className="bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-t-lg">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-lg">
+                      <Package className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Búsqueda Inteligente por Productos</h3>
+                      <p className="text-orange-100 text-sm font-normal">
+                        Encuentra ventas específicas filtrando por productos
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleBusquedaProductos}
+                    className="text-white hover:bg-white/20 hover:text-white"
                   >
-                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2">
-                      <div className="flex items-center justify-between text-white">
-                        <span className="text-sm font-medium flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4" />
-                          {productos.length} productos encontrados
-                        </span>
-                        <Badge className="bg-white/20 text-white border-white/30">Resultados</Badge>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  {/* Campo de búsqueda mejorado */}
+                  <div className="relative">
+                    <div className="relative">
+                      <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                        <Search className="h-5 w-5 text-orange-500" />
+                        <span className="text-gray-400 text-sm">|</span>
+                      </div>
+                      <Input
+                        placeholder="Buscar productos por nombre o código..."
+                        className="pl-16 pr-12 py-4 text-lg border-2 border-orange-200 focus:border-orange-500 focus:ring-orange-500 bg-white shadow-sm rounded-xl transition-all duration-200"
+                        value={busquedaProducto}
+                        onChange={(e) => setBusquedaProducto(e.target.value)}
+                        onFocus={() => {
+                          setProductosFocused(true)
+                          if (productos.length > 0) setMostrarDropdownProductos(true)
+                        }}
+                        onBlur={() => {
+                          // Delay para permitir clicks en el dropdown
+                          setTimeout(() => {
+                            setProductosFocused(false)
+                            setMostrarDropdownProductos(false)
+                          }, 200)
+                        }}
+                      />
+
+                      {/* Indicadores en el input */}
+                      <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                        {cargandoProductos && <Loader2 className="h-5 w-5 animate-spin text-orange-500" />}
+                        {busquedaProducto && !cargandoProductos && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-gray-400 hover:text-orange-600 hover:bg-orange-50"
+                            onClick={limpiarFiltroProducto}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
 
-                    <div className="max-h-80 overflow-y-auto">
-                      {productos.map((producto, index) => (
+                    {/* Dropdown de resultados mejorado */}
+                    <AnimatePresence>
+                      {mostrarDropdownProductos && productos.length > 0 && (
                         <motion.div
-                          key={producto.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.15, delay: index * 0.03 }}
-                          className={`p-4 cursor-pointer transition-all duration-200 border-b border-gray-100 last:border-b-0 ${
-                            productoSeleccionado?.id === producto.id
-                              ? "bg-gradient-to-r from-orange-50 to-orange-100 border-l-4 border-l-orange-500"
-                              : "hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100"
-                          }`}
-                          onClick={() => handleSeleccionarProducto(producto)}
+                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="absolute z-50 mt-2 w-full bg-white border-2 border-orange-200 rounded-xl shadow-2xl overflow-hidden"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3">
-                                <div className="bg-orange-100 p-2 rounded-lg">
-                                  <Package className="h-4 w-4 text-orange-600" />
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-gray-900 text-base">{producto.nombre}</h4>
-                                  <div className="flex items-center gap-3 mt-1">
-                                    <Badge variant="outline" className="text-xs bg-gray-50">
-                                      {producto.codigo}
-                                    </Badge>
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-500">Stock:</span>
-                                      <span
-                                        className={`text-xs font-medium ${
-                                          producto.stock > 10
-                                            ? "text-green-600"
-                                            : producto.stock > 0
-                                              ? "text-amber-600"
-                                              : "text-red-600"
+                          <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2">
+                            <div className="flex items-center justify-between text-white">
+                              <span className="text-sm font-medium flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4" />
+                                {productos.length} productos encontrados
+                              </span>
+                              <Badge className="bg-white/20 text-white border-white/30">Resultados</Badge>
+                            </div>
+                          </div>
+
+                          <div className="max-h-80 overflow-y-auto">
+                            {productos.map((producto, index) => (
+                              <motion.div
+                                key={producto.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.15, delay: index * 0.03 }}
+                                className={`p-4 cursor-pointer transition-all duration-200 border-b border-gray-100 last:border-b-0 ${
+                                  productoSeleccionado?.id === producto.id
+                                    ? "bg-gradient-to-r from-orange-100 to-orange-200 border-l-4 border-l-orange-600"
+                                    : "hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100"
+                                }`}
+                                onClick={() => handleSeleccionarProducto(producto)}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className={`p-2 rounded-lg ${
+                                          productoSeleccionado?.id === producto.id ? "bg-orange-200" : "bg-orange-100"
                                         }`}
                                       >
-                                        {producto.stock || 0}
+                                        <Package
+                                          className={`h-4 w-4 ${
+                                            productoSeleccionado?.id === producto.id
+                                              ? "text-orange-700"
+                                              : "text-orange-600"
+                                          }`}
+                                        />
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <h4 className="font-semibold text-gray-900 text-base">{producto.nombre}</h4>
+                                          {productoSeleccionado?.id === producto.id && (
+                                            <CheckCircle className="h-4 w-4 text-orange-600" />
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-1">
+                                          <Badge variant="outline" className="text-xs bg-gray-50">
+                                            {producto.codigo}
+                                          </Badge>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs text-gray-500">Stock:</span>
+                                            <span
+                                              className={`text-xs font-medium ${
+                                                producto.stock > 10
+                                                  ? "text-green-600"
+                                                  : producto.stock > 0
+                                                    ? "text-amber-600"
+                                                    : "text-red-600"
+                                              }`}
+                                            >
+                                              {producto.stock || 0}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <div className="text-xl font-bold text-orange-600">
+                                      {formatearPrecio(producto.precio || 0)}
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      {producto.stock > 10 ? (
+                                        <CheckCircle className="h-3 w-3 text-green-500" />
+                                      ) : producto.stock > 0 ? (
+                                        <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                      ) : (
+                                        <XCircle className="h-3 w-3 text-red-500" />
+                                      )}
+                                      <span className="text-xs text-gray-500">
+                                        {producto.stock > 10
+                                          ? "Disponible"
+                                          : producto.stock > 0
+                                            ? "Stock bajo"
+                                            : "Sin stock"}
                                       </span>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <div className="text-xl font-bold text-orange-600">
-                                {formatearPrecio(producto.precio || 0)}
-                              </div>
-                              <div className="flex items-center gap-1 mt-1">
-                                {producto.stock > 10 ? (
-                                  <CheckCircle className="h-3 w-3 text-green-500" />
-                                ) : producto.stock > 0 ? (
-                                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                                ) : (
-                                  <XCircle className="h-3 w-3 text-red-500" />
-                                )}
-                                <span className="text-xs text-gray-500">
-                                  {producto.stock > 10 ? "Disponible" : producto.stock > 0 ? "Stock bajo" : "Sin stock"}
-                                </span>
-                              </div>
-                            </div>
+                              </motion.div>
+                            ))}
                           </div>
                         </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      )}
+                    </AnimatePresence>
 
-              {/* Mensaje cuando no hay resultados */}
-              {mostrarDropdownProductos &&
-                productos.length === 0 &&
-                busquedaProducto.length >= 2 &&
-                !cargandoProductos && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute z-50 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-lg p-6 text-center"
-                  >
-                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <h3 className="text-lg font-medium text-gray-600 mb-1">No se encontraron productos</h3>
-                    <p className="text-sm text-gray-400">Intenta con diferentes términos de búsqueda</p>
-                  </motion.div>
-                )}
-            </div>
+                    {/* Mensaje cuando no hay resultados */}
+                    {mostrarDropdownProductos &&
+                      productos.length === 0 &&
+                      busquedaProducto.length >= 2 &&
+                      !cargandoProductos && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute z-50 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-lg p-6 text-center"
+                        >
+                          <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <h3 className="text-lg font-medium text-gray-600 mb-1">No se encontraron productos</h3>
+                          <p className="text-sm text-gray-400">Intenta con diferentes términos de búsqueda</p>
+                        </motion.div>
+                      )}
+                  </div>
 
-            {/* Producto seleccionado */}
-            <AnimatePresence>
-              {productoSeleccionado && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-white"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-white/20 p-2 rounded-lg">
-                        <Star className="h-5 w-5" />
+                  {/* Producto seleccionado */}
+                  <AnimatePresence>
+                    {productoSeleccionado && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-white"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-white/20 p-2 rounded-lg">
+                              <Star className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-lg">Filtrando por producto:</h4>
+                              <p className="text-orange-100">{productoSeleccionado.nombre}</p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={limpiarFiltroProducto}
+                            className="text-white hover:bg-white/20 hover:text-white"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Quitar filtro
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Ayuda y consejos */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <Search className="h-4 w-4 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-lg">Filtrando por producto:</h4>
-                        <p className="text-orange-100">{productoSeleccionado.nombre}</p>
+                        <h4 className="font-medium text-blue-900 mb-1">Consejos de búsqueda</h4>
+                        <ul className="text-sm text-blue-700 space-y-1">
+                          <li>• Escribe al menos 2 caracteres para comenzar la búsqueda</li>
+                          <li>• Puedes buscar por nombre del producto o código</li>
+                          <li>• Los resultados se actualizan automáticamente mientras escribes</li>
+                          <li>• El producto seleccionado se mantiene marcado hasta que lo cambies</li>
+                        </ul>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={limpiarFiltroProducto}
-                      className="text-white hover:bg-white/20 hover:text-white"
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      Quitar filtro
-                    </Button>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Ayuda y consejos */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Search className="h-4 w-4 text-blue-600" />
                 </div>
-                <div>
-                  <h4 className="font-medium text-blue-900 mb-1">Consejos de búsqueda</h4>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Escribe al menos 2 caracteres para comenzar la búsqueda</li>
-                    <li>• Puedes buscar por nombre del producto o código</li>
-                    <li>• Los resultados se actualizan automáticamente mientras escribes</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header mejorado y responsivo */}
       <div className="bg-white rounded-lg shadow-md border-0 overflow-hidden mb-6">
