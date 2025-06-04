@@ -1,5 +1,45 @@
 const API_URL = "https://api.sistemacellfierm22.site/api" 
 
+// Función para formatear fecha argentina con corrección de 3 horas
+const formatearFechaArgentinaPerdidas = (fechaString) => {
+  if (!fechaString) return ""
+
+  try {
+    // Manejar fechas que vienen de la base de datos
+    let fecha
+
+    if (fechaString.includes("T") || fechaString.includes("+")) {
+      // La fecha ya tiene información de timezone
+      fecha = new Date(fechaString)
+    } else {
+      // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
+      // Agregamos el offset de Argentina (-03:00)
+      fecha = new Date(fechaString + " GMT-0300")
+    }
+
+    if (isNaN(fecha.getTime())) return ""
+
+    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
+
+    return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false, // Formato de 24 horas
+    })
+  } catch (error) {
+    console.error("Error al formatear fecha:", error)
+    return ""
+  }
+}
+
+// Exportar la función para usar en otros componentes
+export { formatearFechaArgentinaPerdidas }
+
 // Obtener todas las pérdidas con filtros opcionales
 export const getPerdidas = async (params = {}) => {
   try {

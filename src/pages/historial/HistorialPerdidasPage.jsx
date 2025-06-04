@@ -30,6 +30,7 @@ import { searchProductosRapido } from "@/services/productosService"
 import { getRepuestos, getRepuestosByPuntoVenta } from "@/services/repuestosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { useAuth } from "@/context/AuthContext"
+import { formatearFechaArgentinaPerdidas } from "@/services/perdidasService"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -269,15 +270,7 @@ const HistorialPerdidasPage = () => {
   }
 
   const formatearFechaHora = (fechaString) => {
-    if (!fechaString) return ""
-    const fecha = new Date(fechaString)
-    return fecha.toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+    return formatearFechaArgentinaPerdidas(fechaString)
   }
 
   const limpiarFiltros = () => {
@@ -616,7 +609,7 @@ const HistorialPerdidasPage = () => {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>{formatearFechaHora(perdida.fecha)}</TableCell>
+                        <TableCell>{formatearFechaArgentinaPerdidas(perdida.fecha)}</TableCell>
                         <TableCell>
                           <Badge variant="destructive" className="font-normal">
                             {perdida.cantidad} unidad{perdida.cantidad !== 1 ? "es" : ""}
@@ -955,7 +948,7 @@ const HistorialPerdidasPage = () => {
                   </div>
                   <div className="flex justify-between mb-1">
                     <span className="text-gray-500">Fecha:</span>
-                    <span>{formatearFechaHora(perdidaEliminar.fecha)}</span>
+                    <span>{formatearFechaArgentinaPerdidas(perdidaEliminar.fecha)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Motivo:</span>
