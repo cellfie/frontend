@@ -26,20 +26,35 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
 import { getPerdidas, createPerdidaManual, deletePerdida } from "@/services/perdidasService"
-import { getProductos } from "@/services/productosService"
+import { searchProductosRapido } from "@/services/productosService"
 import { getRepuestos, getRepuestosByPuntoVenta } from "@/services/repuestosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { useAuth } from "@/context/AuthContext"
+
+// Hook personalizado para debounce
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
 
 const HistorialPerdidasPage = () => {
   const { currentUser } = useAuth()
   const [perdidas, setPerdidas] = useState([])
   const [perdidasFiltradas, setPerdidasFiltradas] = useState([])
   const [cargando, setCargando] = useState(true)
-  const [productos, setProductos] = useState([])
-  const [productosFiltrados, setProductosFiltrados] = useState([])
+  const [productos, setProductos] = useState([]) // Para el filtro principal
   const [repuestos, setRepuestos] = useState([])
-  const [repuestosFiltrados, setRepuestosFiltrados] = useState([])
   const [puntosVenta, setPuntosVenta] = useState([])
   const [filtros, setFiltros] = useState({
     busqueda: "",
@@ -56,21 +71,29 @@ const HistorialPerdidasPage = () => {
   // Estados para el diálogo de nueva pérdida
   const [dialogNuevaPerdidaAbierto, setDialogNuevaPerdidaAbierto] = useState(false)
   const [nuevaPerdida, setNuevaPerdida] = useState({
-    tipo: "producto", // 'producto' o 'repuesto'
+    tipo: "producto",
     producto_id: "",
     repuesto_id: "",
     cantidad: 1,
     motivo: "",
     punto_venta_id: "",
   })
+
+  // Estados mejorados para búsqueda de productos/repuestos
   const [busquedaItem, setBusquedaItem] = useState("")
+  const [resultadosBusqueda, setResultadosBusqueda] = useState([])
+  const [cargandoBusqueda, setCargandoBusqueda] = useState(false)
+  const [itemSeleccionado, setItemSeleccionado] = useState(null)
+
   const [procesandoCreacion, setProcesandoCreacion] = useState(false)
-  const [cargandoItems, setCargandoItems] = useState(false)
 
   // Estados para el diálogo de confirmación de eliminación
   const [dialogConfirmacionAbierto, setDialogConfirmacionAbierto] = useState(false)
   const [perdidaEliminar, setPerdidaEliminar] = useState(null)
   const [procesandoEliminacion, setProcesandoEliminacion] = useState(false)
+
+  // Debounce para la búsqueda
+  const busquedaDebounced = useDebounce(busquedaItem, 300)
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -80,8 +103,8 @@ const HistorialPerdidasPage = () => {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
 
-        // Cargar productos
-        const productosData = await getProductos()
+        // Cargar productos básicos para el filtro principal (sin stock detallado)
+        const productosData = await searchProductosRapido("")
         setProductos(productosData)
 
         // Cargar repuestos
@@ -112,21 +135,76 @@ const HistorialPerdidasPage = () => {
     cargarDatosIniciales()
   }, [])
 
+  // Búsqueda mejorada de productos/repuestos
+  useEffect(() => {
+    const buscarItems = async () => {
+      if (!nuevaPerdida.punto_venta_id || busquedaDebounced.length < 2) {
+        setResultadosBusqueda([])
+        return
+      }
+
+      setCargandoBusqueda(true)
+      try {
+        if (nuevaPerdida.tipo === "producto") {
+          // Usar la nueva función de búsqueda rápida
+          const productos = await searchProductosRapido(busquedaDebounced)
+
+          // Filtrar por punto de venta si es necesario
+          // Nota: Si searchProductosRapido no filtra por punto de venta,
+          // podrías necesitar una función específica o filtrar aquí
+          setResultadosBusqueda(productos.slice(0, 10)) // Limitar a 10 resultados
+        } else if (nuevaPerdida.tipo === "repuesto") {
+          // Para repuestos, usar la función existente
+          const repuestosPuntoVenta = await getRepuestosByPuntoVenta(nuevaPerdida.punto_venta_id)
+
+          const filtrados = repuestosPuntoVenta
+            .filter(
+              (r) =>
+                r.nombre?.toLowerCase().includes(busquedaDebounced.toLowerCase()) ||
+                r.codigo?.toLowerCase().includes(busquedaDebounced.toLowerCase()) ||
+                r.descripcion?.toLowerCase().includes(busquedaDebounced.toLowerCase()) ||
+                r.marca?.toLowerCase().includes(busquedaDebounced.toLowerCase()) ||
+                r.modelo?.toLowerCase().includes(busquedaDebounced.toLowerCase()),
+            )
+            .slice(0, 10)
+
+          setResultadosBusqueda(filtrados)
+        }
+      } catch (error) {
+        console.error("Error al buscar items:", error)
+        toast.error("Error al buscar items")
+        setResultadosBusqueda([])
+      } finally {
+        setCargandoBusqueda(false)
+      }
+    }
+
+    buscarItems()
+  }, [busquedaDebounced, nuevaPerdida.punto_venta_id, nuevaPerdida.tipo])
+
+  // Limpiar búsqueda cuando cambia el tipo o punto de venta
+  useEffect(() => {
+    setBusquedaItem("")
+    setResultadosBusqueda([])
+    setItemSeleccionado(null)
+    setNuevaPerdida((prev) => ({
+      ...prev,
+      producto_id: "",
+      repuesto_id: "",
+    }))
+  }, [nuevaPerdida.tipo, nuevaPerdida.punto_venta_id])
+
   // Cargar pérdidas cuando cambian los filtros
   const cargarPerdidas = async () => {
     setCargando(true)
     try {
-      // Preparar parámetros para la consulta
       const params = {}
       if (filtros.fechaInicio) params.fecha_inicio = filtros.fechaInicio
       if (filtros.fechaFin) params.fecha_fin = filtros.fechaFin
       if (filtros.productoId) params.producto_id = filtros.productoId
 
-      // Obtener pérdidas
       const perdidasData = await getPerdidas(params)
       setPerdidas(perdidasData)
-
-      // Aplicar filtro de búsqueda y punto de venta
       filtrarPerdidas(perdidasData)
     } catch (error) {
       console.error("Error al cargar pérdidas:", error)
@@ -141,12 +219,10 @@ const HistorialPerdidasPage = () => {
     (perdidasAFiltrar = perdidas) => {
       let resultado = [...perdidasAFiltrar]
 
-      // Filtrar por punto de venta
       if (filtros.puntoVentaId && filtros.puntoVentaId !== "all") {
         resultado = resultado.filter((p) => p.punto_venta_id === Number.parseInt(filtros.puntoVentaId))
       }
 
-      // Filtrar por término de búsqueda
       if (filtros.busqueda) {
         const termino = filtros.busqueda.toLowerCase()
         resultado = resultado.filter(
@@ -165,75 +241,11 @@ const HistorialPerdidasPage = () => {
     [filtros.busqueda, filtros.puntoVentaId, perdidas],
   )
 
-  // Filtrar productos o repuestos para el diálogo de nueva pérdida
-  useEffect(() => {
-    if (!nuevaPerdida.punto_venta_id) {
-      setProductosFiltrados([])
-      setRepuestosFiltrados([])
-      return
-    }
-
-    const cargarItemsPorPuntoVenta = async () => {
-      setCargandoItems(true)
-      try {
-        if (nuevaPerdida.tipo === "producto") {
-          // Filtrar productos por punto de venta y término de búsqueda
-          const productosPuntoVenta = productos.filter(
-            (p) => p.punto_venta_id === Number.parseInt(nuevaPerdida.punto_venta_id),
-          )
-
-          if (busquedaItem.trim() === "") {
-            setProductosFiltrados(productosPuntoVenta)
-          } else {
-            const termino = busquedaItem.toLowerCase()
-            const filtrados = productosPuntoVenta.filter(
-              (p) =>
-                p.nombre?.toLowerCase().includes(termino) ||
-                p.codigo?.toLowerCase().includes(termino) ||
-                p.descripcion?.toLowerCase().includes(termino),
-            )
-            setProductosFiltrados(filtrados)
-          }
-        } else if (nuevaPerdida.tipo === "repuesto") {
-          // Cargar repuestos por punto de venta
-          try {
-            const repuestosPuntoVenta = await getRepuestosByPuntoVenta(nuevaPerdida.punto_venta_id)
-
-            if (busquedaItem.trim() === "") {
-              setRepuestosFiltrados(repuestosPuntoVenta)
-            } else {
-              const termino = busquedaItem.toLowerCase()
-              const filtrados = repuestosPuntoVenta.filter(
-                (r) =>
-                  r.nombre?.toLowerCase().includes(termino) ||
-                  r.codigo?.toLowerCase().includes(termino) ||
-                  r.descripcion?.toLowerCase().includes(termino) ||
-                  r.marca?.toLowerCase().includes(termino) ||
-                  r.modelo?.toLowerCase().includes(termino),
-              )
-              setRepuestosFiltrados(filtrados)
-            }
-          } catch (error) {
-            console.error("Error al cargar repuestos por punto de venta:", error)
-            toast.error("Error al cargar repuestos")
-          }
-        }
-      } catch (error) {
-        console.error("Error al filtrar items:", error)
-      } finally {
-        setCargandoItems(false)
-      }
-    }
-
-    cargarItemsPorPuntoVenta()
-  }, [busquedaItem, productos, repuestos, nuevaPerdida.punto_venta_id, nuevaPerdida.tipo])
-
-  // Efecto para aplicar filtros de búsqueda y punto de venta
+  // Efectos para aplicar filtros
   useEffect(() => {
     filtrarPerdidas()
   }, [filtros.busqueda, filtros.puntoVentaId, perdidas, filtrarPerdidas])
 
-  // Actualizar filtros cuando cambia el rango de fechas
   useEffect(() => {
     if (rangoFechas && rangoFechas.from && rangoFechas.to) {
       setFiltros({
@@ -241,34 +253,24 @@ const HistorialPerdidasPage = () => {
         fechaInicio: formatearFecha(rangoFechas.from),
         fechaFin: formatearFecha(rangoFechas.to),
       })
-    } else if (rangoFechas && (!rangoFechas.from || !rangoFechas.to)) {
-      // Si alguna de las fechas es null, no actualizamos los filtros
-      // Esto evita que se envíen consultas con fechas incompletas
-      // console.log("Rango de fechas incompleto, no se actualizarán los filtros")
     }
   }, [rangoFechas])
 
-  // Modificar el useEffect que carga las pérdidas
   useEffect(() => {
-    // Solo cargar si tenemos fechas
     if (filtros.fechaInicio && filtros.fechaFin) {
       cargarPerdidas()
     }
   }, [filtros.fechaInicio, filtros.fechaFin, filtros.productoId])
 
-  // Formatear fecha para la API
+  // Funciones utilitarias
   const formatearFecha = (fecha) => {
     if (!fecha) return null
     return fecha.toISOString().split("T")[0]
   }
-  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
+
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
-
-    // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
-
-    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
@@ -278,10 +280,7 @@ const HistorialPerdidasPage = () => {
     })
   }
 
-
-  // Limpiar filtros
   const limpiarFiltros = () => {
-    // Mantener solo las fechas
     const fechaFin = new Date()
     const fechaInicio = new Date()
     fechaInicio.setDate(fechaInicio.getDate() - 30)
@@ -300,7 +299,7 @@ const HistorialPerdidasPage = () => {
     })
   }
 
-  // Abrir diálogo de nueva pérdida
+  // Funciones del diálogo de nueva pérdida
   const abrirDialogNuevaPerdida = () => {
     setNuevaPerdida({
       tipo: "producto",
@@ -311,32 +310,31 @@ const HistorialPerdidasPage = () => {
       punto_venta_id: "",
     })
     setBusquedaItem("")
-    setProductosFiltrados([])
-    setRepuestosFiltrados([])
+    setResultadosBusqueda([])
+    setItemSeleccionado(null)
     setDialogNuevaPerdidaAbierto(true)
   }
 
-  // Seleccionar producto para la nueva pérdida
-  const seleccionarProducto = (producto) => {
-    setNuevaPerdida({
-      ...nuevaPerdida,
-      producto_id: producto.id.toString(),
-      repuesto_id: "", // Limpiar el repuesto si se selecciona un producto
-    })
-    setBusquedaItem("") // Limpiar el campo de búsqueda
+  const seleccionarItem = (item) => {
+    if (nuevaPerdida.tipo === "producto") {
+      setNuevaPerdida({
+        ...nuevaPerdida,
+        producto_id: item.id.toString(),
+        repuesto_id: "",
+      })
+    } else {
+      setNuevaPerdida({
+        ...nuevaPerdida,
+        repuesto_id: item.id.toString(),
+        producto_id: "",
+      })
+    }
+
+    setItemSeleccionado(item)
+    setBusquedaItem("")
+    setResultadosBusqueda([])
   }
 
-  // Seleccionar repuesto para la nueva pérdida
-  const seleccionarRepuesto = (repuesto) => {
-    setNuevaPerdida({
-      ...nuevaPerdida,
-      repuesto_id: repuesto.id.toString(),
-      producto_id: "", // Limpiar el producto si se selecciona un repuesto
-    })
-    setBusquedaItem("") // Limpiar el campo de búsqueda
-  }
-
-  // Cambiar tipo de pérdida (producto o repuesto)
   const cambiarTipoPerdida = (tipo) => {
     setNuevaPerdida({
       ...nuevaPerdida,
@@ -345,11 +343,12 @@ const HistorialPerdidasPage = () => {
       repuesto_id: "",
     })
     setBusquedaItem("")
+    setResultadosBusqueda([])
+    setItemSeleccionado(null)
   }
 
-  // Crear nueva pérdida
   const crearNuevaPerdida = async () => {
-    // Validar datos
+    // Validaciones
     if (nuevaPerdida.tipo === "producto" && !nuevaPerdida.producto_id) {
       toast.error("Debe seleccionar un producto")
       return
@@ -378,7 +377,6 @@ const HistorialPerdidasPage = () => {
     setProcesandoCreacion(true)
 
     try {
-      // Preparar datos para enviar al servidor
       const perdidaData = {
         tipo: nuevaPerdida.tipo,
         producto_id: nuevaPerdida.tipo === "producto" ? Number.parseInt(nuevaPerdida.producto_id) : null,
@@ -388,14 +386,9 @@ const HistorialPerdidasPage = () => {
         punto_venta_id: Number.parseInt(nuevaPerdida.punto_venta_id),
       }
 
-      // Enviar al servidor
-      const resultado = await createPerdidaManual(perdidaData)
-
-      // Cerrar diálogo y mostrar mensaje de éxito
+      await createPerdidaManual(perdidaData)
       setDialogNuevaPerdidaAbierto(false)
       toast.success("Pérdida registrada correctamente")
-
-      // Recargar pérdidas
       cargarPerdidas()
     } catch (error) {
       console.error("Error al crear pérdida:", error)
@@ -405,13 +398,12 @@ const HistorialPerdidasPage = () => {
     }
   }
 
-  // Abrir diálogo de confirmación de eliminación
+  // Funciones de eliminación
   const confirmarEliminarPerdida = (perdida) => {
     setPerdidaEliminar(perdida)
     setDialogConfirmacionAbierto(true)
   }
 
-  // Eliminar pérdida
   const eliminarPerdida = async () => {
     if (!perdidaEliminar) return
 
@@ -419,12 +411,8 @@ const HistorialPerdidasPage = () => {
 
     try {
       await deletePerdida(perdidaEliminar.id)
-
-      // Actualizar lista de pérdidas
       setPerdidas(perdidas.filter((p) => p.id !== perdidaEliminar.id))
       setPerdidasFiltradas(perdidasFiltradas.filter((p) => p.id !== perdidaEliminar.id))
-
-      // Cerrar diálogo y mostrar mensaje de éxito
       setDialogConfirmacionAbierto(false)
       toast.success("Pérdida eliminada correctamente")
     } catch (error) {
@@ -435,7 +423,6 @@ const HistorialPerdidasPage = () => {
     }
   }
 
-  // Renderizar skeletons durante la carga
   const renderSkeletons = () =>
     Array.from({ length: 5 }).map((_, idx) => (
       <TableRow key={idx}>
@@ -672,7 +659,7 @@ const HistorialPerdidasPage = () => {
         </CardContent>
       </Card>
 
-      {/* Diálogo de nueva pérdida */}
+      {/* Diálogo de nueva pérdida mejorado */}
       <Dialog open={dialogNuevaPerdidaAbierto} onOpenChange={setDialogNuevaPerdidaAbierto}>
         <DialogContent className="sm:max-w-md p-0 overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-2">
@@ -683,9 +670,8 @@ const HistorialPerdidasPage = () => {
           </DialogHeader>
 
           <div className="px-4 py-2 space-y-3 max-h-[70vh] overflow-y-auto">
-            {/* Punto de venta y tipo en la misma fila */}
+            {/* Punto de venta y tipo */}
             <div className="grid grid-cols-2 gap-3">
-              {/* Punto de venta */}
               <div>
                 <Label htmlFor="puntoVenta" className="text-xs font-medium">
                   Punto de Venta <span className="text-red-500">*</span>
@@ -699,7 +685,7 @@ const HistorialPerdidasPage = () => {
                       producto_id: "",
                       repuesto_id: "",
                     })
-                    setBusquedaItem("")
+                    setItemSeleccionado(null)
                   }}
                 >
                   <SelectTrigger id="puntoVenta" className="h-8 mt-1 text-sm">
@@ -715,7 +701,6 @@ const HistorialPerdidasPage = () => {
                 </Select>
               </div>
 
-              {/* Tipo de pérdida */}
               {nuevaPerdida.punto_venta_id ? (
                 <div>
                   <Label className="text-xs font-medium">
@@ -725,8 +710,9 @@ const HistorialPerdidasPage = () => {
                     <Button
                       type="button"
                       variant={nuevaPerdida.tipo === "producto" ? "default" : "outline"}
-                      className={`flex-1 h-8 text-xs rounded-none border-0 ${nuevaPerdida.tipo === "producto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
-                        }`}
+                      className={`flex-1 h-8 text-xs rounded-none border-0 ${
+                        nuevaPerdida.tipo === "producto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
+                      }`}
                       onClick={() => cambiarTipoPerdida("producto")}
                     >
                       <Package className="h-3 w-3 mr-1" /> Producto
@@ -734,8 +720,9 @@ const HistorialPerdidasPage = () => {
                     <Button
                       type="button"
                       variant={nuevaPerdida.tipo === "repuesto" ? "default" : "outline"}
-                      className={`flex-1 h-8 text-xs rounded-none border-0 ${nuevaPerdida.tipo === "repuesto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
-                        }`}
+                      className={`flex-1 h-8 text-xs rounded-none border-0 ${
+                        nuevaPerdida.tipo === "repuesto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
+                      }`}
                       onClick={() => cambiarTipoPerdida("repuesto")}
                     >
                       <Wrench className="h-3 w-3 mr-1" /> Repuesto
@@ -769,16 +756,14 @@ const HistorialPerdidasPage = () => {
               )}
             </div>
 
-            {/* Selección de producto o repuesto */}
+            {/* Búsqueda mejorada de productos/repuestos */}
             {nuevaPerdida.punto_venta_id && (
               <div>
                 <Label className="text-xs font-medium">
                   {nuevaPerdida.tipo === "producto" ? "Producto" : "Repuesto"} <span className="text-red-500">*</span>
                 </Label>
 
-                {/* Mostrar el ítem seleccionado o el campo de búsqueda */}
-                {(nuevaPerdida.tipo === "producto" && nuevaPerdida.producto_id) ||
-                  (nuevaPerdida.tipo === "repuesto" && nuevaPerdida.repuesto_id) ? (
+                {itemSeleccionado ? (
                   <div className="flex items-center justify-between p-1.5 border rounded-md bg-gray-50 mt-1 text-sm">
                     <div className="flex items-center gap-1.5 truncate">
                       {nuevaPerdida.tipo === "producto" ? (
@@ -786,22 +771,26 @@ const HistorialPerdidasPage = () => {
                       ) : (
                         <Wrench className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
                       )}
-                      <span className="font-medium truncate">
-                        {nuevaPerdida.tipo === "producto"
-                          ? productos.find((p) => p.id.toString() === nuevaPerdida.producto_id)?.nombre
-                          : repuestos.find((r) => r.id.toString() === nuevaPerdida.repuesto_id)?.nombre}
-                      </span>
+                      <div className="truncate">
+                        <div className="font-medium truncate">{itemSeleccionado.nombre}</div>
+                        <div className="text-xs text-gray-500">
+                          Código: {itemSeleccionado.codigo}
+                          {itemSeleccionado.stock !== undefined && (
+                            <span className="ml-2">Stock: {itemSeleccionado.stock}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        if (nuevaPerdida.tipo === "producto") {
-                          setNuevaPerdida({ ...nuevaPerdida, producto_id: "" })
-                        } else {
-                          setNuevaPerdida({ ...nuevaPerdida, repuesto_id: "" })
-                        }
-                        setBusquedaItem("")
+                        setItemSeleccionado(null)
+                        setNuevaPerdida({
+                          ...nuevaPerdida,
+                          producto_id: "",
+                          repuesto_id: "",
+                        })
                       }}
                       className="h-6 px-2 text-xs text-gray-500 hover:text-red-600"
                     >
@@ -813,66 +802,55 @@ const HistorialPerdidasPage = () => {
                     <div className="relative">
                       <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5" />
                       <Input
-                        placeholder={`Buscar ${nuevaPerdida.tipo === "producto" ? "producto" : "repuesto"}...`}
+                        placeholder={`Buscar ${nuevaPerdida.tipo === "producto" ? "producto" : "repuesto"}... (mín. 2 caracteres)`}
                         className="pl-7 h-8 text-sm"
                         value={busquedaItem}
                         onChange={(e) => setBusquedaItem(e.target.value)}
                       />
                     </div>
 
-                    {/* Resultados de búsqueda */}
-                    <div className="border rounded-md max-h-[120px] overflow-y-auto text-sm">
-                      {cargandoItems ? (
-                        <div className="flex justify-center items-center p-2">
+                    {/* Resultados de búsqueda mejorados */}
+                    <div className="border rounded-md max-h-[150px] overflow-y-auto text-sm">
+                      {cargandoBusqueda ? (
+                        <div className="flex justify-center items-center p-3">
                           <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          <span className="ml-2 text-gray-500">Buscando...</span>
                         </div>
-                      ) : nuevaPerdida.tipo === "producto" ? (
-                        productosFiltrados.length > 0 ? (
-                          <div className="divide-y">
-                            {productosFiltrados.map((producto) => (
-                              <div
-                                key={producto.id}
-                                className="p-1.5 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
-                                onClick={() => seleccionarProducto(producto)}
-                              >
-                                <div className="truncate mr-2">
-                                  <div className="font-medium truncate">{producto.nombre}</div>
-                                  <div className="text-xs text-gray-500">Código: {producto.codigo}</div>
-                                </div>
-                                <Badge variant="outline" className="text-xs py-0 h-5">
-                                  Stock: {producto.stock || 0}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="p-2 text-center text-gray-500 text-xs">
-                            {busquedaItem ? "No se encontraron productos" : "Ingrese un término de búsqueda"}
-                          </div>
-                        )
-                      ) : repuestosFiltrados.length > 0 ? (
+                      ) : resultadosBusqueda.length > 0 ? (
                         <div className="divide-y">
-                          {repuestosFiltrados.map((repuesto) => (
+                          {resultadosBusqueda.map((item) => (
                             <div
-                              key={repuesto.id}
-                              className="p-1.5 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
-                              onClick={() => seleccionarRepuesto(repuesto)}
+                              key={item.id}
+                              className="p-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                              onClick={() => seleccionarItem(item)}
                             >
                               <div className="truncate mr-2">
-                                <div className="font-medium truncate">{repuesto.nombre}</div>
+                                <div className="font-medium truncate">{item.nombre}</div>
                                 <div className="text-xs text-gray-500 truncate">
-                                  Código: {repuesto.codigo} | {repuesto.marca} {repuesto.modelo}
+                                  Código: {item.codigo}
+                                  {nuevaPerdida.tipo === "repuesto" && item.marca && item.modelo && (
+                                    <span>
+                                      {" "}
+                                      | {item.marca} {item.modelo}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
-                              <Badge variant="outline" className="text-xs py-0 h-5">
-                                Stock: {repuesto.stock || 0}
-                              </Badge>
+                              {item.stock !== undefined && (
+                                <Badge variant="outline" className="text-xs py-0 h-5 flex-shrink-0">
+                                  Stock: {item.stock}
+                                </Badge>
+                              )}
                             </div>
                           ))}
                         </div>
+                      ) : busquedaItem.length >= 2 ? (
+                        <div className="p-3 text-center text-gray-500 text-xs">
+                          No se encontraron {nuevaPerdida.tipo === "producto" ? "productos" : "repuestos"}
+                        </div>
                       ) : (
-                        <div className="p-2 text-center text-gray-500 text-xs">
-                          {busquedaItem ? "No se encontraron repuestos" : "Ingrese un término de búsqueda"}
+                        <div className="p-3 text-center text-gray-400 text-xs">
+                          Ingrese al menos 2 caracteres para buscar
                         </div>
                       )}
                     </div>
@@ -881,9 +859,8 @@ const HistorialPerdidasPage = () => {
               </div>
             )}
 
-            {/* Cantidad y motivo en la misma fila */}
+            {/* Cantidad y motivo */}
             <div className="grid grid-cols-3 gap-3">
-              {/* Cantidad */}
               <div>
                 <Label htmlFor="cantidad" className="text-xs font-medium">
                   Cantidad <span className="text-red-500">*</span>
@@ -898,7 +875,6 @@ const HistorialPerdidasPage = () => {
                 />
               </div>
 
-              {/* Motivo */}
               <div className="col-span-2">
                 <Label htmlFor="motivo" className="text-xs font-medium">
                   Motivo <span className="text-red-500">*</span>
