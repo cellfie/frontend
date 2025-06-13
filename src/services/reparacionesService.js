@@ -32,6 +32,38 @@ export const getReparaciones = async (params = {}) => {
   }
 }
 
+// Obtener reparaciones por tipo de acción y fecha
+export const getReparacionesPorAccion = async (params = {}) => {
+  try {
+    // Construir la URL con los parámetros de búsqueda
+    const queryParams = new URLSearchParams()
+
+    if (params.tipo_accion) queryParams.append("tipo_accion", params.tipo_accion)
+    if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
+    if (params.fecha_fin) queryParams.append("fecha_fin", params.fecha_fin)
+    if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
+    if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
+    if (params.estado) queryParams.append("estado", params.estado)
+
+    const url = `${API_URL}/reparaciones/por-accion?${queryParams.toString()}`
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al obtener reparaciones por acción")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getReparacionesPorAccion:", error)
+    throw error
+  }
+}
+
 // Obtener una reparación por ID
 export const getReparacionById = async (id) => {
   try {
@@ -313,6 +345,18 @@ export const getMetodosPagoReparacion = () => {
     { id: "tarjeta", nombre: "Tarjeta" },
     { id: "transferencia", nombre: "Transferencia" },
     { id: "cuentaCorriente", nombre: "Cuenta Corriente" },
+  ]
+}
+
+// Obtener los tipos de acciones para filtrado
+export const getTiposAccionReparacion = () => {
+  return [
+    { id: "creacion", nombre: "Creación" },
+    { id: "terminada", nombre: "Terminada" },
+    { id: "entregada", nombre: "Entregada" },
+    { id: "pago", nombre: "Pago" },
+    { id: "edicion", nombre: "Edición" },
+    { id: "cancelada", nombre: "Cancelada" },
   ]
 }
 
