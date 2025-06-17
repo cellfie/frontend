@@ -103,8 +103,10 @@ export const createVentaEquipo = async (ventaData) => {
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
       tipo_cambio: ventaData.tipo_cambio,
-      // El backend ahora espera un array de pagos
-      pagos: ventaData.pagos, // Array de objetos: { tipo_pago: string, monto_usd: number?, monto_ars: number?, notas: string? }
+      pagos: ventaData.pagos, // Array de objetos: { tipo_pago: string, monto_usd: number, monto_ars: number, notas_pago: string? }
+      marcar_como_incompleta: ventaData.marcar_como_incompleta || false,
+      // Se agrega tipo_pago para pasar la validación del middleware. El backend lo ignora/sobrescribe.
+      tipo_pago: ventaData.pagos && ventaData.pagos.length > 0 ? ventaData.pagos[0].tipo_pago : "Pendiente",
     }
 
     const response = await fetch(`${API_URL}/ventas-equipos`, {
@@ -176,7 +178,6 @@ export const registrarPagoAdicionalVentaEquipo = async (ventaId, pagoData) => {
   }
 }
 
-
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptVentaEquipoToFrontend = (venta) => {
   return {
@@ -195,11 +196,11 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     anulada: venta.anulada === 1,
     fechaAnulacion: venta.fecha_anulacion ? formatearFechaArgentina(venta.fecha_anulacion) : null,
     motivoAnulacion: venta.motivo_anulacion,
-    estadoPago: venta.estado_pago, // Nuevo campo
-    montoPagadoUSD: venta.monto_pagado_usd, // Nuevo campo
-    montoPagadoARS: venta.monto_pagado_ars, // Nuevo campo
-    saldoPendienteUSD: venta.saldo_pendiente_usd, // Nuevo campo
-    saldoPendienteARS: venta.saldo_pendiente_ars, // Nuevo campo
+    estadoPago: venta.estado_pago,
+    montoPagadoUSD: venta.monto_pagado_usd,
+    montoPagadoARS: venta.monto_pagado_ars,
+    saldoPendienteUSD: venta.saldo_pendiente_usd,
+    saldoPendienteARS: venta.saldo_pendiente_ars,
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,
@@ -215,7 +216,6 @@ export const adaptVentaEquipoToFrontend = (venta) => {
       id: venta.punto_venta_id,
       nombre: venta.punto_venta_nombre,
     },
-    // tipoPago ya no es un solo objeto, sino que los pagos están en el array 'pagos'
     equipo: {
       id: venta.equipo_id,
       marca: venta.marca,
@@ -225,7 +225,7 @@ export const adaptVentaEquipoToFrontend = (venta) => {
       bateria: venta.bateria,
       descripcion: venta.descripcion,
       imei: venta.imei,
-      tipoCambio: venta.equipo_tipo_cambio, // Este podría ser el tipo de cambio al momento de ingresar el equipo
+      tipoCambio: venta.equipo_tipo_cambio,
       tipoCambioOriginal: venta.equipo_tipo_cambio_original,
     },
     planCanje: venta.plan_canje
@@ -242,20 +242,19 @@ export const adaptVentaEquipoToFrontend = (venta) => {
           fechaIngreso: venta.plan_canje.fecha_ingreso ? formatearFechaArgentina(venta.plan_canje.fecha_ingreso) : null,
         }
       : null,
-    // El backend ahora devuelve 'pagos_info' con detalles de los pagos
-    pagos: venta.pagos_info // Asumimos que el backend devuelve 'pagos_info' como un array de pagos detallados
+    pagos: venta.pagos_info
       ? venta.pagos_info.map((pago) => ({
           id: pago.id,
           montoUSD: pago.monto_usd,
           montoARS: pago.monto_ars,
           fecha: formatearFechaArgentina(pago.fecha),
           anulado: pago.anulado === 1,
-          tipoPago: pago.tipo_pago, // El nombre del tipo de pago
+          tipoPago: pago.tipo_pago,
           notas: pago.notas,
-          puntoVentaNombre: pago.punto_venta_nombre, // Nombre del punto de venta del pago
-          usuarioNombre: pago.usuario_nombre, // Nombre del usuario que registró el pago
+          puntoVentaNombre: pago.punto_venta_nombre,
+          usuarioNombre: pago.usuario_nombre,
         }))
       : [],
-    notas: venta.notas, // Notas generales de la venta
+    notas: venta.notas,
   }
 }
