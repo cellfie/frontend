@@ -49,7 +49,7 @@ export const getVentasEquipos = async (params = {}) => {
     if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
     if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
     if (params.anuladas !== undefined) queryParams.append("anuladas", params.anuladas)
-    if (params.estado_pago) queryParams.append("estado_pago", params.estado_pago) // Nuevo filtro
+    if (params.estado_pago) queryParams.append("estado_pago", params.estado_pago)
 
     const url = `${API_URL}/ventas-equipos?${queryParams.toString()}`
 
@@ -93,7 +93,7 @@ export const getVentaEquipoById = async (id) => {
 // Crear una nueva venta de equipo
 export const createVentaEquipo = async (ventaData) => {
   try {
-    // Adaptar los datos del frontend al formato que espera el backend
+    // ✅ CORRECCIÓN: Adaptar los datos correctamente
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
@@ -103,14 +103,14 @@ export const createVentaEquipo = async (ventaData) => {
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
       tipo_cambio: ventaData.tipo_cambio,
+      // ✅ CORRECCIÓN: Enviar tipo_pago en lugar de tipo_pago_nombre
       pagos: ventaData.pagos.map((p) => ({
         monto_usd: p.monto_usd,
         monto_ars: p.monto_ars,
-        tipo_pago: p.tipo_pago_nombre,
+        tipo_pago: p.tipo_pago_nombre, // El backend espera 'tipo_pago'
+        notas_pago: p.notas_pago || "",
       })),
       marcar_como_incompleta: ventaData.marcar_como_incompleta || false,
-      // Se agrega tipo_pago para pasar la validación del middleware. El backend lo ignora/sobrescribe.
-      tipo_pago: ventaData.pagos && ventaData.pagos.length > 0 ? ventaData.pagos[0].tipo_pago : "Pendiente",
     }
 
     const response = await fetch(`${API_URL}/ventas-equipos`, {
@@ -161,7 +161,6 @@ export const anularVentaEquipo = async (id, motivo) => {
 // Nueva función para registrar un pago adicional a una venta de equipo
 export const registrarPagoAdicionalVentaEquipo = async (ventaId, pagoData) => {
   try {
-    // pagoData debe ser un objeto: { monto_usd?: number, monto_ars?: number, tipo_pago: string, punto_venta_id: number, notas?: string }
     const response = await fetch(`${API_URL}/ventas-equipos/${ventaId}/pagos`, {
       method: "POST",
       headers: {
