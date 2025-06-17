@@ -40,10 +40,8 @@ const formatearFechaArgentina = (fechaString) => {
 // Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
-// Obtener todas las ventas de equipos
 export const getVentasEquipos = async (params = {}) => {
   try {
-    // Construir la URL con los parámetros de búsqueda
     const queryParams = new URLSearchParams()
 
     if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
@@ -51,6 +49,7 @@ export const getVentasEquipos = async (params = {}) => {
     if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
     if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
     if (params.anuladas !== undefined) queryParams.append("anuladas", params.anuladas)
+    if (params.estado_pago) queryParams.append("estado_pago", params.estado_pago) // Nuevo filtro
 
     const url = `${API_URL}/ventas-equipos?${queryParams.toString()}`
 
@@ -98,13 +97,14 @@ export const createVentaEquipo = async (ventaData) => {
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
-      tipo_pago: ventaData.tipo_pago,
       equipo_id: ventaData.equipo_id,
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
-      tipo_cambio: ventaData.tipo_cambio, // Agregar el tipo de cambio actual
+      tipo_cambio: ventaData.tipo_cambio,
+      // El backend ahora espera un array de pagos
+      pagos: ventaData.pagos, // Array de objetos: { tipo_pago: string, monto_usd: number?, monto_ars: number?, notas: string? }
     }
 
     const response = await fetch(`${API_URL}/ventas-equipos`, {
@@ -152,12 +152,37 @@ export const anularVentaEquipo = async (id, motivo) => {
   }
 }
 
+// Nueva función para registrar un pago adicional a una venta de equipo
+export const registrarPagoAdicionalVentaEquipo = async (ventaId, pagoData) => {
+  try {
+    // pagoData debe ser un objeto: { monto_usd?: number, monto_ars?: number, tipo_pago: string, punto_venta_id: number, notas?: string }
+    const response = await fetch(`${API_URL}/ventas-equipos/${ventaId}/pagos`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(pagoData),
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al registrar el pago adicional")
+    }
+    return await response.json()
+  } catch (error) {
+    console.error("Error en registrarPagoAdicionalVentaEquipo:", error)
+    throw error
+  }
+}
+
+
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptVentaEquipoToFrontend = (venta) => {
   return {
     id: venta.id,
     numeroFactura: venta.numero_factura,
-    fecha: formatearFechaArgentina(venta.fecha), // Usar la función de formateo con corrección de timezone
+    fecha: formatearFechaArgentina(venta.fecha),
     precioUSD: venta.precio_usd,
     precioARS: venta.precio_ars,
     tipoCambio: venta.tipo_cambio,
@@ -170,6 +195,11 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     anulada: venta.anulada === 1,
     fechaAnulacion: venta.fecha_anulacion ? formatearFechaArgentina(venta.fecha_anulacion) : null,
     motivoAnulacion: venta.motivo_anulacion,
+    estadoPago: venta.estado_pago, // Nuevo campo
+    montoPagadoUSD: venta.monto_pagado_usd, // Nuevo campo
+    montoPagadoARS: venta.monto_pagado_ars, // Nuevo campo
+    saldoPendienteUSD: venta.saldo_pendiente_usd, // Nuevo campo
+    saldoPendienteARS: venta.saldo_pendiente_ars, // Nuevo campo
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,
@@ -185,9 +215,7 @@ export const adaptVentaEquipoToFrontend = (venta) => {
       id: venta.punto_venta_id,
       nombre: venta.punto_venta_nombre,
     },
-    tipoPago: {
-      nombre: venta.tipo_pago,
-    },
+    // tipoPago ya no es un solo objeto, sino que los pagos están en el array 'pagos'
     equipo: {
       id: venta.equipo_id,
       marca: venta.marca,
@@ -197,7 +225,7 @@ export const adaptVentaEquipoToFrontend = (venta) => {
       bateria: venta.bateria,
       descripcion: venta.descripcion,
       imei: venta.imei,
-      tipoCambio: venta.equipo_tipo_cambio,
+      tipoCambio: venta.equipo_tipo_cambio, // Este podría ser el tipo de cambio al momento de ingresar el equipo
       tipoCambioOriginal: venta.equipo_tipo_cambio_original,
     },
     planCanje: venta.plan_canje
@@ -211,19 +239,23 @@ export const adaptVentaEquipoToFrontend = (venta) => {
           precio: venta.plan_canje.precio,
           descripcion: venta.plan_canje.descripcion,
           imei: venta.plan_canje.imei,
-          fechaIngreso: venta.plan_canje.fecha_ingreso,
+          fechaIngreso: venta.plan_canje.fecha_ingreso ? formatearFechaArgentina(venta.plan_canje.fecha_ingreso) : null,
         }
       : null,
-    pagos: venta.pagos
-      ? venta.pagos.map((pago) => ({
+    // El backend ahora devuelve 'pagos_info' con detalles de los pagos
+    pagos: venta.pagos_info // Asumimos que el backend devuelve 'pagos_info' como un array de pagos detallados
+      ? venta.pagos_info.map((pago) => ({
           id: pago.id,
-          monto: pago.monto,
-          fecha: formatearFechaArgentina(pago.fecha), // También formatear fechas de pagos
+          montoUSD: pago.monto_usd,
+          montoARS: pago.monto_ars,
+          fecha: formatearFechaArgentina(pago.fecha),
           anulado: pago.anulado === 1,
-          tipoPago: {
-            nombre: pago.tipo_pago,
-          },
+          tipoPago: pago.tipo_pago, // El nombre del tipo de pago
+          notas: pago.notas,
+          puntoVentaNombre: pago.punto_venta_nombre, // Nombre del punto de venta del pago
+          usuarioNombre: pago.usuario_nombre, // Nombre del usuario que registró el pago
         }))
       : [],
+    notas: venta.notas, // Notas generales de la venta
   }
 }
