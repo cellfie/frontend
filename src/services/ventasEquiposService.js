@@ -93,7 +93,9 @@ export const getVentaEquipoById = async (id) => {
 // Crear una nueva venta de equipo
 export const createVentaEquipo = async (ventaData) => {
   try {
-    // ✅ CORRECCIÓN: Adaptar los datos correctamente
+    console.log("Datos enviados al backend:", ventaData)
+
+    // ✅ CORRECCIÓN: Asegurar que los pagos tengan el formato correcto
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
@@ -103,15 +105,17 @@ export const createVentaEquipo = async (ventaData) => {
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
       tipo_cambio: ventaData.tipo_cambio,
-      // ✅ CORRECCIÓN: Enviar tipo_pago en lugar de tipo_pago_nombre
+      // ✅ CORRECCIÓN: Asegurar que tipo_pago sea el nombre correcto
       pagos: ventaData.pagos.map((p) => ({
         monto_usd: p.monto_usd,
         monto_ars: p.monto_ars,
-        tipo_pago: p.tipo_pago_nombre, // El backend espera 'tipo_pago'
+        tipo_pago: p.tipo_pago_nombre, // Usar el nombre del tipo de pago
         notas_pago: p.notas_pago || "",
       })),
       marcar_como_incompleta: ventaData.marcar_como_incompleta || false,
     }
+
+    console.log("Datos adaptados para backend:", backendData)
 
     const response = await fetch(`${API_URL}/ventas-equipos`, {
       method: "POST",

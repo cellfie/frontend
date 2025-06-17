@@ -1,4 +1,4 @@
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Obtener todos los pagos
 export const getPagos = async (params = {}) => {
@@ -105,14 +105,38 @@ export const anularPago = async (id, motivo) => {
   }
 }
 
-// Obtener tipos de pago
+// ✅ CORRECCIÓN: Obtener tipos de pago desde la API
 export const getTiposPago = async () => {
-  return [
-    { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo" },
-    { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria" },
-    { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito" },
-    { id: 4, nombre: "Cuenta corriente", descripcion: "Pago con cuenta corriente del cliente" },
-  ]
+  try {
+    const response = await fetch(`${API_URL}/tipos-pago`, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      // Si la API no existe, usar valores por defecto que coincidan con la BD
+      console.warn("API de tipos de pago no disponible, usando valores por defecto")
+      return [
+        { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo" },
+        { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria" },
+        { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito" },
+        { id: 4, nombre: "Tarjeta de débito", descripcion: "Pago con tarjeta de débito" },
+        { id: 5, nombre: "Cuenta corriente", descripcion: "Pago con cuenta corriente del cliente" },
+      ]
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error al obtener tipos de pago:", error)
+    // Fallback a valores por defecto que coincidan con la BD
+    return [
+      { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo" },
+      { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria" },
+      { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito" },
+      { id: 4, nombre: "Tarjeta de débito", descripcion: "Pago con tarjeta de débito" },
+      { id: 5, nombre: "Cuenta corriente", descripcion: "Pago con cuenta corriente del cliente" },
+    ]
+  }
 }
 
 // Modificar la función adaptPagoToFrontend para usar el nuevo campo tipo_pago:
