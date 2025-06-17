@@ -5,21 +5,16 @@ const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
   try {
-    // Manejar fechas que vienen de la base de datos
     let fecha
 
     if (fechaString.includes("T") || fechaString.includes("+")) {
-      // La fecha ya tiene información de timezone
       fecha = new Date(fechaString)
     } else {
-      // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
-      // Agregamos el offset de Argentina (-03:00)
       fecha = new Date(fechaString + " GMT-0300")
     }
 
     if (isNaN(fecha.getTime())) return ""
 
-    // Sumar 3 horas para corregir el desfase
     fecha.setHours(fecha.getHours() + 3)
 
     return fecha.toLocaleString("es-AR", {
@@ -37,7 +32,6 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
-// Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
 export const getVentasEquipos = async (params = {}) => {
@@ -70,7 +64,6 @@ export const getVentasEquipos = async (params = {}) => {
   }
 }
 
-// Obtener una venta de equipo por ID
 export const getVentaEquipoById = async (id) => {
   try {
     const response = await fetch(`${API_URL}/ventas-equipos/${id}`, {
@@ -90,12 +83,36 @@ export const getVentaEquipoById = async (id) => {
   }
 }
 
-// Crear una nueva venta de equipo
+// ✅ MEJORA: Crear una nueva venta de equipo con mejor validación de pagos
 export const createVentaEquipo = async (ventaData) => {
   try {
     console.log("Datos enviados al backend:", ventaData)
 
-    // ✅ CORRECCIÓN: Asegurar que los pagos tengan el formato correcto
+    // ✅ MEJORA: Validación mejorada de pagos múltiples
+    if (!ventaData.pagos || !Array.isArray(ventaData.pagos)) {
+      throw new Error("Los pagos deben ser un array")
+    }
+
+    // Validar que cada pago tenga los campos requeridos
+    for (const pago of ventaData.pagos) {
+      if (!pago.tipo_pago_nombre) {
+        throw new Error("Cada pago debe tener un tipo de pago válido")
+      }
+      if (!pago.monto_usd || pago.monto_usd <= 0) {
+        throw new Error("Cada pago debe tener un monto USD mayor a 0")
+      }
+    }
+
+    // ✅ MEJORA: Calcular total de pagos y validar
+    const totalPagos = ventaData.pagos.reduce((sum, p) => sum + Number(p.monto_usd), 0)
+    const diferencia = Math.abs(totalPagos - ventaData.total)
+
+    if (diferencia > 0.01 && !ventaData.marcar_como_incompleta) {
+      throw new Error(
+        `El total de pagos (${totalPagos.toFixed(2)} USD) no coincide con el total de la venta (${ventaData.total.toFixed(2)} USD)`,
+      )
+    }
+
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
@@ -105,11 +122,10 @@ export const createVentaEquipo = async (ventaData) => {
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
       tipo_cambio: ventaData.tipo_cambio,
-      // ✅ CORRECCIÓN: Asegurar que tipo_pago sea el nombre correcto
       pagos: ventaData.pagos.map((p) => ({
         monto_usd: p.monto_usd,
         monto_ars: p.monto_ars,
-        tipo_pago: p.tipo_pago_nombre, // Usar el nombre del tipo de pago
+        tipo_pago: p.tipo_pago_nombre,
         notas_pago: p.notas_pago || "",
       })),
       marcar_como_incompleta: ventaData.marcar_como_incompleta || false,
@@ -138,7 +154,6 @@ export const createVentaEquipo = async (ventaData) => {
   }
 }
 
-// Anular una venta de equipo
 export const anularVentaEquipo = async (id, motivo) => {
   try {
     const response = await fetch(`${API_URL}/ventas-equipos/${id}/anular`, {

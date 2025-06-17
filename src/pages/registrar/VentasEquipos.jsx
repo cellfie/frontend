@@ -25,9 +25,7 @@ import {
   UserPlus,
   Barcode,
   AlertCircle,
-  PlusCircle,
 } from "lucide-react"
-import { NumericFormat } from "react-number-format"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -47,10 +45,8 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Importar servicios
 import { getEquipos, adaptEquipoToFrontend } from "@/services/equiposService"
@@ -64,6 +60,9 @@ import { DollarContext } from "@/context/DollarContext"
 
 // Importar componente de precios canjes
 import PreciosCanjes from "@/components/PreciosCanje"
+
+// ✅ NUEVO: Componente mejorado para múltiples métodos de pago
+import PaymentMethodsModal from "@/components/PaymentMethodsModal"
 
 // Función para formatear moneda en formato argentino
 const formatearMonedaARS = (valor) => {
@@ -173,7 +172,7 @@ const VentasEquipos = () => {
   // Estados para búsqueda
   const [busquedaMarcaModelo, setBusquedaMarcaModelo] = useState("")
   const [busquedaIMEI, setBusquedaIMEI] = useState("")
-  const [tipoFiltroActivo, setTipoFiltroActivo] = useState("marca-modelo") // 'marca-modelo' o 'imei'
+  const [tipoFiltroActivo, setTipoFiltroActivo] = useState("marca-modelo")
 
   // Resto de estados existentes...
   const [porcentajeInteres, setPorcentajeInteres] = useState(0)
@@ -210,9 +209,8 @@ const VentasEquipos = () => {
   const [preciosCanjesAbierto, setPreciosCanjesAbierto] = useState(false)
   const [mostrarInteresVisual, setMostrarInteresVisual] = useState(false)
 
-  // --- NUEVOS ESTADOS PARA PAGOS MÚLTIPLES ---
+  // ✅ NUEVOS ESTADOS PARA PAGOS MÚLTIPLES MEJORADOS
   const [pagos, setPagos] = useState([])
-  const [nuevoPago, setNuevoPago] = useState({ tipo_pago_id: "", monto: "" })
   const [marcarComoIncompleta, setMarcarComoIncompleta] = useState(false)
 
   // Cargar datos iniciales
@@ -344,9 +342,10 @@ const VentasEquipos = () => {
   const total = subtotal - descuento
   const totalVisual = subtotal + interes - descuento
 
-  // --- CÁLCULOS PARA PAGOS MÚLTIPLES ---
+  // ✅ MEJORA: Cálculos para pagos múltiples
   const totalPagadoUSD = pagos.reduce((sum, p) => sum + Number(p.monto_usd), 0)
   const saldoPendienteUSD = total - totalPagadoUSD
+  const pagoCompleto = Math.abs(saldoPendienteUSD) <= 0.01
 
   const handleInteresFocus = () => interesInputValue === "0" && setInteresInputValue("")
   const handleDescuentoFocus = () => descuentoInputValue === "0" && setDescuentoInputValue("")
@@ -383,6 +382,8 @@ const VentasEquipos = () => {
   const removerSeleccion = () => {
     setEquipoSeleccionado(null)
     cancelarPlanCanje()
+    setPagos([])
+    setMarcarComoIncompleta(false)
     toast.info("Selección eliminada", { position: "bottom-right" })
   }
 
@@ -477,71 +478,21 @@ const VentasEquipos = () => {
     return true
   }
 
-  // --- HANDLERS PARA PAGOS MÚLTIPLES ---
-  const agregarPago = () => {
-    if (!nuevoPago.tipo_pago_id) {
-      toast.error("Seleccione un método de pago.")
-      return
-    }
-    const monto = Number(nuevoPago.monto)
-    if (!monto || monto <= 0) {
-      toast.error("Ingrese un monto válido.")
-      return
-    }
-    if (monto > saldoPendienteUSD + 0.01) {
-      // Se agrega una pequeña tolerancia para errores de punto flotante
-      toast.warn("El monto del pago no puede exceder el saldo pendiente.")
-      return
-    }
-
-    const tipoPagoInfo = tiposPagoDisponibles.find((tp) => tp.id.toString() === nuevoPago.tipo_pago_id)
-    const esCuentaCorriente =
-      tipoPagoInfo.nombre.toLowerCase() === "cuenta corriente" || tipoPagoInfo.nombre.toLowerCase() === "cuenta"
-
-    if (esCuentaCorriente) {
-      const montoARS = monto * dollarPrice
-      if (
-        cuentaCorrienteInfo.limite_credito > 0 &&
-        Number(cuentaCorrienteInfo.saldo) + montoARS > cuentaCorrienteInfo.limite_credito
-      ) {
-        toast.error(
-          `Este pago excede el límite de crédito del cliente (${formatearMonedaARS(cuentaCorrienteInfo.limite_credito)})`,
-        )
-        return
-      }
-    }
-
-    setPagos([
-      ...pagos,
-      {
-        id: Date.now(), // ID temporal para el cliente
-        tipo_pago_id: tipoPagoInfo.id,
-        tipo_pago_nombre: tipoPagoInfo.nombre,
-        icono: tipoPagoInfo.icono,
-        monto_usd: monto,
-        monto_ars: monto * dollarPrice,
-      },
-    ])
-    setNuevoPago({ tipo_pago_id: "", monto: "" }) // Resetear formulario de nuevo pago
-  }
-
-  const removerPago = (id) => {
-    setPagos(pagos.filter((p) => p.id !== id))
-  }
-
-  // Finalizar venta
+  // ✅ MEJORA: Finalizar venta con validación mejorada
   const finalizarVenta = async () => {
     if (!equipoSeleccionado || !cliente.id) {
       toast.error("Debe seleccionar un equipo y un cliente.", { position: "bottom-right" })
       return
     }
+
     if (pagos.length === 0 && !marcarComoIncompleta) {
       toast.error("Debe agregar al menos un método de pago o marcar la venta como incompleta.", {
         position: "bottom-right",
       })
       return
     }
-    if (saldoPendienteUSD > 0.01 && !marcarComoIncompleta) {
+
+    if (!pagoCompleto && !marcarComoIncompleta) {
       toast.error(
         "El monto pagado no cubre el total de la venta. Complete el pago o marque la venta como incompleta.",
         {
@@ -550,6 +501,7 @@ const VentasEquipos = () => {
       )
       return
     }
+
     if (!currentUser || !currentUser.id) {
       toast.error("Usuario no autenticado. Por favor, inicie sesión.", { position: "bottom-right" })
       return
@@ -567,14 +519,17 @@ const VentasEquipos = () => {
         plan_canje: canjeCompletado ? nuevoEquipoCanje : null,
         notas: `Venta de equipo ${equipoSeleccionado.marca} ${equipoSeleccionado.modelo}`,
         tipo_cambio: dollarPrice,
+        total: total,
         pagos: pagos.map((p) => ({
           monto_usd: p.monto_usd,
           monto_ars: p.monto_ars,
-          tipo_pago: p.tipo_pago_nombre,
-          notas_pago: p.notas,
+          tipo_pago_nombre: p.tipo_pago_nombre,
+          notas_pago: p.notas || "",
         })),
         marcar_como_incompleta: marcarComoIncompleta,
       }
+
+      console.log("Datos de venta a enviar:", ventaData)
 
       const resultado = await createVentaEquipo(ventaData)
 
@@ -639,6 +594,8 @@ const VentasEquipos = () => {
     if (puntoVentaSeleccionado && equipoSeleccionado) {
       setEquipoSeleccionado(null)
       cancelarPlanCanje()
+      setPagos([])
+      setMarcarComoIncompleta(false)
       toast.info(
         `Se ha limpiado la selección debido al cambio de punto de venta a ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
         { position: "bottom-center" },
@@ -1307,341 +1264,213 @@ const VentasEquipos = () => {
                   )}
                 </div>
 
-                {/* Cálculos */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-6 p-4 bg-gray-50 border-t rounded-lg"
-                >
-                  <div className="bg-white rounded-lg shadow-sm border p-4">
-                    <div className="flex flex-col space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-500">Subtotal:</span>
-                        <span className="font-medium">${subtotal.toFixed(2)}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
-                            <Percent className="h-3.5 w-3.5 text-orange-500" />
-                            <NumericFormat
-                              value={interesInputValue}
-                              onValueChange={(values) => {
-                                const { value } = values
-                                setInteresInputValue(value)
-                                setPorcentajeInteres(Number(value) || 0)
-                                setMostrarInteresVisual(Number(value) > 0)
-                              }}
-                              decimalScale={2}
-                              decimalSeparator=","
-                              allowNegative={false}
-                              className="w-12 h-6 text-sm p-0 border-0 bg-transparent focus-visible:ring-0 text-center"
-                              onFocus={handleInteresFocus}
-                              onBlur={handleInteresBlur}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-500">Interés</span>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <AlertCircle className="h-4 w-4 text-orange-500" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs text-xs">
-                                  Este interés es solo informativo para mostrar al cliente el precio con tarjeta o
-                                  transferencia. No afecta al total de la venta.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        {porcentajeInteres > 0 && (
-                          <span className="text-orange-600 font-medium">+${interes.toFixed(2)}</span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
-                            <Percent className="h-3.5 w-3.5 text-green-500" />
-                            <NumericFormat
-                              value={descuentoInputValue}
-                              onValueChange={(values) => {
-                                const { value } = values
-                                setDescuentoInputValue(value)
-                                setPorcentajeDescuento(Number(value) || 0)
-                              }}
-                              decimalScale={2}
-                              decimalSeparator=","
-                              allowNegative={false}
-                              className="w-12 h-6 text-sm p-0 border-0 bg-transparent focus-visible:ring-0 text-center"
-                              onFocus={handleDescuentoFocus}
-                              onBlur={handleDescuentoBlur}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-500">Descuento</span>
-                        </div>
-                        {porcentajeDescuento > 0 && (
-                          <span className="text-green-600 font-medium">-${descuento.toFixed(2)}</span>
-                        )}
-                      </div>
-
-                      <Separator className="my-1" />
-
-                      <div className="flex justify-between text-lg font-bold">
-                        <span>Total:</span>
-                        <span className="text-orange-600">${total.toFixed(2)}</span>
-                      </div>
-
-                      {mostrarInteresVisual && porcentajeInteres > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500 flex items-center gap-1">
-                            <CreditCardIcon className="h-3.5 w-3.5" />
-                            Total con interés:
-                          </span>
-                          <span className="text-orange-500">${totalVisual.toFixed(2)}</span>
-                        </div>
-                      )}
+                {/* Descuentos e Intereses */}
+                <div className="mt-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                        <Percent size={14} className="text-orange-600" />
+                        Descuento (%)
+                      </Label>
+                      <Input
+                        type="text"
+                        value={descuentoInputValue}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                            setDescuentoInputValue(value)
+                            setPorcentajeDescuento(value === "" ? 0 : Number.parseFloat(value))
+                          }
+                        }}
+                        onFocus={handleDescuentoFocus}
+                        onBlur={handleDescuentoBlur}
+                        placeholder="0"
+                        className="text-center"
+                      />
                     </div>
                   </div>
-                </motion.div>
+                </div>
+
+                {/* Resumen de Cálculos */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                    <Receipt size={16} className="text-orange-600" />
+                    Resumen de Venta
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Precio del equipo:</span>
+                      <PrecioConARS precio={precioBruto} dollarPrice={dollarPrice} />
+                    </div>
+                    {canjeCompletado && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Descuento por canje:</span>
+                        <PrecioConARS precio={-descuentoCanje} dollarPrice={dollarPrice} />
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <PrecioConARS precio={subtotal} dollarPrice={dollarPrice} />
+                    </div>
+                    {porcentajeDescuento > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Descuento ({porcentajeDescuento}%):</span>
+                        <PrecioConARS precio={-descuento} dollarPrice={dollarPrice} />
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between font-semibold text-lg">
+                      <span>Total:</span>
+                      <PrecioConARS precio={total} dollarPrice={dollarPrice} className="text-orange-600" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ NUEVA SECCIÓN: Métodos de Pago Mejorados */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                      <CreditCardIcon size={16} className="text-orange-600" />
+                      Métodos de Pago
+                    </h3>
+                    <PaymentMethodsModal
+                      total={total}
+                      dollarPrice={dollarPrice}
+                      tiposPago={tiposPagoDisponibles}
+                      cliente={cliente}
+                      cuentaCorrienteInfo={cuentaCorrienteInfo}
+                      pagos={pagos}
+                      setPagos={setPagos}
+                      marcarComoIncompleta={marcarComoIncompleta}
+                      setMarcarComoIncompleta={setMarcarComoIncompleta}
+                    />
+                  </div>
+
+                  {/* Resumen de pagos */}
+                  {pagos.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h4 className="font-medium text-blue-800 mb-2">Pagos configurados:</h4>
+                      <div className="space-y-2">
+                        {pagos.map((pago, index) => (
+                          <div key={index} className="flex justify-between items-center text-sm">
+                            <span className="text-blue-700">{pago.tipo_pago_nombre}:</span>
+                            <span className="font-medium text-blue-800">${pago.monto_usd.toFixed(2)} USD</span>
+                          </div>
+                        ))}
+                        <Separator className="my-2" />
+                        <div className="flex justify-between items-center font-medium">
+                          <span className="text-blue-800">Total pagado:</span>
+                          <span className="text-blue-800">${totalPagadoUSD.toFixed(2)} USD</span>
+                        </div>
+                        {!pagoCompleto && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-amber-700">Saldo pendiente:</span>
+                            <span className="font-medium text-amber-700">${saldoPendienteUSD.toFixed(2)} USD</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {marcarComoIncompleta && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-amber-600" />
+                        <span className="text-amber-800 font-medium">Venta marcada como incompleta</span>
+                      </div>
+                      <p className="text-amber-700 text-sm mt-1">
+                        Esta venta se registrará con estado "pendiente" y podrás completar el pago posteriormente.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón Finalizar */}
+                <div className="mt-6 pt-4 border-t">
+                  <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
+                    <DialogTrigger asChild>
+                      <Button
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white h-12 text-lg font-semibold"
+                        disabled={!cliente.id || (!pagoCompleto && !marcarComoIncompleta)}
+                      >
+                        <Save className="mr-2" size={18} />
+                        Finalizar Venta
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
+                        <DialogDescription>
+                          ¿Estás seguro de que deseas finalizar esta venta? Esta acción no se puede deshacer.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4">
+                        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                          <div className="flex justify-between">
+                            <span>Cliente:</span>
+                            <span className="font-medium">{cliente.nombre}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Equipo:</span>
+                            <span className="font-medium">
+                              {equipoSeleccionado.marca} {equipoSeleccionado.modelo}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Total:</span>
+                            <span className="font-medium text-orange-600">${total.toFixed(2)} USD</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Estado de pago:</span>
+                            <span className={`font-medium ${pagoCompleto ? "text-green-600" : "text-amber-600"}`}>
+                              {pagoCompleto ? "Completo" : marcarComoIncompleta ? "Incompleto" : "Pendiente"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setDialogFinalizarAbierto(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={finalizarVenta}
+                          disabled={procesandoVenta}
+                          className="bg-orange-600 hover:bg-orange-700"
+                        >
+                          {procesandoVenta ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Procesando...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="mr-2" size={16} />
+                              Confirmar Venta
+                            </>
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             ) : (
-              <div className="text-center py-16 px-4 text-gray-500 border-b">
-                <div className="bg-gray-50 p-8 rounded-xl inline-flex flex-col items-center">
-                  <Smartphone className="h-16 w-16 text-gray-300 mb-4" strokeWidth={1.5} />
-                  <h3 className="text-xl font-medium mb-2 text-gray-800">No hay equipo seleccionado</h3>
-                  <p className="text-sm max-w-md">
-                    Busca y haz doble clic en un equipo para seleccionarlo. Recuerda que también debes seleccionar un
-                    cliente para completar la venta.
-                  </p>
-                </div>
+              <div className="p-8 text-center text-gray-500">
+                <Smartphone className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium mb-2">Selecciona un equipo</h3>
+                <p className="text-sm">Busca y selecciona un equipo de la lista para comenzar la venta</p>
               </div>
             )}
           </CardContent>
-
-          <CardFooter className="flex justify-end gap-2 py-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                removerSeleccion()
-                setCliente({ id: null, nombre: "Seleccione un cliente", telefono: "", dni: "" })
-              }}
-              disabled={!equipoSeleccionado}
-              className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
-            >
-              Cancelar
-            </Button>
-
-            <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
-              <DialogTrigger asChild>
-                <Button
-                  onClick={() => setDialogFinalizarAbierto(true)}
-                  disabled={!equipoSeleccionado || !cliente.id}
-                  className="gap-1 bg-orange-600 hover:bg-orange-700"
-                >
-                  <Receipt size={16} /> Finalizar Venta
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl">
-                <DialogHeader>
-                  <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
-                  <DialogDescription>Revisa los detalles y agrega los métodos de pago.</DialogDescription>
-                </DialogHeader>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                  {/* Columna Izquierda: Resumen de la Venta */}
-                  <div className="space-y-4">
-                    <h3 className="font-medium text-gray-800">Resumen de la Venta</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Cliente:</span>
-                        <span className="font-medium">{cliente.nombre}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Equipo:</span>
-                        <span className="font-medium">
-                          {equipoSeleccionado?.marca} {equipoSeleccionado?.modelo}
-                        </span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Precio Bruto:</span>
-                        <PrecioConARS precio={precioBruto} dollarPrice={dollarPrice} />
-                      </div>
-                      {canjeCompletado && (
-                        <div className="flex justify-between text-red-600">
-                          <span className="text-gray-600">Descuento Canje:</span>
-                          <PrecioConARS precio={-descuentoCanje} dollarPrice={dollarPrice} />
-                        </div>
-                      )}
-                      {porcentajeDescuento > 0 && (
-                        <div className="flex justify-between text-green-600">
-                          <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
-                          <PrecioConARS precio={-descuento} dollarPrice={dollarPrice} />
-                        </div>
-                      )}
-                      <Separator />
-                      <div className="flex justify-between font-bold text-base">
-                        <span>Total a Pagar:</span>
-                        <PrecioConARS precio={total} dollarPrice={dollarPrice} className="text-orange-600 font-bold" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Columna Derecha: Métodos de Pago */}
-                  <div className="space-y-4">
-                    <h3 className="font-medium text-gray-800">Métodos de Pago</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                      {/* Resumen de Pagos */}
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Total Pagado:</span>
-                        <span className="font-medium text-green-600">${totalPagadoUSD.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Saldo Pendiente:</span>
-                        <span className={`font-medium ${saldoPendienteUSD > 0 ? "text-red-600" : "text-gray-800"}`}>
-                          ${saldoPendienteUSD.toFixed(2)}
-                        </span>
-                      </div>
-                      <Separator />
-
-                      {/* Lista de Pagos Agregados */}
-                      <div className="space-y-2">
-                        {pagos.length === 0 ? (
-                          <p className="text-xs text-center text-gray-500 py-2">Aún no se han agregado pagos.</p>
-                        ) : (
-                          pagos.map((pago) => (
-                            <div key={pago.id} className="flex items-center justify-between bg-white p-2 rounded-md">
-                              <div className="flex items-center gap-2">
-                                <pago.icono className="h-4 w-4 text-gray-500" />
-                                <div>
-                                  <p className="text-sm font-medium">{pago.tipo_pago_nombre}</p>
-                                  <p className="text-xs text-gray-500">{pago.notas}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">${pago.monto_usd.toFixed(2)}</span>
-                                <Button size="icon" variant="ghost" onClick={() => removerPago(pago.id)}>
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      {/* Formulario para Agregar Pago */}
-                      {saldoPendienteUSD > 0.01 && (
-                        <div className="pt-4 border-t">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <Select
-                              value={nuevoPago.tipo_pago_id}
-                              onValueChange={(value) => setNuevoPago({ ...nuevoPago, tipo_pago_id: value })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar método" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {tiposPagoDisponibles.map((metodo) => {
-                                  const esCuentaCorriente =
-                                    metodo.nombre.toLowerCase() === "cuenta corriente" ||
-                                    metodo.nombre.toLowerCase() === "cuenta"
-                                  const disabled = esCuentaCorriente && !cliente.id
-                                  return (
-                                    <SelectItem key={metodo.id} value={metodo.id.toString()} disabled={disabled}>
-                                      {metodo.nombre}
-                                      {disabled && " (requiere cliente)"}
-                                    </SelectItem>
-                                  )
-                                })}
-                              </SelectContent>
-                            </Select>
-                            <div className="relative">
-                              <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                              <Input
-                                type="number"
-                                placeholder="Monto (USD)"
-                                className="pl-8"
-                                value={nuevoPago.monto}
-                                onChange={(e) => setNuevoPago({ ...nuevoPago, monto: e.target.value })}
-                              />
-                            </div>
-                          </div>
-                          <Button onClick={agregarPago} className="w-full mt-2" size="sm">
-                            <PlusCircle className="h-4 w-4 mr-2" />
-                            Agregar Pago
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2 mt-4">
-                  <Checkbox
-                    id="marcar-incompleta"
-                    checked={marcarComoIncompleta}
-                    onCheckedChange={setMarcarComoIncompleta}
-                  />
-                  <label
-                    htmlFor="marcar-incompleta"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    Marcar venta como incompleta / pendiente de pago
-                  </label>
-                </div>
-
-                <DialogFooter className="mt-4">
-                  <Button variant="outline" onClick={() => setDialogFinalizarAbierto(false)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={finalizarVenta}
-                    className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={(saldoPendienteUSD > 0.01 && !marcarComoIncompleta) || procesandoVenta}
-                  >
-                    {procesandoVenta ? (
-                      <>
-                        <span className="mr-1">Procesando...</span>
-                        <span className="animate-spin">
-                          <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Save size={16} /> Confirmar Venta
-                      </>
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardFooter>
         </Card>
       </div>
 
-      {/* Componente de Precios Canjes */}
+      {/* Modal de Precios de Canjes */}
       <PreciosCanjes
         isOpen={preciosCanjesAbierto}
         onClose={() => setPreciosCanjesAbierto(false)}
-        dollarPrice={dollarPrice}
         onSelectPrice={aplicarPrecioCanje}
-        showApplyButtons={pasoActualCanje === 3}
+        dollarPrice={dollarPrice}
       />
     </div>
   )
