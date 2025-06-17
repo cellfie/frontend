@@ -212,7 +212,7 @@ const VentasEquipos = () => {
 
   // --- NUEVOS ESTADOS PARA PAGOS MÚLTIPLES ---
   const [pagos, setPagos] = useState([])
-  const [nuevoPago, setNuevoPago] = useState({ tipo_pago_id: "", monto: "", notas: "" })
+  const [nuevoPago, setNuevoPago] = useState({ tipo_pago_id: "", monto: "" })
   const [marcarComoIncompleta, setMarcarComoIncompleta] = useState(false)
 
   // Cargar datos iniciales
@@ -520,10 +520,9 @@ const VentasEquipos = () => {
         icono: tipoPagoInfo.icono,
         monto_usd: monto,
         monto_ars: monto * dollarPrice,
-        notas: nuevoPago.notas,
       },
     ])
-    setNuevoPago({ tipo_pago_id: "", monto: "", notas: "" }) // Resetear formulario de nuevo pago
+    setNuevoPago({ tipo_pago_id: "", monto: "" }) // Resetear formulario de nuevo pago
   }
 
   const removerPago = (id) => {

@@ -103,7 +103,11 @@ export const createVentaEquipo = async (ventaData) => {
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
       tipo_cambio: ventaData.tipo_cambio,
-      pagos: ventaData.pagos, // Array de objetos: { tipo_pago: string, monto_usd: number, monto_ars: number, notas_pago: string? }
+      pagos: ventaData.pagos.map((p) => ({
+        monto_usd: p.monto_usd,
+        monto_ars: p.monto_ars,
+        tipo_pago: p.tipo_pago_nombre,
+      })),
       marcar_como_incompleta: ventaData.marcar_como_incompleta || false,
       // Se agrega tipo_pago para pasar la validación del middleware. El backend lo ignora/sobrescribe.
       tipo_pago: ventaData.pagos && ventaData.pagos.length > 0 ? ventaData.pagos[0].tipo_pago : "Pendiente",
