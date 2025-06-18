@@ -53,9 +53,10 @@ import {
   getVentaEquipoById,
   anularVentaEquipo,
   adaptVentaEquipoToFrontend,
-} from "@/services/ventasEquiposService" // MODIFICACIÓN: Importar adaptVentaEquipoToFrontend
+  formatearFechaArgentina, // MODIFICACIÓN: Importar para usar consistentemente
+} from "@/services/ventasEquiposService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
-import { getTiposPago } from "@/services/pagosService"
+// import { getTiposPago } from "@/services/pagosService"; // No se usa para filtro por ahora
 import { useAuth } from "@/context/AuthContext"
 import { DollarContext } from "@/context/DollarContext"
 
@@ -72,13 +73,12 @@ const HistorialVentasEquiposPage = () => {
   const [ventaAnular, setVentaAnular] = useState(null)
   const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
   const [puntosVenta, setPuntosVenta] = useState([])
-  const [tiposPago, setTiposPago] = useState([]) // Este estado podría usarse para los filtros si se desea filtrar por tipo de pago específico
+  // const [tiposPago, setTiposPago] = useState([]); // No se usa para filtro por ahora
   const [filtros, setFiltros] = useState({
     busqueda: "",
     fechaInicio: null,
     fechaFin: null,
     puntoVentaId: "",
-    // tipoPagoId: "", // Se podría reactivar si se quiere filtrar por un tipo de pago específico
     mostrarAnuladas: false,
   })
   const [rangoFechas, setRangoFechas] = useState({
@@ -96,13 +96,12 @@ const HistorialVentasEquiposPage = () => {
     cantidadVentas: 0,
   })
 
-  // Función para obtener el icono del método de pago
   const getIconoMetodoPago = (nombreTipoPago) => {
     const nombreLower = nombreTipoPago.toLowerCase()
     if (nombreLower.includes("transferencia")) return <ArrowUpRight className="h-4 w-4 text-blue-500" />
     if (nombreLower.includes("tarjeta")) return <CreditCard className="h-4 w-4 text-green-500" />
     if (nombreLower.includes("cuenta")) return <BookOpen className="h-4 w-4 text-purple-500" />
-    return <DollarSign className="h-4 w-4 text-yellow-500" /> // Icono por defecto para efectivo u otros
+    return <DollarSign className="h-4 w-4 text-yellow-500" />
   }
 
   useEffect(() => {
@@ -110,9 +109,8 @@ const HistorialVentasEquiposPage = () => {
       try {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
-
-        const tipos = await getTiposPago() // Cargar tipos de pago para el filtro si se usa
-        setTiposPago(tipos)
+        // const tipos = await getTiposPago(); // No se usa para filtro por ahora
+        // setTiposPago(tipos);
 
         const fechaFin = new Date()
         const fechaInicio = new Date()
@@ -124,7 +122,6 @@ const HistorialVentasEquiposPage = () => {
         })
 
         setFiltros((prevFiltros) => ({
-          // Usar callback para asegurar el estado más reciente
           ...prevFiltros,
           fechaInicio: formatearFecha(fechaInicio),
           fechaFin: formatearFecha(fechaFin),
@@ -134,49 +131,36 @@ const HistorialVentasEquiposPage = () => {
         toast.error("Error al cargar datos iniciales")
       }
     }
-
     cargarDatosIniciales()
-  }, []) // Dependencia vacía para que se ejecute solo una vez al montar
+  }, [])
 
   const cargarVentas = useCallback(async () => {
-    // MODIFICACIÓN: Usar useCallback
-    if (!filtros.fechaInicio || !filtros.fechaFin) return // Evitar cargar si las fechas no están listas
-
+    if (!filtros.fechaInicio || !filtros.fechaFin) return
     setCargando(true)
     try {
       const params = {}
       if (filtros.fechaInicio) params.fecha_inicio = filtros.fechaInicio
       if (filtros.fechaFin) params.fecha_fin = filtros.fechaFin
       if (filtros.puntoVentaId && filtros.puntoVentaId !== "all") params.punto_venta_id = filtros.puntoVentaId
-      // params.anuladas = filtros.mostrarAnuladas; // El backend ya maneja esto
 
       const ventasData = await getVentasEquipos(params)
-      // MODIFICACIÓN: Usar adaptVentaEquipoToFrontend para consistencia
       const ventasAdaptadas = ventasData.map(adaptVentaEquipoToFrontend)
       setVentas(ventasAdaptadas)
-      // El filtrado se hará en el useEffect que depende de 'ventas' y 'filtros'
     } catch (error) {
       console.error("Error al cargar ventas:", error)
       toast.error("Error al cargar ventas")
     } finally {
       setCargando(false)
     }
-  }, [filtros.fechaInicio, filtros.fechaFin, filtros.puntoVentaId]) // MODIFICACIÓN: Dependencias de useCallback
+  }, [filtros.fechaInicio, filtros.fechaFin, filtros.puntoVentaId])
 
   const filtrarVentasLocalmente = useCallback(() => {
-    // Renombrado para claridad
     let resultado = [...ventas]
-
     if (filtros.mostrarAnuladas) {
       resultado = resultado.filter((v) => v.anulada === true)
     } else {
       resultado = resultado.filter((v) => v.anulada === false)
     }
-
-    // if (filtros.tipoPagoId && filtros.tipoPagoId !== "all") { // Descomentar si se reactiva el filtro de tipo de pago
-    //   resultado = resultado.filter((v) => v.pagos && v.pagos.some(p => p.tipoPago.nombre === filtros.tipoPagoId));
-    // }
-
     if (filtros.busqueda) {
       const termino = filtros.busqueda.toLowerCase()
       resultado = resultado.filter(
@@ -189,31 +173,28 @@ const HistorialVentasEquiposPage = () => {
           v.equipo?.imei?.toLowerCase().includes(termino),
       )
     }
-
     setVentasFiltradas(resultado)
     calcularTotalGeneral(resultado)
-  }, [filtros.busqueda, filtros.mostrarAnuladas, ventas]) // MODIFICACIÓN: Dependencias actualizadas
+  }, [filtros.busqueda, filtros.mostrarAnuladas, ventas])
 
   const calcularTotalGeneral = (ventasParaCalcular) => {
     const ventasValidas = ventasParaCalcular.filter((v) => !v.anulada)
     const totalUSD = ventasValidas.reduce((sum, venta) => sum + Number(venta.totalUSD || 0), 0)
     const totalARS = ventasValidas.reduce((sum, venta) => sum + Number(venta.totalARS || 0), 0)
-
     setTotalGeneral({
       usd: totalUSD,
-      ars: totalARS, // Usar el totalARS que ya viene calculado
+      ars: totalARS,
       cantidadVentas: ventasValidas.length,
     })
   }
 
   useEffect(() => {
     filtrarVentasLocalmente()
-  }, [filtrarVentasLocalmente]) // Dependencia única a la función memoizada
+  }, [filtrarVentasLocalmente])
 
   useEffect(() => {
     if (rangoFechas.from && rangoFechas.to) {
       setFiltros((prevFiltros) => ({
-        // Usar callback para asegurar el estado más reciente
         ...prevFiltros,
         fechaInicio: formatearFecha(rangoFechas.from),
         fechaFin: formatearFecha(rangoFechas.to),
@@ -226,20 +207,10 @@ const HistorialVentasEquiposPage = () => {
     return fecha.toISOString().split("T")[0]
   }
 
-  const formatearFechaHora = (fechaString) => {
-    if (!fechaString) return ""
-    const fecha = new Date(fechaString)
-    if (isNaN(fecha.getTime())) return ""
-    // La corrección de 3 horas ya se hace en el servicio al adaptar.
-    return fecha.toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false, // Usar formato 24 horas
-    })
-  }
+  // MODIFICACIÓN: Usar directamente la fecha formateada del adaptador (venta.fecha)
+  // La función formatearFechaHora local ya no es necesaria si el adaptador lo hace bien.
+  // Si se necesita específicamente para el detalle y el adaptador no es suficiente, se puede mantener.
+  // Por ahora, asumimos que venta.fecha ya está bien formateada.
 
   const formatearPrecioUSD = (precio) => {
     const precioNumerico = Number.parseFloat(precio) || 0
@@ -263,18 +234,12 @@ const HistorialVentasEquiposPage = () => {
     const fechaFin = new Date()
     const fechaInicio = new Date()
     fechaInicio.setDate(fechaInicio.getDate() - 30)
-
-    setRangoFechas({
-      from: fechaInicio,
-      to: fechaFin,
-    })
-
+    setRangoFechas({ from: fechaInicio, to: fechaFin })
     setFiltros({
       busqueda: "",
       fechaInicio: formatearFecha(fechaInicio),
       fechaFin: formatearFecha(fechaFin),
       puntoVentaId: "",
-      // tipoPagoId: "", // Descomentar si se reactiva
       mostrarAnuladas: false,
     })
   }
@@ -282,23 +247,18 @@ const HistorialVentasEquiposPage = () => {
   const abrirDetalleVenta = async (ventaId) => {
     if (detalleVentaAbierto === ventaId) {
       setDetalleVentaAbierto(null)
-      setVentaSeleccionada(null) // Limpiar selección al cerrar
+      setVentaSeleccionada(null)
       return
     }
-
-    // Optimización: Si ya tenemos la venta en el listado, usarla y solo fetchear si es necesario (ej. para más detalles como los pagos)
     const ventaExistente = ventas.find((v) => v.id === ventaId)
     if (ventaExistente && ventaExistente.pagos && ventaExistente.pagos.length > 0) {
-      // Si ya tiene pagos, asumimos que está completa
       setVentaSeleccionada(ventaExistente)
       setDetalleVentaAbierto(ventaId)
       return
     }
-
-    setCargando(true) // Mostrar carga solo si se va a fetchear
+    setCargando(true)
     try {
       const ventaDetalladaData = await getVentaEquipoById(ventaId)
-      // MODIFICACIÓN: Usar adaptVentaEquipoToFrontend para asegurar que 'pagos' esté en el formato correcto
       const ventaAdaptada = adaptVentaEquipoToFrontend(ventaDetalladaData)
       setVentaSeleccionada(ventaAdaptada)
       setDetalleVentaAbierto(ventaId)
@@ -322,14 +282,10 @@ const HistorialVentasEquiposPage = () => {
       toast.error("El motivo de anulación es obligatorio")
       return
     }
-
     setProcesandoAnulacion(true)
     setEstadoAnulacion({ exito: false, error: false, mensaje: "" })
-
     try {
       await anularVentaEquipo(ventaAnular.id, motivoAnulacion)
-
-      // Actualizar la lista de ventas localmente
       setVentas((prevVentas) =>
         prevVentas.map((v) =>
           v.id === ventaAnular.id
@@ -337,8 +293,6 @@ const HistorialVentasEquiposPage = () => {
             : v,
         ),
       )
-      // El useEffect que depende de 'ventas' y 'filtros' se encargará de actualizar 'ventasFiltradas'
-
       if (ventaSeleccionada && ventaSeleccionada.id === ventaAnular.id) {
         setVentaSeleccionada((prev) => ({
           ...prev,
@@ -347,13 +301,11 @@ const HistorialVentasEquiposPage = () => {
           motivoAnulacion,
         }))
       }
-
       setEstadoAnulacion({
         exito: true,
         error: false,
         mensaje: "Venta anulada correctamente. El equipo ha sido marcado como disponible nuevamente.",
       })
-
       setTimeout(() => {
         setDialogAnularAbierto(false)
         toast.success("Venta anulada correctamente")
@@ -389,9 +341,7 @@ const HistorialVentasEquiposPage = () => {
         <TableCell>
           <Skeleton className="h-4 w-24" />
         </TableCell>
-        <TableCell>
-          <Skeleton className="h-4 w-20" />
-        </TableCell>
+        {/* <TableCell><Skeleton className="h-4 w-20" /></TableCell> // Columna Método de Pago eliminada */}
         <TableCell>
           <Skeleton className="h-4 w-20" />
         </TableCell>
@@ -405,19 +355,17 @@ const HistorialVentasEquiposPage = () => {
     if (filtros.fechaInicio && filtros.fechaFin) {
       cargarVentas()
     }
-  }, [cargarVentas]) // MODIFICACIÓN: Dependencia a la función memoizada
+  }, [cargarVentas])
 
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
-
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Historial de Ventas de Equipos</h1>
           <p className="text-gray-500">Consulta y gestiona el historial de ventas de equipos realizadas</p>
         </div>
       </div>
-
       <Card className="mb-6 border-0 shadow-md bg-gradient-to-r from-orange-500 to-orange-700">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -446,7 +394,6 @@ const HistorialVentasEquiposPage = () => {
           </div>
         </CardContent>
       </Card>
-
       <Card className="mb-6 border-0 shadow-md">
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
@@ -457,7 +404,9 @@ const HistorialVentasEquiposPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {" "}
+            {/* Ajustado para 4 columnas en XL */}
             <div className="relative col-span-1 sm:col-span-2 xl:col-span-1">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -485,24 +434,6 @@ const HistorialVentasEquiposPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            {/* <div> // Descomentar si se reactiva el filtro de tipo de pago
-              <Select
-                value={filtros.tipoPagoId}
-                onValueChange={(value) => setFiltros({ ...filtros, tipoPagoId: value })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los métodos</SelectItem>
-                  {tiposPago.map((tipo) => (
-                    <SelectItem key={tipo.id} value={tipo.nombre}>
-                      {tipo.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div> */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-1">
               <DateRangePicker date={rangoFechas} setDate={setRangoFechas} className="w-full" />
             </div>
@@ -536,7 +467,6 @@ const HistorialVentasEquiposPage = () => {
           </div>
         </CardContent>
       </Card>
-
       <Card className="border-0 shadow-md">
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
@@ -560,7 +490,7 @@ const HistorialVentasEquiposPage = () => {
                     <TableHead className="bg-white">Cliente</TableHead>
                     <TableHead className="bg-white">Equipo</TableHead>
                     <TableHead className="bg-white">Punto de Venta</TableHead>
-                    <TableHead className="bg-white">Método de Pago</TableHead>
+                    {/* MODIFICACIÓN: Columna Método de Pago eliminada */}
                     <TableHead className="bg-white">Total</TableHead>
                     <TableHead className="bg-white text-right">Acciones</TableHead>
                   </TableRow>
@@ -570,7 +500,8 @@ const HistorialVentasEquiposPage = () => {
                     renderSkeletons()
                   ) : ventasFiltradas.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                      {/* MODIFICACIÓN: Ajustar colSpan */}
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Smartphone className="h-12 w-12 text-gray-300" />
                           <h3 className="text-lg font-medium text-gray-500">No hay ventas disponibles</h3>
@@ -596,7 +527,8 @@ const HistorialVentasEquiposPage = () => {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>{formatearFechaHora(venta.fecha)}</TableCell>
+                          {/* MODIFICACIÓN: Usar venta.fecha que ya está formateada por el adaptador */}
+                          <TableCell>{venta.fecha}</TableCell>
                           <TableCell>{venta.cliente ? venta.cliente.nombre : "Cliente General"}</TableCell>
                           <TableCell>
                             <div className="font-medium">
@@ -607,32 +539,13 @@ const HistorialVentasEquiposPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={`font-normal ${
-                                venta.puntoVenta.nombre === "Tala"
-                                  ? "border-orange-300 bg-orange-50 text-orange-700"
-                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                              }`}
+                              className={`font-normal ${venta.puntoVenta.nombre === "Tala" ? "border-orange-300 bg-orange-50 text-orange-700" : "border-indigo-300 bg-indigo-50 text-indigo-700"}`}
                             >
                               <MapPin className="h-3 w-3 mr-1" />
                               {venta.puntoVenta.nombre}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            {/* MODIFICACIÓN: Mostrar "Múltiples" si hay más de un pago, o el nombre del único pago */}
-                            {venta.pagos && venta.pagos.length > 1 ? (
-                              <Badge variant="outline" className="font-normal">
-                                Múltiples Pagos
-                              </Badge>
-                            ) : venta.pagos && venta.pagos.length === 1 ? (
-                              <Badge variant="secondary" className="font-normal">
-                                {venta.pagos[0].tipoPago.nombre}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="font-normal">
-                                N/A
-                              </Badge> // Caso por si no hay pagos (debería tener al menos uno)
-                            )}
-                          </TableCell>
+                          {/* MODIFICACIÓN: Celda de Método de Pago eliminada */}
                           <TableCell className="font-medium">
                             <div>{formatearPrecioUSD(venta.totalUSD)}</div>
                             <div className="text-xs text-gray-500">
@@ -695,11 +608,11 @@ const HistorialVentasEquiposPage = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-
                         <AnimatePresence>
                           {detalleVentaAbierto === venta.id && ventaSeleccionada && (
                             <TableRow>
-                              <TableCell colSpan={8} className="p-0 border-0">
+                              {/* MODIFICACIÓN: Ajustar colSpan */}
+                              <TableCell colSpan={7} className="p-0 border-0">
                                 <motion.div
                                   initial={{ opacity: 0, height: 0 }}
                                   animate={{ opacity: 1, height: "auto" }}
@@ -719,9 +632,10 @@ const HistorialVentasEquiposPage = () => {
                                               <span className="text-gray-500">Factura:</span>
                                               <span className="font-medium">{ventaSeleccionada.numeroFactura}</span>
                                             </div>
+                                            {/* MODIFICACIÓN: Usar ventaSeleccionada.fecha que ya está formateada por el adaptador */}
                                             <div className="flex justify-between">
                                               <span className="text-gray-500">Fecha:</span>
-                                              <span>{formatearFechaHora(ventaSeleccionada.fecha)}</span>
+                                              <span>{ventaSeleccionada.fecha}</span>
                                             </div>
                                             <div className="flex justify-between">
                                               <span className="text-gray-500">Vendedor:</span>
@@ -737,8 +651,6 @@ const HistorialVentasEquiposPage = () => {
                                                 {ventaSeleccionada.puntoVenta.nombre}
                                               </Badge>
                                             </div>
-
-                                            {/* MODIFICACIÓN: Mostrar lista de pagos */}
                                             <div>
                                               <span className="text-gray-500">Métodos de pago:</span>
                                               {ventaSeleccionada.pagos && ventaSeleccionada.pagos.length > 0 ? (
@@ -764,7 +676,6 @@ const HistorialVentasEquiposPage = () => {
                                                 </Badge>
                                               )}
                                             </div>
-
                                             <div className="flex justify-between">
                                               <span className="text-gray-500">Cliente:</span>
                                               <span>
@@ -788,9 +699,10 @@ const HistorialVentasEquiposPage = () => {
                                                     Venta anulada
                                                   </div>
                                                   <div className="text-xs mt-1">
+                                                    {/* MODIFICACIÓN: Usar formatearFechaArgentina para la fecha de anulación si es necesario */}
                                                     <div>
                                                       <span className="text-gray-500">Fecha:</span>{" "}
-                                                      {formatearFechaHora(ventaSeleccionada.fechaAnulacion)}
+                                                      {formatearFechaArgentina(ventaSeleccionada.fechaAnulacion)}
                                                     </div>
                                                     <div>
                                                       <span className="text-gray-500">Motivo:</span>{" "}
@@ -802,7 +714,6 @@ const HistorialVentasEquiposPage = () => {
                                             )}
                                           </div>
                                         </div>
-
                                         <div className="md:col-span-2">
                                           <div className="flex items-center gap-2 text-orange-700 mb-3">
                                             <Smartphone size={16} />
@@ -915,7 +826,6 @@ const HistorialVentasEquiposPage = () => {
                                                     </span>
                                                   </div>
                                                 </div>
-
                                                 {ventaSeleccionada.planCanje && (
                                                   <div>
                                                     <span className="text-gray-500 text-sm">Descuento por canje</span>
@@ -931,7 +841,6 @@ const HistorialVentasEquiposPage = () => {
                                                     </div>
                                                   </div>
                                                 )}
-                                                {/* El interés y descuento ya no se aplican directamente a la venta de equipo, sino a los pagos si es necesario. Se mantiene el total. */}
                                                 <Separator />
                                                 <div>
                                                   <span className="text-gray-500 text-sm">Total Venta</span>
@@ -981,7 +890,6 @@ const HistorialVentasEquiposPage = () => {
           </div>
         </CardContent>
       </Card>
-
       <Dialog open={dialogAnularAbierto} onOpenChange={setDialogAnularAbierto}>
         <DialogContent>
           <DialogHeader>
@@ -1000,9 +908,10 @@ const HistorialVentasEquiposPage = () => {
                   <span className="text-gray-500">Factura:</span>
                   <span className="font-medium">{ventaAnular?.numeroFactura}</span>
                 </div>
+                {/* MODIFICACIÓN: Usar ventaAnular.fecha que ya está formateada por el adaptador */}
                 <div className="flex justify-between mb-1">
                   <span className="text-gray-500">Fecha:</span>
-                  <span>{ventaAnular && formatearFechaHora(ventaAnular.fecha)}</span>
+                  <span>{ventaAnular?.fecha}</span>
                 </div>
                 <div className="flex justify-between mb-1">
                   <span className="text-gray-500">Cliente:</span>
