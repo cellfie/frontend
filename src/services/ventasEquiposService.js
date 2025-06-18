@@ -94,17 +94,17 @@ export const getVentaEquipoById = async (id) => {
 // Crear una nueva venta de equipo
 export const createVentaEquipo = async (ventaData) => {
   try {
-    // Adaptar los datos del frontend al formato que espera el backend
+    // MODIFICACIÓN: Se envía el array 'pagos' en lugar de 'tipo_pago'.
+    // El campo 'tipo_cambio' ya no se envía desde aquí, se obtiene en el backend.
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
-      tipo_pago: ventaData.tipo_pago,
+      pagos: ventaData.pagos, // <--- Array de pagos
       equipo_id: ventaData.equipo_id,
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
-      tipo_cambio: ventaData.tipo_cambio, // Agregar el tipo de cambio actual
     }
 
     const response = await fetch(`${API_URL}/ventas-equipos`, {
@@ -157,7 +157,7 @@ export const adaptVentaEquipoToFrontend = (venta) => {
   return {
     id: venta.id,
     numeroFactura: venta.numero_factura,
-    fecha: formatearFechaArgentina(venta.fecha), // Usar la función de formateo con corrección de timezone
+    fecha: formatearFechaArgentina(venta.fecha),
     precioUSD: venta.precio_usd,
     precioARS: venta.precio_ars,
     tipoCambio: venta.tipo_cambio,
@@ -185,9 +185,8 @@ export const adaptVentaEquipoToFrontend = (venta) => {
       id: venta.punto_venta_id,
       nombre: venta.punto_venta_nombre,
     },
-    tipoPago: {
-      nombre: venta.tipo_pago,
-    },
+    // MODIFICACIÓN: 'tipoPago' ya no existe directamente en la venta, se obtiene de 'pagos'.
+    // Se mantiene 'pagos' para tener la lista completa.
     equipo: {
       id: venta.equipo_id,
       marca: venta.marca,
@@ -217,10 +216,11 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     pagos: venta.pagos
       ? venta.pagos.map((pago) => ({
           id: pago.id,
-          monto: pago.monto,
-          fecha: formatearFechaArgentina(pago.fecha), // También formatear fechas de pagos
+          monto: pago.monto, // El backend ahora devuelve 'monto' en ARS para pagos_ventas_equipos
+          fecha: formatearFechaArgentina(pago.fecha),
           anulado: pago.anulado === 1,
           tipoPago: {
+            // El backend devuelve 'tipo_pago' como string
             nombre: pago.tipo_pago,
           },
         }))

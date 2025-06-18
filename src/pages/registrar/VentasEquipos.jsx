@@ -25,6 +25,7 @@ import {
   UserPlus,
   Barcode,
   AlertCircle,
+  PlusCircle,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -46,7 +47,6 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -186,7 +186,6 @@ const VentasEquipos = () => {
   const [busquedaCliente, setBusquedaCliente] = useState("")
   const [dialogNuevoClienteAbierto, setDialogNuevoClienteAbierto] = useState(false)
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false)
-  const [tipoPagoSeleccionado, setTipoPagoSeleccionado] = useState("")
   const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
   const [procesandoVenta, setProcesandoVenta] = useState(false)
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
@@ -208,31 +207,28 @@ const VentasEquipos = () => {
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
   const [preciosCanjesAbierto, setPreciosCanjesAbierto] = useState(false)
-  // Agregar un nuevo estado para controlar la visualización del interés
   const [mostrarInteresVisual, setMostrarInteresVisual] = useState(false)
+
+  // NUEVOS ESTADOS PARA MÚLTIPLES PAGOS
+  const [pagos, setPagos] = useState([])
+  const [tipoPagoSeleccionadoActual, setTipoPagoSeleccionadoActual] = useState("")
+  const [montoPagoActual, setMontoPagoActual] = useState("")
 
   // Cargar datos iniciales
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        // Cargar puntos de venta
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
-
-        // Establecer punto de venta por defecto a Trancas (ID 1)
         setPuntoVentaSeleccionado("1")
 
-        // Cargar tipos de pago
         const tipos = await getTiposPago()
-        // Asignar iconos a los tipos de pago
         setTiposPagoDisponibles(
           tipos.map((tipo) => {
-            // Determinar el icono basado en el nombre del tipo de pago
             let icono = DollarSign
             if (tipo.nombre.toLowerCase().includes("transferencia")) icono = ArrowUpRight
             if (tipo.nombre.toLowerCase().includes("tarjeta")) icono = CreditCardIcon
             if (tipo.nombre.toLowerCase().includes("cuenta")) icono = BookOpen
-
             return { ...tipo, icono }
           }),
         )
@@ -241,7 +237,6 @@ const VentasEquipos = () => {
         toast.error("Error al cargar datos iniciales")
       }
     }
-
     cargarDatosIniciales()
   }, [])
 
@@ -253,16 +248,12 @@ const VentasEquipos = () => {
         const data = await getEquipos()
         const adaptedData = data.map((equipo) => {
           const adaptedEquipo = adaptEquipoToFrontend(equipo)
-          // Asegurarse de que vendido tenga un valor predeterminado si no existe
           if (adaptedEquipo.vendido === undefined) {
             adaptedEquipo.vendido = false
           }
           return adaptedEquipo
         })
-
-        // Filtrar equipos vendidos
         const equiposDisponibles = adaptedData.filter((equipo) => !equipo.vendido)
-
         setEquipos(equiposDisponibles)
         setEquiposFiltrados(equiposDisponibles)
       } catch (err) {
@@ -277,7 +268,6 @@ const VentasEquipos = () => {
 
   // Filtrar equipos
   useEffect(() => {
-    // Función para filtrar equipos según el tipo de búsqueda activo
     const filtrarEquipos = () => {
       if (tipoFiltroActivo === "marca-modelo" && busquedaMarcaModelo.trim()) {
         const termino = busquedaMarcaModelo.toLowerCase().trim()
@@ -294,19 +284,16 @@ const VentasEquipos = () => {
       }
       return equipos
     }
-
     setEquiposFiltrados(filtrarEquipos())
   }, [busquedaMarcaModelo, busquedaIMEI, tipoFiltroActivo, equipos])
 
-  // Resto del código existente...
-  // Buscar clientes cuando cambia la búsqueda
+  // Buscar clientes
   useEffect(() => {
     const buscarClientes = async () => {
       if (busquedaCliente.length < 2) {
         setClientesBusqueda([])
         return
       }
-
       try {
         const clientes = await searchClientes(busquedaCliente)
         setClientesBusqueda(clientes)
@@ -314,29 +301,24 @@ const VentasEquipos = () => {
         console.error("Error al buscar clientes:", error)
       }
     }
-
     const timeoutId = setTimeout(() => {
       buscarClientes()
     }, 300)
-
     return () => clearTimeout(timeoutId)
   }, [busquedaCliente])
 
-  // Cargar información de cuenta corriente cuando cambia el cliente seleccionado
+  // Cargar cuenta corriente
   useEffect(() => {
     const cargarCuentaCorriente = async () => {
       if (!cliente.id) {
         setCuentaCorrienteInfo(null)
         return
       }
-
       setCargandoCuentaCorriente(true)
       try {
         const cuentaCorriente = await getCuentaCorrienteByCliente(cliente.id)
         setCuentaCorrienteInfo(cuentaCorriente)
       } catch (error) {
-        console.error("Error al cargar cuenta corriente:", error)
-        // Si el error es 404, significa que el cliente no tiene cuenta corriente
         if (error.message && error.message.includes("no tiene cuenta corriente")) {
           setCuentaCorrienteInfo({ saldo: 0, limite_credito: 0, activo: true, cliente_id: cliente.id })
         } else {
@@ -346,26 +328,10 @@ const VentasEquipos = () => {
         setCargandoCuentaCorriente(false)
       }
     }
-
     if (cliente.id) {
       cargarCuentaCorriente()
     }
   }, [cliente.id])
-
-  // Actualizar tipo de pago cuando cambia el cliente
-  useEffect(() => {
-    // Si se selecciona cuenta corriente pero no hay cliente, resetear el tipo de pago
-    if (tipoPagoSeleccionado) {
-      const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-      if (
-        tipoPago &&
-        (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta") &&
-        !cliente.id
-      ) {
-        setTipoPagoSeleccionado("")
-      }
-    }
-  }, [cliente, tipoPagoSeleccionado, tiposPagoDisponibles])
 
   // Cálculos
   const precioBruto = equipoSeleccionado ? Number(equipoSeleccionado.precio) : 0
@@ -373,23 +339,30 @@ const VentasEquipos = () => {
   const subtotal = precioBruto - descuentoCanje
   const interes = (subtotal * porcentajeInteres) / 100
   const descuento = (subtotal * porcentajeDescuento) / 100
-  // Modificar los cálculos para separar el total real del total visual
   const total = subtotal - descuento
   const totalVisual = subtotal + interes - descuento
+  const totalARS = total * dollarPrice
 
-  // Calcular el nuevo saldo de la cuenta corriente
-  const nuevoSaldoCalc = cuentaCorrienteInfo ? Number(cuentaCorrienteInfo.saldo) + Number(total * dollarPrice) : 0
+  // MODIFICACIÓN: Cálculos para múltiples pagos
+  const totalPagado = pagos.reduce((acc, pago) => acc + pago.monto, 0)
+  const montoRestante = totalARS - totalPagado
+
+  const pagosEnCuentaCorriente = pagos
+    .filter(
+      (p) => p.tipo_pago_nombre.toLowerCase() === "cuenta corriente" || p.tipo_pago_nombre.toLowerCase() === "cuenta",
+    )
+    .reduce((acc, pago) => acc + pago.monto, 0)
+
+  const nuevoSaldoCalc = cuentaCorrienteInfo ? Number(cuentaCorrienteInfo.saldo) + pagosEnCuentaCorriente : 0
 
   const handleInteresFocus = () => interesInputValue === "0" && setInteresInputValue("")
   const handleDescuentoFocus = () => descuentoInputValue === "0" && setDescuentoInputValue("")
-
   const handleInteresBlur = () => {
     if (interesInputValue === "") {
       setInteresInputValue("0")
       setPorcentajeInteres(0)
     }
   }
-
   const handleDescuentoBlur = () => {
     if (descuentoInputValue === "") {
       setDescuentoInputValue("0")
@@ -399,30 +372,19 @@ const VentasEquipos = () => {
 
   // Handlers para equipos
   const seleccionarEquipo = (eq) => {
-    // Verificar si el equipo está vendido
     if (eq.vendido) {
-      toast.error(`No puedes vender este equipo porque ya ha sido vendido`, {
-        position: "bottom-right",
-      })
+      toast.error(`No puedes vender este equipo porque ya ha sido vendido`, { position: "bottom-right" })
       return
     }
-
-    // Verificar si el equipo pertenece al punto de venta seleccionado
     if (eq.puntoVenta?.id.toString() !== puntoVentaSeleccionado) {
       toast.error(
         `No puedes vender equipos de ${eq.puntoVenta?.nombre}. Solo puedes vender equipos de ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
-        {
-          position: "bottom-right",
-        },
+        { position: "bottom-right" },
       )
       return
     }
-
     setEquipoSeleccionado(eq)
-    toast.success(`${eq.marca} ${eq.modelo} seleccionado`, {
-      icon: "✅",
-      position: "bottom-right",
-    })
+    toast.success(`${eq.marca} ${eq.modelo} seleccionado`, { icon: "✅", position: "bottom-right" })
   }
 
   const removerSeleccion = () => {
@@ -439,41 +401,28 @@ const VentasEquipos = () => {
       telefono: clienteSeleccionado.telefono || "",
       dni: clienteSeleccionado.dni || "",
     })
-
     setDialogClienteAbierto(false)
     setBusquedaCliente("")
     setClientesBusqueda([])
-
-    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado correctamente`, {
-      position: "bottom-right",
-    })
+    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado correctamente`, { position: "bottom-right" })
   }
 
-  // Crear nuevo cliente
   const crearNuevoCliente = async () => {
     if (!nuevoCliente.nombre.trim()) {
-      toast.error("El nombre del cliente es obligatorio", {
-        position: "bottom-right",
-      })
+      toast.error("El nombre del cliente es obligatorio", { position: "bottom-right" })
       return
     }
-
     try {
       const clienteCreado = await createCliente(nuevoCliente)
-
       setCliente({
         id: clienteCreado.id,
         nombre: clienteCreado.nombre,
         telefono: clienteCreado.telefono || "",
         dni: clienteCreado.dni || "",
       })
-
       setDialogNuevoClienteAbierto(false)
       setDialogClienteAbierto(false)
-
-      toast.success("Cliente creado correctamente", {
-        position: "bottom-right",
-      })
+      toast.success("Cliente creado correctamente", { position: "bottom-right" })
     } catch (error) {
       console.error("Error al crear cliente:", error)
       toast.error("Error al crear cliente: " + error.message)
@@ -481,18 +430,12 @@ const VentasEquipos = () => {
   }
 
   // Handlers para plan canje
-  const abrirPlanCanje = () => {
-    setPlanCanjeAbierto(true)
-    setPasoActualCanje(1)
-    setCanjeCompletado(false)
-  }
-
+  const abrirPlanCanje = () => setPlanCanjeAbierto(true)
   const cancelarPlanCanje = () => {
     setPlanCanjeAbierto(false)
     setPasoActualCanje(1)
     setCanjeCompletado(false)
     setNuevoEquipoCanje({
-      ...nuevoEquipoCanje,
       marca: "",
       modelo: "",
       memoria: "",
@@ -501,132 +444,112 @@ const VentasEquipos = () => {
       precio: 0,
       descripcion: "",
       imei: "",
+      fechaIngreso: new Date().toISOString().split("T")[0],
     })
   }
-
   const siguientePasoCanje = () => {
-    if (pasoActualCanje < 3) {
-      setPasoActualCanje(pasoActualCanje + 1)
-    } else {
-      finalizarCanje()
-    }
+    if (pasoActualCanje < 3) setPasoActualCanje(pasoActualCanje + 1)
+    else finalizarCanje()
   }
-
   const anteriorPasoCanje = () => pasoActualCanje > 1 && setPasoActualCanje(pasoActualCanje - 1)
-
   const finalizarCanje = () => {
-    if (!nuevoEquipoCanje.precio) {
-      toast.error("El precio de canje es obligatorio", { position: "bottom-right" })
+    if (!nuevoEquipoCanje.precio || !nuevoEquipoCanje.imei) {
+      toast.error("El precio y el IMEI del canje son obligatorios", { position: "bottom-right" })
       return
     }
-
-    if (!nuevoEquipoCanje.imei) {
-      toast.error("El IMEI del equipo de canje es obligatorio", { position: "bottom-right" })
-      return
-    }
-
     setCanjeCompletado(true)
     setPlanCanjeAbierto(false)
     toast.success("Plan Canje aplicado correctamente", { position: "bottom-right" })
   }
+  const validarPasoCanje = () => (pasoActualCanje === 3 ? !!nuevoEquipoCanje.precio && !!nuevoEquipoCanje.imei : true)
 
-  // Validar campos obligatorios del plan canje
-  const validarPasoCanje = () => {
-    if (pasoActualCanje === 3) {
-      return !!nuevoEquipoCanje.precio && !!nuevoEquipoCanje.imei
+  // MODIFICACIÓN: Handlers para múltiples pagos
+  const handleAddPago = () => {
+    if (!tipoPagoSeleccionadoActual || !montoPagoActual) {
+      toast.error("Debe seleccionar un tipo de pago y un monto.", { position: "bottom-right" })
+      return
     }
-    return true
+    const monto = Number.parseFloat(montoPagoActual)
+    if (isNaN(monto) || monto <= 0) {
+      toast.error("El monto debe ser un número positivo.", { position: "bottom-right" })
+      return
+    }
+    if (monto > montoRestante + 0.01) {
+      toast.error("El monto no puede ser mayor que el restante.", { position: "bottom-right" })
+      return
+    }
+
+    const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionadoActual)
+    const esCuentaCorriente =
+      tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta"
+    if (esCuentaCorriente && !cliente.id) {
+      toast.error("Debe seleccionar un cliente para usar Cuenta Corriente.", { position: "bottom-right" })
+      return
+    }
+
+    setPagos([
+      ...pagos,
+      {
+        id: Date.now(), // ID temporal para el renderizado
+        tipo_pago_id: tipoPago.id,
+        tipo_pago_nombre: tipoPago.nombre,
+        monto: monto,
+        icono: tipoPago.icono,
+      },
+    ])
+    setTipoPagoSeleccionadoActual("")
+    setMontoPagoActual("")
+  }
+
+  const handleRemovePago = (id) => {
+    setPagos(pagos.filter((pago) => pago.id !== id))
   }
 
   // Finalizar venta
   const finalizarVenta = async () => {
-    if (!equipoSeleccionado) {
-      toast.error("Debe seleccionar un equipo", { position: "bottom-right" })
+    if (!equipoSeleccionado || !cliente.id) {
+      toast.error("Debe seleccionar un equipo y un cliente.", { position: "bottom-right" })
       return
     }
-    if (!cliente.id) {
-      toast.error("Debe seleccionar un cliente para realizar la venta", { position: "bottom-right" })
+    if (Math.abs(montoRestante) > 0.01) {
+      toast.error("El total de los pagos debe cubrir el total de la venta.", { position: "bottom-right" })
       return
     }
-    if (!tipoPagoSeleccionado) {
-      toast.error("Debe seleccionar un método de pago", { position: "bottom-right" })
-      return
-    }
-
-    // Verificar que el usuario esté autenticado
     if (!currentUser || !currentUser.id) {
-      toast.error("El usuario no está autenticado. Por favor, inicie sesión.", {
-        position: "bottom-right",
-      })
+      toast.error("Usuario no autenticado.", { position: "bottom-right" })
       return
     }
 
-    // Verificar si el tipo de pago es cuenta corriente
-    const tipoPago = tiposPagoDisponibles.find((tipo) => tipo.id.toString() === tipoPagoSeleccionado)
-    const esCuentaCorriente =
-      tipoPago && (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta")
-
-    // Si es cuenta corriente, verificar límite de crédito
-    if (esCuentaCorriente) {
-      if (!cuentaCorrienteInfo) {
-        toast.error("No se pudo obtener información de la cuenta corriente", {
-          position: "bottom-right",
-        })
-        return
-      }
-
-      // Verificar si el cliente tiene límite de crédito y si la venta lo excede
-      if (
-        cuentaCorrienteInfo.limite_credito > 0 &&
-        Number(cuentaCorrienteInfo.saldo) + Number(total * dollarPrice) > cuentaCorrienteInfo.limite_credito
-      ) {
-        toast.error(
-          `La venta excede el límite de crédito del cliente (${formatearMonedaARS(cuentaCorrienteInfo.limite_credito)})`,
-          {
-            position: "bottom-right",
-          },
-        )
-        return
-      }
+    if (
+      cuentaCorrienteInfo &&
+      cuentaCorrienteInfo.limite_credito > 0 &&
+      nuevoSaldoCalc > cuentaCorrienteInfo.limite_credito
+    ) {
+      toast.error(
+        `La venta excede el límite de crédito del cliente (${formatearMonedaARS(cuentaCorrienteInfo.limite_credito)})`,
+        { position: "bottom-right" },
+      )
+      return
     }
 
     setProcesandoVenta(true)
-
     try {
-      // Preparar datos para la API
       const ventaData = {
         cliente_id: cliente.id,
         punto_venta_id: Number(puntoVentaSeleccionado || 1),
-        tipo_pago:
-          tiposPagoDisponibles.find((tipo) => tipo.id.toString() === tipoPagoSeleccionado)?.nombre || "Efectivo",
         equipo_id: equipoSeleccionado.id,
-        porcentaje_interes: 0, // Siempre enviamos 0 para el interés ya que es solo visual
+        porcentaje_interes: 0,
         porcentaje_descuento: porcentajeDescuento,
         plan_canje: canjeCompletado ? nuevoEquipoCanje : null,
         notas: `Venta de equipo ${equipoSeleccionado.marca} ${equipoSeleccionado.modelo}`,
-        tipo_cambio: dollarPrice, // Agregar el tipo de cambio actual
+        pagos: pagos.map(({ tipo_pago_nombre, monto }) => ({ tipo_pago: tipo_pago_nombre, monto })),
       }
 
-      // Llamar a la API para crear la venta
-      const resultado = await createVentaEquipo(ventaData)
-
-      toast.success(`Venta de equipo registrada con éxito`, {
-        icon: "✅",
-        position: "bottom-center",
-        autoClose: 3000,
-      })
-
-      // Si había plan canje, mostrar mensaje adicional
+      await createVentaEquipo(ventaData)
+      toast.success(`Venta registrada con éxito`, { icon: "✅", position: "bottom-center", autoClose: 3000 })
       if (canjeCompletado) {
-        toast.success(`Equipo de canje registrado en el inventario`, {
-          icon: "📱",
-          position: "bottom-center",
-          autoClose: 5000,
-        })
+        toast.success(`Equipo de canje registrado`, { icon: "📱", position: "bottom-center", autoClose: 5000 })
       }
-
-      const cuentaActualizada = await getCuentaCorrienteByCliente(cliente.id)
-      setCuentaCorrienteInfo(cuentaActualizada)
 
       // Resetear estados
       setEquipoSeleccionado(null)
@@ -637,11 +560,11 @@ const VentasEquipos = () => {
       setDescuentoInputValue("0")
       cancelarPlanCanje()
       setDialogFinalizarAbierto(false)
-      setTipoPagoSeleccionado("")
+      setPagos([]) // MODIFICACIÓN: Limpiar pagos
       setCuentaCorrienteInfo(null)
       setMostrarInteresVisual(false)
 
-      // Recargar equipos para actualizar disponibilidad
+      // Recargar equipos
       const equiposData = await getEquipos()
       const equiposAdaptados = equiposData.map(adaptEquipoToFrontend)
       setEquipos(equiposAdaptados)
@@ -663,10 +586,7 @@ const VentasEquipos = () => {
   // Aplicar precio de canje
   const aplicarPrecioCanje = (precio) => {
     if (pasoActualCanje === 3 && nuevoEquipoCanje) {
-      setNuevoEquipoCanje({
-        ...nuevoEquipoCanje,
-        precio: precio,
-      })
+      setNuevoEquipoCanje({ ...nuevoEquipoCanje, precio: precio })
       setPreciosCanjesAbierto(false)
       toast.success(`Precio de ${precio} USD aplicado al canje`, { position: "bottom-right" })
     }
@@ -679,9 +599,7 @@ const VentasEquipos = () => {
       cancelarPlanCanje()
       toast.info(
         `Se ha limpiado la selección debido al cambio de punto de venta a ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
-        {
-          position: "bottom-center",
-        },
+        { position: "bottom-center" },
       )
     }
   }, [puntoVentaSeleccionado])
@@ -770,7 +688,6 @@ const VentasEquipos = () => {
                   value={nuevoEquipoCanje.precio === 0 ? "" : nuevoEquipoCanje.precio}
                   onChange={(e) => {
                     const value = e.target.value
-                    // Permitir campo vacío o valores numéricos válidos
                     if (value === "" || /^\d*\.?\d*$/.test(value)) {
                       setNuevoEquipoCanje({
                         ...nuevoEquipoCanje,
@@ -1371,7 +1288,6 @@ const VentasEquipos = () => {
                                 const { value } = values
                                 setInteresInputValue(value)
                                 setPorcentajeInteres(Number(value) || 0)
-                                // Si se ingresa un interés, mostrar el interés visual
                                 setMostrarInteresVisual(Number(value) > 0)
                               }}
                               decimalScale={2}
@@ -1430,13 +1346,11 @@ const VentasEquipos = () => {
 
                       <Separator className="my-1" />
 
-                      {/* Total real (sin interés) */}
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total:</span>
                         <span className="text-orange-600">${total.toFixed(2)}</span>
                       </div>
 
-                      {/* Total visual con interés (si aplica) */}
                       {mostrarInteresVisual && porcentajeInteres > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500 flex items-center gap-1">
@@ -1487,167 +1401,159 @@ const VentasEquipos = () => {
                   <Receipt size={16} /> Finalizar Venta
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-4xl">
                 <DialogHeader>
                   <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
-                  <DialogDescription>Revisa los detalles antes de finalizar la venta</DialogDescription>
+                  <DialogDescription>Revisa los detalles y agrega los métodos de pago.</DialogDescription>
                 </DialogHeader>
 
                 <div className="py-4">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                    {/* Detalles de la venta - Ocupa 3/5 en pantallas medianas y grandes */}
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                    {/* Detalles de la venta */}
                     <div className="md:col-span-3">
                       <div className="bg-gray-50 p-4 rounded-lg h-full">
                         <h3 className="text-sm font-medium mb-3 text-gray-700">Detalles de la venta:</h3>
-                        <div className="space-y-2">
-                          <div className="flex justify-between mb-2">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
                             <span className="text-gray-600">Cliente:</span>
                             <span className="font-medium">{cliente.nombre}</span>
                           </div>
-                          {cliente.dni && (
-                            <div className="flex justify-between mb-2">
-                              <span className="text-gray-600">DNI:</span>
-                              <span>{cliente.dni}</span>
-                            </div>
-                          )}
-                          {cliente.telefono && (
-                            <div className="flex justify-between mb-2">
-                              <span className="text-gray-600">Teléfono:</span>
-                              <span>{cliente.telefono}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between mb-2">
+                          <div className="flex justify-between">
                             <span className="text-gray-600">Equipo:</span>
                             <span>
                               {equipoSeleccionado?.marca} {equipoSeleccionado?.modelo}
                             </span>
                           </div>
-                          <div className="flex justify-between mb-2">
+                          <Separator className="my-2" />
+                          <div className="flex justify-between">
                             <span className="text-gray-600">Precio bruto:</span>
-                            <div className="text-right">
-                              <div>${precioBruto.toFixed(2)}</div>
-                              <div className="text-xs text-gray-500">
-                                {formatearMonedaARS(precioBruto * dollarPrice)}
-                              </div>
-                            </div>
+                            <PrecioConARS precio={precioBruto} dollarPrice={dollarPrice} />
                           </div>
                           {canjeCompletado && (
-                            <div className="flex justify-between mb-2">
+                            <div className="flex justify-between">
                               <span className="text-gray-600">Descuento Canje:</span>
-                              <div className="text-right">
-                                <div className="text-red-600">-${descuentoCanje.toFixed(2)} USD</div>
-                                <div className="text-xs text-gray-500">
-                                  {formatearMonedaARS(-descuentoCanje * dollarPrice)}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          {porcentajeInteres > 0 && (
-                            <div className="flex justify-between mb-2">
-                              <span className="text-gray-600">Interés ({porcentajeInteres}%):</span>
-                              <div className="text-right">
-                                <div>${interes.toFixed(2)}</div>
-                                <div className="text-xs text-gray-500">{formatearMonedaARS(interes * dollarPrice)}</div>
-                              </div>
+                              <PrecioConARS
+                                precio={-descuentoCanje}
+                                dollarPrice={dollarPrice}
+                                className="text-red-600"
+                              />
                             </div>
                           )}
                           {porcentajeDescuento > 0 && (
-                            <div className="flex justify-between mb-2">
+                            <div className="flex justify-between">
                               <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
-                              <div className="text-right">
-                                <div>-${descuento.toFixed(2)}</div>
-                                <div className="text-xs text-gray-500">
-                                  {formatearMonedaARS(-descuento * dollarPrice)}
-                                </div>
-                              </div>
+                              <PrecioConARS precio={-descuento} dollarPrice={dollarPrice} className="text-green-600" />
                             </div>
                           )}
                           <Separator className="my-2" />
-                          <div className="flex justify-between font-bold">
-                            <span>Total:</span>
-                            <div className="text-right">
-                              <div className="text-orange-600">${total.toFixed(2)}</div>
-                              <div className="text-xs text-gray-500 font-normal">
-                                {formatearMonedaARS(total * dollarPrice)}
-                              </div>
-                            </div>
+                          <div className="flex justify-between font-bold text-base">
+                            <span>Total a Pagar:</span>
+                            <PrecioConARS precio={total} dollarPrice={dollarPrice} className="text-orange-600" />
                           </div>
-                          {mostrarInteresVisual && porcentajeInteres > 0 && (
-                            <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200">
-                              <span className="text-gray-600 flex items-center gap-1">
-                                <CreditCardIcon className="h-3.5 w-3.5" />
-                                Total con interés:
-                              </span>
-                              <div className="text-right">
-                                <div className="text-orange-500">${totalVisual.toFixed(2)}</div>
-                                <div className="text-xs text-gray-500 font-normal">
-                                  {formatearMonedaARS(totalVisual * dollarPrice)}
-                                </div>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Selección de método de pago - Ocupa 2/5 en pantallas medianas y grandes */}
-
+                    {/* MODIFICACIÓN: Nueva sección para múltiples pagos */}
                     <div className="md:col-span-2">
-                      <div className="bg-white rounded-lg border p-4 h-full">
-                        <h3 className="text-sm font-medium mb-3 text-gray-700">Método de pago:</h3>
-                        <RadioGroup
-                          value={tipoPagoSeleccionado}
-                          onValueChange={setTipoPagoSeleccionado}
-                          className="grid grid-cols-1 gap-3"
-                        >
-                          {tiposPagoDisponibles.map((metodo) => {
-                            // Verificar si es cuenta corriente y no hay cliente seleccionado
-                            const esCuentaCorriente =
-                              metodo.nombre.toLowerCase() === "cuenta corriente" ||
-                              metodo.nombre.toLowerCase() === "cuenta"
-                            const disabled = esCuentaCorriente && !cliente.id
+                      <div className="bg-white rounded-lg border p-4 h-full flex flex-col">
+                        <h3 className="text-sm font-medium mb-3 text-gray-700">Métodos de pago:</h3>
+                        <div className="grid grid-cols-1 gap-2 border-b pb-4 mb-4">
+                          <Select value={tipoPagoSeleccionadoActual} onValueChange={setTipoPagoSeleccionadoActual}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccione método de pago" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {tiposPagoDisponibles.map((metodo) => {
+                                const esCuentaCorriente =
+                                  metodo.nombre.toLowerCase() === "cuenta corriente" ||
+                                  metodo.nombre.toLowerCase() === "cuenta"
+                                const disabled = esCuentaCorriente && !cliente.id
+                                return (
+                                  <SelectItem key={metodo.id} value={metodo.id.toString()} disabled={disabled}>
+                                    {metodo.nombre}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <div className="relative">
+                            <NumericFormat
+                              value={montoPagoActual}
+                              onValueChange={(values) => setMontoPagoActual(values.value)}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="$ "
+                              decimalScale={2}
+                              allowNegative={false}
+                              customInput={Input}
+                              placeholder="Monto en ARS"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 text-orange-600"
+                              onClick={() => montoRestante > 0 && setMontoPagoActual(montoRestante.toFixed(2))}
+                            >
+                              MAX
+                            </Button>
+                          </div>
+                          <Button onClick={handleAddPago} disabled={!tipoPagoSeleccionadoActual || !montoPagoActual}>
+                            <PlusCircle className="h-4 w-4 mr-2" />
+                            Agregar Pago
+                          </Button>
+                        </div>
 
-                            return (
-                              <Label
-                                key={metodo.id}
-                                htmlFor={`pago-${metodo.id}`}
-                                className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${
-                                  disabled
-                                    ? "opacity-50 cursor-not-allowed"
-                                    : tipoPagoSeleccionado === metodo.id.toString()
-                                      ? "border-orange-500 bg-orange-50"
-                                      : "hover:bg-gray-50"
-                                }`}
-                              >
-                                <RadioGroupItem
-                                  id={`pago-${metodo.id}`}
-                                  value={metodo.id.toString()}
-                                  className="sr-only"
-                                  disabled={disabled}
-                                />
+                        <ScrollArea className="flex-grow pr-2">
+                          {pagos.length === 0 ? (
+                            <p className="text-center text-sm text-gray-500 py-4">No hay pagos agregados.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {pagos.map((pago) => (
                                 <div
-                                  className={`p-2 rounded-full ${
-                                    tipoPagoSeleccionado === metodo.id.toString()
-                                      ? "bg-orange-100 text-orange-600"
-                                      : "bg-gray-100 text-gray-500"
-                                  }`}
+                                  key={pago.id}
+                                  className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
                                 >
-                                  <metodo.icono className="h-4 w-4" />
+                                  <div className="flex items-center gap-2">
+                                    <pago.icono className="h-4 w-4 text-gray-600" />
+                                    <span className="text-sm font-medium">{pago.tipo_pago_nombre}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm">{formatearMonedaARS(pago.monto)}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-red-500"
+                                      onClick={() => handleRemovePago(pago.id)}
+                                    >
+                                      <Trash2 size={14} />
+                                    </Button>
+                                  </div>
                                 </div>
-                                <span className="text-sm font-medium">{metodo.nombre}</span>
-                                {esCuentaCorriente && !cliente.id && (
-                                  <span className="text-xs text-red-500 ml-auto">Requiere cliente</span>
-                                )}
-                              </Label>
-                            )
-                          })}
-                        </RadioGroup>
+                              ))}
+                            </div>
+                          )}
+                        </ScrollArea>
+
+                        <div className="mt-4 border-t pt-4 space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total Pagado:</span>
+                            <span className="font-medium">{formatearMonedaARS(totalPagado)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Restante:</span>
+                            <span className={`font-medium ${montoRestante > 0 ? "text-red-600" : "text-green-600"}`}>
+                              {formatearMonedaARS(montoRestante)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {cliente.id && cuentaCorrienteInfo && (
+                {cliente.id && cuentaCorrienteInfo && pagosEnCuentaCorriente > 0 && (
                   <div className="flex items-center justify-between gap-2 mt-3 bg-gray-50 rounded-md p-2 text-sm">
                     <div className="flex items-center gap-1">
                       <BookOpen className="h-3.5 w-3.5 text-gray-500" />
@@ -1662,18 +1568,12 @@ const VentasEquipos = () => {
                           {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
                         </span>
                       </div>
-                      {tipoPagoSeleccionado &&
-                        tiposPagoDisponibles
-                          .find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-                          ?.nombre.toLowerCase()
-                          .includes("cuenta") && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-600">Nuevo:</span>
-                            <span className={`font-medium ${nuevoSaldoCalc > 0 ? "text-red-600" : "text-green-600"}`}>
-                              {formatearMonedaARS(nuevoSaldoCalc)}
-                            </span>
-                          </div>
-                        )}
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-600">Nuevo Saldo:</span>
+                        <span className={`font-medium ${nuevoSaldoCalc > 0 ? "text-red-600" : "text-green-600"}`}>
+                          {formatearMonedaARS(nuevoSaldoCalc)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1689,7 +1589,7 @@ const VentasEquipos = () => {
                   <Button
                     onClick={finalizarVenta}
                     className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={!tipoPagoSeleccionado || procesandoVenta}
+                    disabled={Math.abs(montoRestante) > 0.01 || procesandoVenta || pagos.length === 0}
                   >
                     {procesandoVenta ? (
                       <>
