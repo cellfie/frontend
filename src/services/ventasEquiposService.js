@@ -5,16 +5,21 @@ const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
   try {
+    // Manejar fechas que vienen de la base de datos
     let fecha
 
     if (fechaString.includes("T") || fechaString.includes("+")) {
+      // La fecha ya tiene información de timezone
       fecha = new Date(fechaString)
     } else {
+      // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
+      // Agregamos el offset de Argentina (-03:00)
       fecha = new Date(fechaString + " GMT-0300")
     }
 
     if (isNaN(fecha.getTime())) return ""
 
+    // Sumar 3 horas para corregir el desfase
     fecha.setHours(fecha.getHours() + 3)
 
     return fecha.toLocaleString("es-AR", {
@@ -32,10 +37,13 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
+// Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
+// Obtener todas las ventas de equipos
 export const getVentasEquipos = async (params = {}) => {
   try {
+    // Construir la URL con los parámetros de búsqueda
     const queryParams = new URLSearchParams()
 
     if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
@@ -43,7 +51,6 @@ export const getVentasEquipos = async (params = {}) => {
     if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
     if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
     if (params.anuladas !== undefined) queryParams.append("anuladas", params.anuladas)
-    if (params.estado_pago) queryParams.append("estado_pago", params.estado_pago)
 
     const url = `${API_URL}/ventas-equipos?${queryParams.toString()}`
 
@@ -64,6 +71,7 @@ export const getVentasEquipos = async (params = {}) => {
   }
 }
 
+// Obtener una venta de equipo por ID
 export const getVentaEquipoById = async (id) => {
   try {
     const response = await fetch(`${API_URL}/ventas-equipos/${id}`, {
@@ -83,55 +91,21 @@ export const getVentaEquipoById = async (id) => {
   }
 }
 
-// ✅ MEJORA: Crear una nueva venta de equipo con mejor validación de pagos
+// Crear una nueva venta de equipo
 export const createVentaEquipo = async (ventaData) => {
   try {
-    console.log("Datos enviados al backend:", ventaData)
-
-    // ✅ MEJORA: Validación mejorada de pagos múltiples
-    if (!ventaData.pagos || !Array.isArray(ventaData.pagos)) {
-      throw new Error("Los pagos deben ser un array")
-    }
-
-    // Validar que cada pago tenga los campos requeridos
-    for (const pago of ventaData.pagos) {
-      if (!pago.tipo_pago_nombre) {
-        throw new Error("Cada pago debe tener un tipo de pago válido")
-      }
-      if (!pago.monto_usd || pago.monto_usd <= 0) {
-        throw new Error("Cada pago debe tener un monto USD mayor a 0")
-      }
-    }
-
-    // ✅ MEJORA: Calcular total de pagos y validar
-    const totalPagos = ventaData.pagos.reduce((sum, p) => sum + Number(p.monto_usd), 0)
-    const diferencia = Math.abs(totalPagos - ventaData.total)
-
-    if (diferencia > 0.01 && !ventaData.marcar_como_incompleta) {
-      throw new Error(
-        `El total de pagos (${totalPagos.toFixed(2)} USD) no coincide con el total de la venta (${ventaData.total.toFixed(2)} USD)`,
-      )
-    }
-
+    // Adaptar los datos del frontend al formato que espera el backend
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
+      tipo_pago: ventaData.tipo_pago,
       equipo_id: ventaData.equipo_id,
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
       plan_canje: ventaData.plan_canje || null,
       notas: ventaData.notas || "",
-      tipo_cambio: ventaData.tipo_cambio,
-      pagos: ventaData.pagos.map((p) => ({
-        monto_usd: p.monto_usd,
-        monto_ars: p.monto_ars,
-        tipo_pago: p.tipo_pago_nombre,
-        notas_pago: p.notas_pago || "",
-      })),
-      marcar_como_incompleta: ventaData.marcar_como_incompleta || false,
+      tipo_cambio: ventaData.tipo_cambio, // Agregar el tipo de cambio actual
     }
-
-    console.log("Datos adaptados para backend:", backendData)
 
     const response = await fetch(`${API_URL}/ventas-equipos`, {
       method: "POST",
@@ -154,6 +128,7 @@ export const createVentaEquipo = async (ventaData) => {
   }
 }
 
+// Anular una venta de equipo
 export const anularVentaEquipo = async (id, motivo) => {
   try {
     const response = await fetch(`${API_URL}/ventas-equipos/${id}/anular`, {
@@ -177,35 +152,12 @@ export const anularVentaEquipo = async (id, motivo) => {
   }
 }
 
-// Nueva función para registrar un pago adicional a una venta de equipo
-export const registrarPagoAdicionalVentaEquipo = async (ventaId, pagoData) => {
-  try {
-    const response = await fetch(`${API_URL}/ventas-equipos/${ventaId}/pagos`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(pagoData),
-      credentials: "include",
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || "Error al registrar el pago adicional")
-    }
-    return await response.json()
-  } catch (error) {
-    console.error("Error en registrarPagoAdicionalVentaEquipo:", error)
-    throw error
-  }
-}
-
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptVentaEquipoToFrontend = (venta) => {
   return {
     id: venta.id,
     numeroFactura: venta.numero_factura,
-    fecha: formatearFechaArgentina(venta.fecha),
+    fecha: formatearFechaArgentina(venta.fecha), // Usar la función de formateo con corrección de timezone
     precioUSD: venta.precio_usd,
     precioARS: venta.precio_ars,
     tipoCambio: venta.tipo_cambio,
@@ -218,11 +170,6 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     anulada: venta.anulada === 1,
     fechaAnulacion: venta.fecha_anulacion ? formatearFechaArgentina(venta.fecha_anulacion) : null,
     motivoAnulacion: venta.motivo_anulacion,
-    estadoPago: venta.estado_pago,
-    montoPagadoUSD: venta.monto_pagado_usd,
-    montoPagadoARS: venta.monto_pagado_ars,
-    saldoPendienteUSD: venta.saldo_pendiente_usd,
-    saldoPendienteARS: venta.saldo_pendiente_ars,
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,
@@ -237,6 +184,9 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     puntoVenta: {
       id: venta.punto_venta_id,
       nombre: venta.punto_venta_nombre,
+    },
+    tipoPago: {
+      nombre: venta.tipo_pago,
     },
     equipo: {
       id: venta.equipo_id,
@@ -261,22 +211,19 @@ export const adaptVentaEquipoToFrontend = (venta) => {
           precio: venta.plan_canje.precio,
           descripcion: venta.plan_canje.descripcion,
           imei: venta.plan_canje.imei,
-          fechaIngreso: venta.plan_canje.fecha_ingreso ? formatearFechaArgentina(venta.plan_canje.fecha_ingreso) : null,
+          fechaIngreso: venta.plan_canje.fecha_ingreso,
         }
       : null,
-    pagos: venta.pagos_info
-      ? venta.pagos_info.map((pago) => ({
+    pagos: venta.pagos
+      ? venta.pagos.map((pago) => ({
           id: pago.id,
-          montoUSD: pago.monto_usd,
-          montoARS: pago.monto_ars,
-          fecha: formatearFechaArgentina(pago.fecha),
+          monto: pago.monto,
+          fecha: formatearFechaArgentina(pago.fecha), // También formatear fechas de pagos
           anulado: pago.anulado === 1,
-          tipoPago: pago.tipo_pago,
-          notas: pago.notas,
-          puntoVentaNombre: pago.punto_venta_nombre,
-          usuarioNombre: pago.usuario_nombre,
+          tipoPago: {
+            nombre: pago.tipo_pago,
+          },
         }))
       : [],
-    notas: venta.notas,
   }
 }

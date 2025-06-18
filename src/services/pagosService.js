@@ -1,8 +1,9 @@
-const API_URL = "https://api.sistemacellfierm22.site/api"
+const API_URL = "https://api.sistemacellfierm22.site/api" 
 
 // Obtener todos los pagos
 export const getPagos = async (params = {}) => {
   try {
+    // Construir la URL con los parámetros de búsqueda
     const queryParams = new URLSearchParams()
 
     if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
@@ -54,8 +55,9 @@ export const getPagoById = async (id) => {
 // Crear un nuevo pago
 export const createPago = async (pagoData) => {
   try {
+    // Asegurarse de que todos los campos necesarios estén presentes
     if (!pagoData.punto_venta_id) {
-      pagoData.punto_venta_id = 1
+      pagoData.punto_venta_id = 1 // Punto de venta por defecto
     }
 
     const response = await fetch(`${API_URL}/pagos`, {
@@ -103,46 +105,14 @@ export const anularPago = async (id, motivo) => {
   }
 }
 
-// ✅ MEJORA: Obtener tipos de pago desde la API
+// Obtener tipos de pago
 export const getTiposPago = async () => {
-  try {
-    const response = await fetch(`${API_URL}/ventas-equipos/tipos-pago`, {
-      method: "GET",
-      credentials: "include",
-    })
-
-    if (!response.ok) {
-      console.warn("API de tipos de pago no disponible, usando valores por defecto")
-      return [
-        { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo", requiere_cliente: false },
-        { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria", requiere_cliente: false },
-        { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito", requiere_cliente: false },
-        { id: 4, nombre: "Tarjeta de débito", descripcion: "Pago con tarjeta de débito", requiere_cliente: false },
-        {
-          id: 5,
-          nombre: "Cuenta corriente",
-          descripcion: "Pago con cuenta corriente del cliente",
-          requiere_cliente: true,
-        },
-      ]
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error("Error al obtener tipos de pago:", error)
-    return [
-      { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo", requiere_cliente: false },
-      { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria", requiere_cliente: false },
-      { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito", requiere_cliente: false },
-      { id: 4, nombre: "Tarjeta de débito", descripcion: "Pago con tarjeta de débito", requiere_cliente: false },
-      {
-        id: 5,
-        nombre: "Cuenta corriente",
-        descripcion: "Pago con cuenta corriente del cliente",
-        requiere_cliente: true,
-      },
-    ]
-  }
+  return [
+    { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo" },
+    { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria" },
+    { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito" },
+    { id: 4, nombre: "Cuenta corriente", descripcion: "Pago con cuenta corriente del cliente" },
+  ]
 }
 
 // Modificar la función adaptPagoToFrontend para usar el nuevo campo tipo_pago:

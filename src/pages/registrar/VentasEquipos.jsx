@@ -26,6 +26,7 @@ import {
   Barcode,
   AlertCircle,
 } from "lucide-react"
+import { NumericFormat } from "react-number-format"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -45,8 +46,10 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Importar servicios
 import { getEquipos, adaptEquipoToFrontend } from "@/services/equiposService"
@@ -60,9 +63,6 @@ import { DollarContext } from "@/context/DollarContext"
 
 // Importar componente de precios canjes
 import PreciosCanjes from "@/components/PreciosCanje"
-
-// ✅ NUEVO: Componente mejorado para múltiples métodos de pago
-import PaymentMethodsModal from "@/components/PaymentMethodsModal"
 
 // Función para formatear moneda en formato argentino
 const formatearMonedaARS = (valor) => {
@@ -172,7 +172,7 @@ const VentasEquipos = () => {
   // Estados para búsqueda
   const [busquedaMarcaModelo, setBusquedaMarcaModelo] = useState("")
   const [busquedaIMEI, setBusquedaIMEI] = useState("")
-  const [tipoFiltroActivo, setTipoFiltroActivo] = useState("marca-modelo")
+  const [tipoFiltroActivo, setTipoFiltroActivo] = useState("marca-modelo") // 'marca-modelo' o 'imei'
 
   // Resto de estados existentes...
   const [porcentajeInteres, setPorcentajeInteres] = useState(0)
@@ -186,6 +186,7 @@ const VentasEquipos = () => {
   const [busquedaCliente, setBusquedaCliente] = useState("")
   const [dialogNuevoClienteAbierto, setDialogNuevoClienteAbierto] = useState(false)
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false)
+  const [tipoPagoSeleccionado, setTipoPagoSeleccionado] = useState("")
   const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
   const [procesandoVenta, setProcesandoVenta] = useState(false)
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
@@ -207,27 +208,31 @@ const VentasEquipos = () => {
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
   const [preciosCanjesAbierto, setPreciosCanjesAbierto] = useState(false)
+  // Agregar un nuevo estado para controlar la visualización del interés
   const [mostrarInteresVisual, setMostrarInteresVisual] = useState(false)
-
-  // ✅ NUEVOS ESTADOS PARA PAGOS MÚLTIPLES MEJORADOS
-  const [pagos, setPagos] = useState([])
-  const [marcarComoIncompleta, setMarcarComoIncompleta] = useState(false)
 
   // Cargar datos iniciales
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
+        // Cargar puntos de venta
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
+
+        // Establecer punto de venta por defecto a Trancas (ID 1)
         setPuntoVentaSeleccionado("1")
 
+        // Cargar tipos de pago
         const tipos = await getTiposPago()
+        // Asignar iconos a los tipos de pago
         setTiposPagoDisponibles(
           tipos.map((tipo) => {
+            // Determinar el icono basado en el nombre del tipo de pago
             let icono = DollarSign
             if (tipo.nombre.toLowerCase().includes("transferencia")) icono = ArrowUpRight
             if (tipo.nombre.toLowerCase().includes("tarjeta")) icono = CreditCardIcon
             if (tipo.nombre.toLowerCase().includes("cuenta")) icono = BookOpen
+
             return { ...tipo, icono }
           }),
         )
@@ -236,6 +241,7 @@ const VentasEquipos = () => {
         toast.error("Error al cargar datos iniciales")
       }
     }
+
     cargarDatosIniciales()
   }, [])
 
@@ -247,12 +253,16 @@ const VentasEquipos = () => {
         const data = await getEquipos()
         const adaptedData = data.map((equipo) => {
           const adaptedEquipo = adaptEquipoToFrontend(equipo)
+          // Asegurarse de que vendido tenga un valor predeterminado si no existe
           if (adaptedEquipo.vendido === undefined) {
             adaptedEquipo.vendido = false
           }
           return adaptedEquipo
         })
+
+        // Filtrar equipos vendidos
         const equiposDisponibles = adaptedData.filter((equipo) => !equipo.vendido)
+
         setEquipos(equiposDisponibles)
         setEquiposFiltrados(equiposDisponibles)
       } catch (err) {
@@ -267,6 +277,7 @@ const VentasEquipos = () => {
 
   // Filtrar equipos
   useEffect(() => {
+    // Función para filtrar equipos según el tipo de búsqueda activo
     const filtrarEquipos = () => {
       if (tipoFiltroActivo === "marca-modelo" && busquedaMarcaModelo.trim()) {
         const termino = busquedaMarcaModelo.toLowerCase().trim()
@@ -283,16 +294,19 @@ const VentasEquipos = () => {
       }
       return equipos
     }
+
     setEquiposFiltrados(filtrarEquipos())
   }, [busquedaMarcaModelo, busquedaIMEI, tipoFiltroActivo, equipos])
 
-  // Buscar clientes
+  // Resto del código existente...
+  // Buscar clientes cuando cambia la búsqueda
   useEffect(() => {
     const buscarClientes = async () => {
       if (busquedaCliente.length < 2) {
         setClientesBusqueda([])
         return
       }
+
       try {
         const clientes = await searchClientes(busquedaCliente)
         setClientesBusqueda(clientes)
@@ -300,25 +314,29 @@ const VentasEquipos = () => {
         console.error("Error al buscar clientes:", error)
       }
     }
+
     const timeoutId = setTimeout(() => {
       buscarClientes()
     }, 300)
+
     return () => clearTimeout(timeoutId)
   }, [busquedaCliente])
 
-  // Cargar cuenta corriente
+  // Cargar información de cuenta corriente cuando cambia el cliente seleccionado
   useEffect(() => {
     const cargarCuentaCorriente = async () => {
       if (!cliente.id) {
         setCuentaCorrienteInfo(null)
         return
       }
+
       setCargandoCuentaCorriente(true)
       try {
         const cuentaCorriente = await getCuentaCorrienteByCliente(cliente.id)
         setCuentaCorrienteInfo(cuentaCorriente)
       } catch (error) {
         console.error("Error al cargar cuenta corriente:", error)
+        // Si el error es 404, significa que el cliente no tiene cuenta corriente
         if (error.message && error.message.includes("no tiene cuenta corriente")) {
           setCuentaCorrienteInfo({ saldo: 0, limite_credito: 0, activo: true, cliente_id: cliente.id })
         } else {
@@ -328,10 +346,26 @@ const VentasEquipos = () => {
         setCargandoCuentaCorriente(false)
       }
     }
+
     if (cliente.id) {
       cargarCuentaCorriente()
     }
   }, [cliente.id])
+
+  // Actualizar tipo de pago cuando cambia el cliente
+  useEffect(() => {
+    // Si se selecciona cuenta corriente pero no hay cliente, resetear el tipo de pago
+    if (tipoPagoSeleccionado) {
+      const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
+      if (
+        tipoPago &&
+        (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta") &&
+        !cliente.id
+      ) {
+        setTipoPagoSeleccionado("")
+      }
+    }
+  }, [cliente, tipoPagoSeleccionado, tiposPagoDisponibles])
 
   // Cálculos
   const precioBruto = equipoSeleccionado ? Number(equipoSeleccionado.precio) : 0
@@ -339,22 +373,23 @@ const VentasEquipos = () => {
   const subtotal = precioBruto - descuentoCanje
   const interes = (subtotal * porcentajeInteres) / 100
   const descuento = (subtotal * porcentajeDescuento) / 100
+  // Modificar los cálculos para separar el total real del total visual
   const total = subtotal - descuento
   const totalVisual = subtotal + interes - descuento
 
-  // ✅ MEJORA: Cálculos para pagos múltiples
-  const totalPagadoUSD = pagos.reduce((sum, p) => sum + Number(p.monto_usd), 0)
-  const saldoPendienteUSD = total - totalPagadoUSD
-  const pagoCompleto = Math.abs(saldoPendienteUSD) <= 0.01
+  // Calcular el nuevo saldo de la cuenta corriente
+  const nuevoSaldoCalc = cuentaCorrienteInfo ? Number(cuentaCorrienteInfo.saldo) + Number(total * dollarPrice) : 0
 
   const handleInteresFocus = () => interesInputValue === "0" && setInteresInputValue("")
   const handleDescuentoFocus = () => descuentoInputValue === "0" && setDescuentoInputValue("")
+
   const handleInteresBlur = () => {
     if (interesInputValue === "") {
       setInteresInputValue("0")
       setPorcentajeInteres(0)
     }
   }
+
   const handleDescuentoBlur = () => {
     if (descuentoInputValue === "") {
       setDescuentoInputValue("0")
@@ -364,26 +399,35 @@ const VentasEquipos = () => {
 
   // Handlers para equipos
   const seleccionarEquipo = (eq) => {
+    // Verificar si el equipo está vendido
     if (eq.vendido) {
-      toast.error(`No puedes vender este equipo porque ya ha sido vendido`, { position: "bottom-right" })
+      toast.error(`No puedes vender este equipo porque ya ha sido vendido`, {
+        position: "bottom-right",
+      })
       return
     }
+
+    // Verificar si el equipo pertenece al punto de venta seleccionado
     if (eq.puntoVenta?.id.toString() !== puntoVentaSeleccionado) {
       toast.error(
         `No puedes vender equipos de ${eq.puntoVenta?.nombre}. Solo puedes vender equipos de ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
-        { position: "bottom-right" },
+        {
+          position: "bottom-right",
+        },
       )
       return
     }
+
     setEquipoSeleccionado(eq)
-    toast.success(`${eq.marca} ${eq.modelo} seleccionado`, { icon: "✅", position: "bottom-right" })
+    toast.success(`${eq.marca} ${eq.modelo} seleccionado`, {
+      icon: "✅",
+      position: "bottom-right",
+    })
   }
 
   const removerSeleccion = () => {
     setEquipoSeleccionado(null)
     cancelarPlanCanje()
-    setPagos([])
-    setMarcarComoIncompleta(false)
     toast.info("Selección eliminada", { position: "bottom-right" })
   }
 
@@ -395,28 +439,41 @@ const VentasEquipos = () => {
       telefono: clienteSeleccionado.telefono || "",
       dni: clienteSeleccionado.dni || "",
     })
+
     setDialogClienteAbierto(false)
     setBusquedaCliente("")
     setClientesBusqueda([])
-    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado correctamente`, { position: "bottom-right" })
+
+    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado correctamente`, {
+      position: "bottom-right",
+    })
   }
 
+  // Crear nuevo cliente
   const crearNuevoCliente = async () => {
     if (!nuevoCliente.nombre.trim()) {
-      toast.error("El nombre del cliente es obligatorio", { position: "bottom-right" })
+      toast.error("El nombre del cliente es obligatorio", {
+        position: "bottom-right",
+      })
       return
     }
+
     try {
       const clienteCreado = await createCliente(nuevoCliente)
+
       setCliente({
         id: clienteCreado.id,
         nombre: clienteCreado.nombre,
         telefono: clienteCreado.telefono || "",
         dni: clienteCreado.dni || "",
       })
+
       setDialogNuevoClienteAbierto(false)
       setDialogClienteAbierto(false)
-      toast.success("Cliente creado correctamente", { position: "bottom-right" })
+
+      toast.success("Cliente creado correctamente", {
+        position: "bottom-right",
+      })
     } catch (error) {
       console.error("Error al crear cliente:", error)
       toast.error("Error al crear cliente: " + error.message)
@@ -462,15 +519,18 @@ const VentasEquipos = () => {
       toast.error("El precio de canje es obligatorio", { position: "bottom-right" })
       return
     }
+
     if (!nuevoEquipoCanje.imei) {
       toast.error("El IMEI del equipo de canje es obligatorio", { position: "bottom-right" })
       return
     }
+
     setCanjeCompletado(true)
     setPlanCanjeAbierto(false)
     toast.success("Plan Canje aplicado correctamente", { position: "bottom-right" })
   }
 
+  // Validar campos obligatorios del plan canje
   const validarPasoCanje = () => {
     if (pasoActualCanje === 3) {
       return !!nuevoEquipoCanje.precio && !!nuevoEquipoCanje.imei
@@ -478,67 +538,85 @@ const VentasEquipos = () => {
     return true
   }
 
-  // ✅ MEJORA: Finalizar venta con validación mejorada
+  // Finalizar venta
   const finalizarVenta = async () => {
-    if (!equipoSeleccionado || !cliente.id) {
-      toast.error("Debe seleccionar un equipo y un cliente.", { position: "bottom-right" })
+    if (!equipoSeleccionado) {
+      toast.error("Debe seleccionar un equipo", { position: "bottom-right" })
+      return
+    }
+    if (!cliente.id) {
+      toast.error("Debe seleccionar un cliente para realizar la venta", { position: "bottom-right" })
+      return
+    }
+    if (!tipoPagoSeleccionado) {
+      toast.error("Debe seleccionar un método de pago", { position: "bottom-right" })
       return
     }
 
-    if (pagos.length === 0 && !marcarComoIncompleta) {
-      toast.error("Debe agregar al menos un método de pago o marcar la venta como incompleta.", {
+    // Verificar que el usuario esté autenticado
+    if (!currentUser || !currentUser.id) {
+      toast.error("El usuario no está autenticado. Por favor, inicie sesión.", {
         position: "bottom-right",
       })
       return
     }
 
-    if (!pagoCompleto && !marcarComoIncompleta) {
-      toast.error(
-        "El monto pagado no cubre el total de la venta. Complete el pago o marque la venta como incompleta.",
-        {
-          position: "bottom-right",
-        },
-      )
-      return
-    }
+    // Verificar si el tipo de pago es cuenta corriente
+    const tipoPago = tiposPagoDisponibles.find((tipo) => tipo.id.toString() === tipoPagoSeleccionado)
+    const esCuentaCorriente =
+      tipoPago && (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta")
 
-    if (!currentUser || !currentUser.id) {
-      toast.error("Usuario no autenticado. Por favor, inicie sesión.", { position: "bottom-right" })
-      return
+    // Si es cuenta corriente, verificar límite de crédito
+    if (esCuentaCorriente) {
+      if (!cuentaCorrienteInfo) {
+        toast.error("No se pudo obtener información de la cuenta corriente", {
+          position: "bottom-right",
+        })
+        return
+      }
+
+      // Verificar si el cliente tiene límite de crédito y si la venta lo excede
+      if (
+        cuentaCorrienteInfo.limite_credito > 0 &&
+        Number(cuentaCorrienteInfo.saldo) + Number(total * dollarPrice) > cuentaCorrienteInfo.limite_credito
+      ) {
+        toast.error(
+          `La venta excede el límite de crédito del cliente (${formatearMonedaARS(cuentaCorrienteInfo.limite_credito)})`,
+          {
+            position: "bottom-right",
+          },
+        )
+        return
+      }
     }
 
     setProcesandoVenta(true)
 
     try {
+      // Preparar datos para la API
       const ventaData = {
         cliente_id: cliente.id,
         punto_venta_id: Number(puntoVentaSeleccionado || 1),
+        tipo_pago:
+          tiposPagoDisponibles.find((tipo) => tipo.id.toString() === tipoPagoSeleccionado)?.nombre || "Efectivo",
         equipo_id: equipoSeleccionado.id,
-        porcentaje_interes: 0,
+        porcentaje_interes: 0, // Siempre enviamos 0 para el interés ya que es solo visual
         porcentaje_descuento: porcentajeDescuento,
         plan_canje: canjeCompletado ? nuevoEquipoCanje : null,
         notas: `Venta de equipo ${equipoSeleccionado.marca} ${equipoSeleccionado.modelo}`,
-        tipo_cambio: dollarPrice,
-        total: total,
-        pagos: pagos.map((p) => ({
-          monto_usd: p.monto_usd,
-          monto_ars: p.monto_ars,
-          tipo_pago_nombre: p.tipo_pago_nombre,
-          notas_pago: p.notas || "",
-        })),
-        marcar_como_incompleta: marcarComoIncompleta,
+        tipo_cambio: dollarPrice, // Agregar el tipo de cambio actual
       }
 
-      console.log("Datos de venta a enviar:", ventaData)
-
+      // Llamar a la API para crear la venta
       const resultado = await createVentaEquipo(ventaData)
 
-      toast.success(`Venta registrada con éxito (Factura: ${resultado.numero_factura})`, {
+      toast.success(`Venta de equipo registrada con éxito`, {
         icon: "✅",
         position: "bottom-center",
         autoClose: 3000,
       })
 
+      // Si había plan canje, mostrar mensaje adicional
       if (canjeCompletado) {
         toast.success(`Equipo de canje registrado en el inventario`, {
           icon: "📱",
@@ -546,6 +624,9 @@ const VentasEquipos = () => {
           autoClose: 5000,
         })
       }
+
+      const cuentaActualizada = await getCuentaCorrienteByCliente(cliente.id)
+      setCuentaCorrienteInfo(cuentaActualizada)
 
       // Resetear estados
       setEquipoSeleccionado(null)
@@ -556,12 +637,11 @@ const VentasEquipos = () => {
       setDescuentoInputValue("0")
       cancelarPlanCanje()
       setDialogFinalizarAbierto(false)
+      setTipoPagoSeleccionado("")
       setCuentaCorrienteInfo(null)
       setMostrarInteresVisual(false)
-      setPagos([])
-      setMarcarComoIncompleta(false)
 
-      // Recargar equipos
+      // Recargar equipos para actualizar disponibilidad
       const equiposData = await getEquipos()
       const equiposAdaptados = equiposData.map(adaptEquipoToFrontend)
       setEquipos(equiposAdaptados)
@@ -583,7 +663,10 @@ const VentasEquipos = () => {
   // Aplicar precio de canje
   const aplicarPrecioCanje = (precio) => {
     if (pasoActualCanje === 3 && nuevoEquipoCanje) {
-      setNuevoEquipoCanje({ ...nuevoEquipoCanje, precio: precio })
+      setNuevoEquipoCanje({
+        ...nuevoEquipoCanje,
+        precio: precio,
+      })
       setPreciosCanjesAbierto(false)
       toast.success(`Precio de ${precio} USD aplicado al canje`, { position: "bottom-right" })
     }
@@ -594,11 +677,11 @@ const VentasEquipos = () => {
     if (puntoVentaSeleccionado && equipoSeleccionado) {
       setEquipoSeleccionado(null)
       cancelarPlanCanje()
-      setPagos([])
-      setMarcarComoIncompleta(false)
       toast.info(
         `Se ha limpiado la selección debido al cambio de punto de venta a ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
-        { position: "bottom-center" },
+        {
+          position: "bottom-center",
+        },
       )
     }
   }, [puntoVentaSeleccionado])
@@ -687,6 +770,7 @@ const VentasEquipos = () => {
                   value={nuevoEquipoCanje.precio === 0 ? "" : nuevoEquipoCanje.precio}
                   onChange={(e) => {
                     const value = e.target.value
+                    // Permitir campo vacío o valores numéricos válidos
                     if (value === "" || /^\d*\.?\d*$/.test(value)) {
                       setNuevoEquipoCanje({
                         ...nuevoEquipoCanje,
@@ -1264,213 +1348,390 @@ const VentasEquipos = () => {
                   )}
                 </div>
 
-                {/* Descuentos e Intereses */}
-                <div className="mt-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                        <Percent size={14} className="text-orange-600" />
-                        Descuento (%)
-                      </Label>
-                      <Input
-                        type="text"
-                        value={descuentoInputValue}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          if (value === "" || /^\d*\.?\d*$/.test(value)) {
-                            setDescuentoInputValue(value)
-                            setPorcentajeDescuento(value === "" ? 0 : Number.parseFloat(value))
-                          }
-                        }}
-                        onFocus={handleDescuentoFocus}
-                        onBlur={handleDescuentoBlur}
-                        placeholder="0"
-                        className="text-center"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Resumen de Cálculos */}
-                <div className="mt-6 bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-                    <Receipt size={16} className="text-orange-600" />
-                    Resumen de Venta
-                  </h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Precio del equipo:</span>
-                      <PrecioConARS precio={precioBruto} dollarPrice={dollarPrice} />
-                    </div>
-                    {canjeCompletado && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Descuento por canje:</span>
-                        <PrecioConARS precio={-descuentoCanje} dollarPrice={dollarPrice} />
+                {/* Cálculos */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-6 p-4 bg-gray-50 border-t rounded-lg"
+                >
+                  <div className="bg-white rounded-lg shadow-sm border p-4">
+                    <div className="flex flex-col space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500">Subtotal:</span>
+                        <span className="font-medium">${subtotal.toFixed(2)}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <PrecioConARS precio={subtotal} dollarPrice={dollarPrice} />
-                    </div>
-                    {porcentajeDescuento > 0 && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Descuento ({porcentajeDescuento}%):</span>
-                        <PrecioConARS precio={-descuento} dollarPrice={dollarPrice} />
-                      </div>
-                    )}
-                    <Separator />
-                    <div className="flex justify-between font-semibold text-lg">
-                      <span>Total:</span>
-                      <PrecioConARS precio={total} dollarPrice={dollarPrice} className="text-orange-600" />
-                    </div>
-                  </div>
-                </div>
 
-                {/* ✅ NUEVA SECCIÓN: Métodos de Pago Mejorados */}
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-medium text-gray-800 flex items-center gap-2">
-                      <CreditCardIcon size={16} className="text-orange-600" />
-                      Métodos de Pago
-                    </h3>
-                    <PaymentMethodsModal
-                      total={total}
-                      dollarPrice={dollarPrice}
-                      tiposPago={tiposPagoDisponibles}
-                      cliente={cliente}
-                      cuentaCorrienteInfo={cuentaCorrienteInfo}
-                      pagos={pagos}
-                      setPagos={setPagos}
-                      marcarComoIncompleta={marcarComoIncompleta}
-                      setMarcarComoIncompleta={setMarcarComoIncompleta}
-                    />
-                  </div>
-
-                  {/* Resumen de pagos */}
-                  {pagos.length > 0 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="font-medium text-blue-800 mb-2">Pagos configurados:</h4>
-                      <div className="space-y-2">
-                        {pagos.map((pago, index) => (
-                          <div key={index} className="flex justify-between items-center text-sm">
-                            <span className="text-blue-700">{pago.tipo_pago_nombre}:</span>
-                            <span className="font-medium text-blue-800">${pago.monto_usd.toFixed(2)} USD</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
+                            <Percent className="h-3.5 w-3.5 text-orange-500" />
+                            <NumericFormat
+                              value={interesInputValue}
+                              onValueChange={(values) => {
+                                const { value } = values
+                                setInteresInputValue(value)
+                                setPorcentajeInteres(Number(value) || 0)
+                                // Si se ingresa un interés, mostrar el interés visual
+                                setMostrarInteresVisual(Number(value) > 0)
+                              }}
+                              decimalScale={2}
+                              decimalSeparator=","
+                              allowNegative={false}
+                              className="w-12 h-6 text-sm p-0 border-0 bg-transparent focus-visible:ring-0 text-center"
+                              onFocus={handleInteresFocus}
+                              onBlur={handleInteresBlur}
+                            />
                           </div>
-                        ))}
-                        <Separator className="my-2" />
-                        <div className="flex justify-between items-center font-medium">
-                          <span className="text-blue-800">Total pagado:</span>
-                          <span className="text-blue-800">${totalPagadoUSD.toFixed(2)} USD</span>
+                          <span className="text-sm text-gray-500">Interés</span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <AlertCircle className="h-4 w-4 text-orange-500" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs text-xs">
+                                  Este interés es solo informativo para mostrar al cliente el precio con tarjeta o
+                                  transferencia. No afecta al total de la venta.
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
-                        {!pagoCompleto && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-amber-700">Saldo pendiente:</span>
-                            <span className="font-medium text-amber-700">${saldoPendienteUSD.toFixed(2)} USD</span>
-                          </div>
+                        {porcentajeInteres > 0 && (
+                          <span className="text-orange-600 font-medium">+${interes.toFixed(2)}</span>
                         )}
                       </div>
-                    </div>
-                  )}
 
-                  {marcarComoIncompleta && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle size={16} className="text-amber-600" />
-                        <span className="text-amber-800 font-medium">Venta marcada como incompleta</span>
-                      </div>
-                      <p className="text-amber-700 text-sm mt-1">
-                        Esta venta se registrará con estado "pendiente" y podrás completar el pago posteriormente.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Botón Finalizar */}
-                <div className="mt-6 pt-4 border-t">
-                  <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
-                    <DialogTrigger asChild>
-                      <Button
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white h-12 text-lg font-semibold"
-                        disabled={!cliente.id || (!pagoCompleto && !marcarComoIncompleta)}
-                      >
-                        <Save className="mr-2" size={18} />
-                        Finalizar Venta
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
-                        <DialogDescription>
-                          ¿Estás seguro de que deseas finalizar esta venta? Esta acción no se puede deshacer.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                          <div className="flex justify-between">
-                            <span>Cliente:</span>
-                            <span className="font-medium">{cliente.nombre}</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
+                            <Percent className="h-3.5 w-3.5 text-green-500" />
+                            <NumericFormat
+                              value={descuentoInputValue}
+                              onValueChange={(values) => {
+                                const { value } = values
+                                setDescuentoInputValue(value)
+                                setPorcentajeDescuento(Number(value) || 0)
+                              }}
+                              decimalScale={2}
+                              decimalSeparator=","
+                              allowNegative={false}
+                              className="w-12 h-6 text-sm p-0 border-0 bg-transparent focus-visible:ring-0 text-center"
+                              onFocus={handleDescuentoFocus}
+                              onBlur={handleDescuentoBlur}
+                            />
                           </div>
-                          <div className="flex justify-between">
-                            <span>Equipo:</span>
-                            <span className="font-medium">
-                              {equipoSeleccionado.marca} {equipoSeleccionado.modelo}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total:</span>
-                            <span className="font-medium text-orange-600">${total.toFixed(2)} USD</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Estado de pago:</span>
-                            <span className={`font-medium ${pagoCompleto ? "text-green-600" : "text-amber-600"}`}>
-                              {pagoCompleto ? "Completo" : marcarComoIncompleta ? "Incompleto" : "Pendiente"}
-                            </span>
-                          </div>
+                          <span className="text-sm text-gray-500">Descuento</span>
                         </div>
+                        {porcentajeDescuento > 0 && (
+                          <span className="text-green-600 font-medium">-${descuento.toFixed(2)}</span>
+                        )}
                       </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogFinalizarAbierto(false)}>
-                          Cancelar
-                        </Button>
-                        <Button
-                          onClick={finalizarVenta}
-                          disabled={procesandoVenta}
-                          className="bg-orange-600 hover:bg-orange-700"
-                        >
-                          {procesandoVenta ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Procesando...
-                            </>
-                          ) : (
-                            <>
-                              <Check className="mr-2" size={16} />
-                              Confirmar Venta
-                            </>
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+
+                      <Separator className="my-1" />
+
+                      {/* Total real (sin interés) */}
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total:</span>
+                        <span className="text-orange-600">${total.toFixed(2)}</span>
+                      </div>
+
+                      {/* Total visual con interés (si aplica) */}
+                      {mostrarInteresVisual && porcentajeInteres > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <CreditCardIcon className="h-3.5 w-3.5" />
+                            Total con interés:
+                          </span>
+                          <span className="text-orange-500">${totalVisual.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
               </div>
             ) : (
-              <div className="p-8 text-center text-gray-500">
-                <Smartphone className="mx-auto h-16 w-16 text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium mb-2">Selecciona un equipo</h3>
-                <p className="text-sm">Busca y selecciona un equipo de la lista para comenzar la venta</p>
+              <div className="text-center py-16 px-4 text-gray-500 border-b">
+                <div className="bg-gray-50 p-8 rounded-xl inline-flex flex-col items-center">
+                  <Smartphone className="h-16 w-16 text-gray-300 mb-4" strokeWidth={1.5} />
+                  <h3 className="text-xl font-medium mb-2 text-gray-800">No hay equipo seleccionado</h3>
+                  <p className="text-sm max-w-md">
+                    Busca y haz doble clic en un equipo para seleccionarlo. Recuerda que también debes seleccionar un
+                    cliente para completar la venta.
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>
+
+          <CardFooter className="flex justify-end gap-2 py-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                removerSeleccion()
+                setCliente({ id: null, nombre: "Seleccione un cliente", telefono: "", dni: "" })
+              }}
+              disabled={!equipoSeleccionado}
+              className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
+            >
+              Cancelar
+            </Button>
+
+            <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={() => setDialogFinalizarAbierto(true)}
+                  disabled={!equipoSeleccionado || !cliente.id}
+                  className="gap-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  <Receipt size={16} /> Finalizar Venta
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
+                  <DialogDescription>Revisa los detalles antes de finalizar la venta</DialogDescription>
+                </DialogHeader>
+
+                <div className="py-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {/* Detalles de la venta - Ocupa 3/5 en pantallas medianas y grandes */}
+                    <div className="md:col-span-3">
+                      <div className="bg-gray-50 p-4 rounded-lg h-full">
+                        <h3 className="text-sm font-medium mb-3 text-gray-700">Detalles de la venta:</h3>
+                        <div className="space-y-2">
+                          <div className="flex justify-between mb-2">
+                            <span className="text-gray-600">Cliente:</span>
+                            <span className="font-medium">{cliente.nombre}</span>
+                          </div>
+                          {cliente.dni && (
+                            <div className="flex justify-between mb-2">
+                              <span className="text-gray-600">DNI:</span>
+                              <span>{cliente.dni}</span>
+                            </div>
+                          )}
+                          {cliente.telefono && (
+                            <div className="flex justify-between mb-2">
+                              <span className="text-gray-600">Teléfono:</span>
+                              <span>{cliente.telefono}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between mb-2">
+                            <span className="text-gray-600">Equipo:</span>
+                            <span>
+                              {equipoSeleccionado?.marca} {equipoSeleccionado?.modelo}
+                            </span>
+                          </div>
+                          <div className="flex justify-between mb-2">
+                            <span className="text-gray-600">Precio bruto:</span>
+                            <div className="text-right">
+                              <div>${precioBruto.toFixed(2)}</div>
+                              <div className="text-xs text-gray-500">
+                                {formatearMonedaARS(precioBruto * dollarPrice)}
+                              </div>
+                            </div>
+                          </div>
+                          {canjeCompletado && (
+                            <div className="flex justify-between mb-2">
+                              <span className="text-gray-600">Descuento Canje:</span>
+                              <div className="text-right">
+                                <div className="text-red-600">-${descuentoCanje.toFixed(2)} USD</div>
+                                <div className="text-xs text-gray-500">
+                                  {formatearMonedaARS(-descuentoCanje * dollarPrice)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {porcentajeInteres > 0 && (
+                            <div className="flex justify-between mb-2">
+                              <span className="text-gray-600">Interés ({porcentajeInteres}%):</span>
+                              <div className="text-right">
+                                <div>${interes.toFixed(2)}</div>
+                                <div className="text-xs text-gray-500">{formatearMonedaARS(interes * dollarPrice)}</div>
+                              </div>
+                            </div>
+                          )}
+                          {porcentajeDescuento > 0 && (
+                            <div className="flex justify-between mb-2">
+                              <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
+                              <div className="text-right">
+                                <div>-${descuento.toFixed(2)}</div>
+                                <div className="text-xs text-gray-500">
+                                  {formatearMonedaARS(-descuento * dollarPrice)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <Separator className="my-2" />
+                          <div className="flex justify-between font-bold">
+                            <span>Total:</span>
+                            <div className="text-right">
+                              <div className="text-orange-600">${total.toFixed(2)}</div>
+                              <div className="text-xs text-gray-500 font-normal">
+                                {formatearMonedaARS(total * dollarPrice)}
+                              </div>
+                            </div>
+                          </div>
+                          {mostrarInteresVisual && porcentajeInteres > 0 && (
+                            <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200">
+                              <span className="text-gray-600 flex items-center gap-1">
+                                <CreditCardIcon className="h-3.5 w-3.5" />
+                                Total con interés:
+                              </span>
+                              <div className="text-right">
+                                <div className="text-orange-500">${totalVisual.toFixed(2)}</div>
+                                <div className="text-xs text-gray-500 font-normal">
+                                  {formatearMonedaARS(totalVisual * dollarPrice)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selección de método de pago - Ocupa 2/5 en pantallas medianas y grandes */}
+
+                    <div className="md:col-span-2">
+                      <div className="bg-white rounded-lg border p-4 h-full">
+                        <h3 className="text-sm font-medium mb-3 text-gray-700">Método de pago:</h3>
+                        <RadioGroup
+                          value={tipoPagoSeleccionado}
+                          onValueChange={setTipoPagoSeleccionado}
+                          className="grid grid-cols-1 gap-3"
+                        >
+                          {tiposPagoDisponibles.map((metodo) => {
+                            // Verificar si es cuenta corriente y no hay cliente seleccionado
+                            const esCuentaCorriente =
+                              metodo.nombre.toLowerCase() === "cuenta corriente" ||
+                              metodo.nombre.toLowerCase() === "cuenta"
+                            const disabled = esCuentaCorriente && !cliente.id
+
+                            return (
+                              <Label
+                                key={metodo.id}
+                                htmlFor={`pago-${metodo.id}`}
+                                className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${
+                                  disabled
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : tipoPagoSeleccionado === metodo.id.toString()
+                                      ? "border-orange-500 bg-orange-50"
+                                      : "hover:bg-gray-50"
+                                }`}
+                              >
+                                <RadioGroupItem
+                                  id={`pago-${metodo.id}`}
+                                  value={metodo.id.toString()}
+                                  className="sr-only"
+                                  disabled={disabled}
+                                />
+                                <div
+                                  className={`p-2 rounded-full ${
+                                    tipoPagoSeleccionado === metodo.id.toString()
+                                      ? "bg-orange-100 text-orange-600"
+                                      : "bg-gray-100 text-gray-500"
+                                  }`}
+                                >
+                                  <metodo.icono className="h-4 w-4" />
+                                </div>
+                                <span className="text-sm font-medium">{metodo.nombre}</span>
+                                {esCuentaCorriente && !cliente.id && (
+                                  <span className="text-xs text-red-500 ml-auto">Requiere cliente</span>
+                                )}
+                              </Label>
+                            )
+                          })}
+                        </RadioGroup>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {cliente.id && cuentaCorrienteInfo && (
+                  <div className="flex items-center justify-between gap-2 mt-3 bg-gray-50 rounded-md p-2 text-sm">
+                    <div className="flex items-center gap-1">
+                      <BookOpen className="h-3.5 w-3.5 text-gray-500" />
+                      <span className="text-gray-600">Cuenta corriente:</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-600">Actual:</span>
+                        <span
+                          className={`font-medium ${cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-600"}`}
+                        >
+                          {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
+                        </span>
+                      </div>
+                      {tipoPagoSeleccionado &&
+                        tiposPagoDisponibles
+                          .find((tp) => tp.id.toString() === tipoPagoSeleccionado)
+                          ?.nombre.toLowerCase()
+                          .includes("cuenta") && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-600">Nuevo:</span>
+                            <span className={`font-medium ${nuevoSaldoCalc > 0 ? "text-red-600" : "text-green-600"}`}>
+                              {formatearMonedaARS(nuevoSaldoCalc)}
+                            </span>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDialogFinalizarAbierto(false)}
+                    className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={finalizarVenta}
+                    className="gap-1 bg-orange-600 hover:bg-orange-700"
+                    disabled={!tipoPagoSeleccionado || procesandoVenta}
+                  >
+                    {procesandoVenta ? (
+                      <>
+                        <span className="mr-1">Procesando</span>
+                        <span className="animate-spin">
+                          <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} /> Confirmar Venta
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardFooter>
         </Card>
       </div>
 
-      {/* Modal de Precios de Canjes */}
+      {/* Componente de Precios Canjes */}
       <PreciosCanjes
         isOpen={preciosCanjesAbierto}
         onClose={() => setPreciosCanjesAbierto(false)}
-        onSelectPrice={aplicarPrecioCanje}
         dollarPrice={dollarPrice}
+        onSelectPrice={aplicarPrecioCanje}
+        showApplyButtons={pasoActualCanje === 3}
       />
     </div>
   )
