@@ -219,7 +219,7 @@ const VentasEquipos = () => {
       try {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
-        setPuntoVentaSeleccionado(puntos[0]?.id.toString() || "1") // Seleccionar el primero por defecto
+        setPuntoVentaSeleccionado(puntos[1]?.id.toString() || "1") // Seleccionar el primero por defecto
 
         const tipos = await getTiposPago()
         setTiposPagoDisponibles(
@@ -1533,7 +1533,7 @@ const VentasEquipos = () => {
                             Agregar Pago
                           </Button>
                         </div>
-                        <ScrollArea className="flex-grow pr-2">
+                        <ScrollArea className="max-h-[280px] pr-2">
                           {pagos.length === 0 ? (
                             <p className="text-center text-sm text-gray-500 py-4">No hay pagos agregados.</p>
                           ) : (
