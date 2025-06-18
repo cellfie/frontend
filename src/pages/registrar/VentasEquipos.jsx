@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useContext } from "react"
+import { useState, useEffect, useContext, useCallback } from "react" // useCallback añadido
 import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
@@ -70,7 +70,7 @@ const formatearMonedaARS = (valor) => {
     style: "currency",
     currency: "ARS",
     minimumFractionDigits: 2,
-  }).format(valor)
+  }).format(valor || 0) // Asegurar que valor no sea undefined
 }
 
 // Componentes auxiliares
@@ -175,9 +175,9 @@ const VentasEquipos = () => {
   const [tipoFiltroActivo, setTipoFiltroActivo] = useState("marca-modelo") // 'marca-modelo' o 'imei'
 
   // Resto de estados existentes...
-  const [porcentajeInteres, setPorcentajeInteres] = useState(0)
+  const [porcentajeInteresGeneral, setPorcentajeInteresGeneral] = useState(0) // Renombrado para evitar confusión
   const [porcentajeDescuento, setPorcentajeDescuento] = useState(0)
-  const [interesInputValue, setInteresInputValue] = useState("0")
+  const [interesGeneralInputValue, setInteresGeneralInputValue] = useState("0") // Renombrado
   const [descuentoInputValue, setDescuentoInputValue] = useState("0")
   const [cliente, setCliente] = useState({ id: null, nombre: "Seleccione un cliente", telefono: "", dni: "" })
   const [dialogClienteAbierto, setDialogClienteAbierto] = useState(false)
@@ -207,9 +207,8 @@ const VentasEquipos = () => {
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
   const [preciosCanjesAbierto, setPreciosCanjesAbierto] = useState(false)
-  const [mostrarInteresVisual, setMostrarInteresVisual] = useState(false)
+  const [mostrarInteresVisualGeneral, setMostrarInteresVisualGeneral] = useState(false) // Renombrado
 
-  // NUEVOS ESTADOS PARA MÚLTIPLES PAGOS
   const [pagos, setPagos] = useState([])
   const [tipoPagoSeleccionadoActual, setTipoPagoSeleccionadoActual] = useState("")
   const [montoPagoActual, setMontoPagoActual] = useState("")
@@ -220,7 +219,7 @@ const VentasEquipos = () => {
       try {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
-        setPuntoVentaSeleccionado("1")
+        setPuntoVentaSeleccionado(puntos[0]?.id.toString() || "1") // Seleccionar el primero por defecto
 
         const tipos = await getTiposPago()
         setTiposPagoDisponibles(
@@ -255,7 +254,7 @@ const VentasEquipos = () => {
         })
         const equiposDisponibles = adaptedData.filter((equipo) => !equipo.vendido)
         setEquipos(equiposDisponibles)
-        setEquiposFiltrados(equiposDisponibles)
+        setEquiposFiltrados(equiposDisponibles) // Inicializar filtrados
       } catch (err) {
         console.error("Error al cargar equipos:", err)
         toast.error("Error al cargar equipos")
@@ -269,27 +268,28 @@ const VentasEquipos = () => {
   // Filtrar equipos
   useEffect(() => {
     const filtrarEquipos = () => {
+      let filtrados = equipos
       if (tipoFiltroActivo === "marca-modelo" && busquedaMarcaModelo.trim()) {
         const termino = busquedaMarcaModelo.toLowerCase().trim()
-        return equipos.filter((equipo) => {
+        filtrados = equipos.filter((equipo) => {
           const marcaModelo = `${equipo.marca || ""} ${equipo.modelo || ""}`.toLowerCase()
           return marcaModelo.includes(termino)
         })
       } else if (tipoFiltroActivo === "imei" && busquedaIMEI.trim()) {
         const termino = busquedaIMEI.toLowerCase().trim()
-        return equipos.filter((equipo) => {
+        filtrados = equipos.filter((equipo) => {
           const imei = (equipo.imei || "").toString().toLowerCase()
           return imei.includes(termino)
         })
       }
-      return equipos
+      setEquiposFiltrados(filtrados)
     }
-    setEquiposFiltrados(filtrarEquipos())
+    filtrarEquipos()
   }, [busquedaMarcaModelo, busquedaIMEI, tipoFiltroActivo, equipos])
 
   // Buscar clientes
   useEffect(() => {
-    const buscarClientes = async () => {
+    const buscarClientesDebounced = async () => {
       if (busquedaCliente.length < 2) {
         setClientesBusqueda([])
         return
@@ -301,9 +301,7 @@ const VentasEquipos = () => {
         console.error("Error al buscar clientes:", error)
       }
     }
-    const timeoutId = setTimeout(() => {
-      buscarClientes()
-    }, 300)
+    const timeoutId = setTimeout(buscarClientesDebounced, 300)
     return () => clearTimeout(timeoutId)
   }, [busquedaCliente])
 
@@ -337,11 +335,11 @@ const VentasEquipos = () => {
   const precioBruto = equipoSeleccionado ? Number(equipoSeleccionado.precio) : 0
   const descuentoCanje = canjeCompletado ? Number(nuevoEquipoCanje.precio) || 0 : 0
   const subtotal = precioBruto - descuentoCanje
-  const interes = (subtotal * porcentajeInteres) / 100
-  const descuento = (subtotal * porcentajeDescuento) / 100
-  const total = subtotal - descuento
-  const totalVisual = subtotal + interes - descuento
-  const totalARS = total * dollarPrice
+  const interesGeneralCalculado = (subtotal * porcentajeInteresGeneral) / 100 // Renombrado
+  const descuentoCalculado = (subtotal * porcentajeDescuento) / 100 // Renombrado
+  const totalVentaSinInteresTarjeta = subtotal - descuentoCalculado // Este es el total que se debe pagar
+  const totalVisualGeneral = subtotal + interesGeneralCalculado - descuentoCalculado // Renombrado
+  const totalARS = totalVentaSinInteresTarjeta * dollarPrice
 
   // MODIFICACIÓN: Cálculos para múltiples pagos
   const totalPagado = pagos.reduce((acc, pago) => acc + pago.monto, 0)
@@ -355,12 +353,12 @@ const VentasEquipos = () => {
 
   const nuevoSaldoCalc = cuentaCorrienteInfo ? Number(cuentaCorrienteInfo.saldo) + pagosEnCuentaCorriente : 0
 
-  const handleInteresFocus = () => interesInputValue === "0" && setInteresInputValue("")
+  const handleInteresGeneralFocus = () => interesGeneralInputValue === "0" && setInteresGeneralInputValue("")
   const handleDescuentoFocus = () => descuentoInputValue === "0" && setDescuentoInputValue("")
-  const handleInteresBlur = () => {
-    if (interesInputValue === "") {
-      setInteresInputValue("0")
-      setPorcentajeInteres(0)
+  const handleInteresGeneralBlur = () => {
+    if (interesGeneralInputValue === "") {
+      setInteresGeneralInputValue("0")
+      setPorcentajeInteresGeneral(0)
     }
   }
   const handleDescuentoBlur = () => {
@@ -373,7 +371,7 @@ const VentasEquipos = () => {
   // Handlers para equipos
   const seleccionarEquipo = (eq) => {
     if (eq.vendido) {
-      toast.error(`No puedes vender este equipo porque ya ha sido vendido`, { position: "bottom-right" })
+      toast.error("Este equipo ya ha sido vendido", { position: "bottom-right" })
       return
     }
     if (eq.puntoVenta?.id.toString() !== puntoVentaSeleccionado) {
@@ -390,6 +388,7 @@ const VentasEquipos = () => {
   const removerSeleccion = () => {
     setEquipoSeleccionado(null)
     cancelarPlanCanje()
+    setPagos([]) // Limpiar pagos si se quita el equipo
     toast.info("Selección eliminada", { position: "bottom-right" })
   }
 
@@ -404,7 +403,7 @@ const VentasEquipos = () => {
     setDialogClienteAbierto(false)
     setBusquedaCliente("")
     setClientesBusqueda([])
-    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado correctamente`, { position: "bottom-right" })
+    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado`, { position: "bottom-right" })
   }
 
   const crearNuevoCliente = async () => {
@@ -414,14 +413,9 @@ const VentasEquipos = () => {
     }
     try {
       const clienteCreado = await createCliente(nuevoCliente)
-      setCliente({
-        id: clienteCreado.id,
-        nombre: clienteCreado.nombre,
-        telefono: clienteCreado.telefono || "",
-        dni: clienteCreado.dni || "",
-      })
+      seleccionarCliente(clienteCreado) // Usar la función existente para setear el cliente
       setDialogNuevoClienteAbierto(false)
-      setDialogClienteAbierto(false)
+      // setDialogClienteAbierto(false); // No cerrar el diálogo principal, solo el de nuevo cliente
       toast.success("Cliente creado correctamente", { position: "bottom-right" })
     } catch (error) {
       console.error("Error al crear cliente:", error)
@@ -459,7 +453,7 @@ const VentasEquipos = () => {
     }
     setCanjeCompletado(true)
     setPlanCanjeAbierto(false)
-    toast.success("Plan Canje aplicado correctamente", { position: "bottom-right" })
+    toast.success("Plan Canje aplicado", { position: "bottom-right" })
   }
   const validarPasoCanje = () => (pasoActualCanje === 3 ? !!nuevoEquipoCanje.precio && !!nuevoEquipoCanje.imei : true)
 
@@ -469,40 +463,70 @@ const VentasEquipos = () => {
       toast.error("Debe seleccionar un tipo de pago y un monto.", { position: "bottom-right" })
       return
     }
-    const monto = Number.parseFloat(montoPagoActual)
+    const monto = Number.parseFloat(montoPagoActual.replace(/\$|\s|\./g, "").replace(",", ".")) // Limpiar formato
     if (isNaN(monto) || monto <= 0) {
       toast.error("El monto debe ser un número positivo.", { position: "bottom-right" })
       return
     }
     if (monto > montoRestante + 0.01) {
-      toast.error("El monto no puede ser mayor que el restante.", { position: "bottom-right" })
+      // Permitir un pequeño margen de error
+      toast.error(
+        `El monto ${formatearMonedaARS(monto)} no puede ser mayor que el restante ${formatearMonedaARS(montoRestante)}.`,
+        { position: "bottom-right" },
+      )
       return
     }
 
-    const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionadoActual)
+    const tipoPagoObj = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionadoActual)
+    if (!tipoPagoObj) {
+      toast.error("Tipo de pago no encontrado.", { position: "bottom-right" })
+      return
+    }
+
     const esCuentaCorriente =
-      tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta"
+      tipoPagoObj.nombre.toLowerCase() === "cuenta corriente" || tipoPagoObj.nombre.toLowerCase() === "cuenta"
     if (esCuentaCorriente && !cliente.id) {
       toast.error("Debe seleccionar un cliente para usar Cuenta Corriente.", { position: "bottom-right" })
       return
     }
 
-    setPagos([
-      ...pagos,
-      {
-        id: Date.now(), // ID temporal para el renderizado
-        tipo_pago_id: tipoPago.id,
-        tipo_pago_nombre: tipoPago.nombre,
-        monto: monto,
-        icono: tipoPago.icono,
-      },
-    ])
+    const nuevoPago = {
+      id: Date.now(),
+      tipo_pago_id: tipoPagoObj.id,
+      tipo_pago_nombre: tipoPagoObj.nombre,
+      monto: monto,
+      icono: tipoPagoObj.icono,
+      // MODIFICACIÓN: Inicializar campos para tarjeta
+      esTarjeta: tipoPagoObj.nombre.toLowerCase().includes("tarjeta"),
+      interesTarjeta: 0,
+      cuotasTarjeta: 1,
+    }
+
+    setPagos([...pagos, nuevoPago])
     setTipoPagoSeleccionadoActual("")
     setMontoPagoActual("")
   }
 
   const handleRemovePago = (id) => {
     setPagos(pagos.filter((pago) => pago.id !== id))
+  }
+
+  // MODIFICACIÓN: Handler para actualizar interés y cuotas de un pago específico
+  const handlePagoTarjetaChange = (pagoId, campo, valor) => {
+    setPagos((prevPagos) =>
+      prevPagos.map((pago) => {
+        if (pago.id === pagoId) {
+          let numValor = Number(valor)
+          if (campo === "interesTarjeta") {
+            numValor = Math.max(0, numValor) // No permitir interés negativo
+          } else if (campo === "cuotasTarjeta") {
+            numValor = Math.max(1, Math.floor(numValor)) // Mínimo 1 cuota, entero
+          }
+          return { ...pago, [campo]: numValor }
+        }
+        return pago
+      }),
+    )
   }
 
   // Finalizar venta
@@ -515,11 +539,14 @@ const VentasEquipos = () => {
       toast.error("El total de los pagos debe cubrir el total de la venta.", { position: "bottom-right" })
       return
     }
+    if (pagos.length === 0) {
+      toast.error("Debe agregar al menos un método de pago.", { position: "bottom-right" })
+      return
+    }
     if (!currentUser || !currentUser.id) {
       toast.error("Usuario no autenticado.", { position: "bottom-right" })
       return
     }
-
     if (
       cuentaCorrienteInfo &&
       cuentaCorrienteInfo.limite_credito > 0 &&
@@ -538,37 +565,38 @@ const VentasEquipos = () => {
         cliente_id: cliente.id,
         punto_venta_id: Number(puntoVentaSeleccionado || 1),
         equipo_id: equipoSeleccionado.id,
-        porcentaje_interes: 0,
+        porcentaje_interes: 0, // El interés general ya no se envía, el de tarjeta es visual
         porcentaje_descuento: porcentajeDescuento,
         plan_canje: canjeCompletado ? nuevoEquipoCanje : null,
         notas: `Venta de equipo ${equipoSeleccionado.marca} ${equipoSeleccionado.modelo}`,
+        // MODIFICACIÓN: Enviar solo tipo_pago y monto. Interés y cuotas de tarjeta son visuales.
         pagos: pagos.map(({ tipo_pago_nombre, monto }) => ({ tipo_pago: tipo_pago_nombre, monto })),
       }
 
       await createVentaEquipo(ventaData)
-      toast.success(`Venta registrada con éxito`, { icon: "✅", position: "bottom-center", autoClose: 3000 })
+      toast.success("Venta registrada con éxito", { icon: "✅", position: "bottom-center", autoClose: 3000 })
       if (canjeCompletado) {
-        toast.success(`Equipo de canje registrado`, { icon: "📱", position: "bottom-center", autoClose: 5000 })
+        toast.success("Equipo de canje registrado", { icon: "📱", position: "bottom-center", autoClose: 5000 })
       }
 
       // Resetear estados
       setEquipoSeleccionado(null)
       setCliente({ id: null, nombre: "Seleccione un cliente", telefono: "", dni: "" })
-      setPorcentajeInteres(0)
+      setPorcentajeInteresGeneral(0)
       setPorcentajeDescuento(0)
-      setInteresInputValue("0")
+      setInteresGeneralInputValue("0")
       setDescuentoInputValue("0")
       cancelarPlanCanje()
       setDialogFinalizarAbierto(false)
       setPagos([]) // MODIFICACIÓN: Limpiar pagos
       setCuentaCorrienteInfo(null)
-      setMostrarInteresVisual(false)
+      setMostrarInteresVisualGeneral(false)
 
       // Recargar equipos
       const equiposData = await getEquipos()
       const equiposAdaptados = equiposData.map(adaptEquipoToFrontend)
       setEquipos(equiposAdaptados)
-      setEquiposFiltrados(equiposAdaptados)
+      setEquiposFiltrados(equiposAdaptados) // Actualizar filtrados también
     } catch (error) {
       console.error("Error al finalizar venta:", error)
       toast.error("Error al finalizar venta: " + error.message)
@@ -578,10 +606,13 @@ const VentasEquipos = () => {
   }
 
   // Obtener nombre del punto de venta
-  const getNombrePuntoVenta = (id) => {
-    const puntoVenta = puntosVenta.find((p) => p.id.toString() === id)
-    return puntoVenta ? puntoVenta.nombre : ""
-  }
+  const getNombrePuntoVenta = useCallback(
+    (id) => {
+      const puntoVenta = puntosVenta.find((p) => p.id.toString() === id)
+      return puntoVenta ? puntoVenta.nombre : ""
+    },
+    [puntosVenta],
+  )
 
   // Aplicar precio de canje
   const aplicarPrecioCanje = (precio) => {
@@ -594,18 +625,25 @@ const VentasEquipos = () => {
 
   // Limpiar equipo seleccionado cuando cambia el punto de venta
   useEffect(() => {
-    if (puntoVentaSeleccionado && equipoSeleccionado) {
+    if (
+      puntoVentaSeleccionado &&
+      equipoSeleccionado &&
+      equipoSeleccionado.puntoVenta?.id.toString() !== puntoVentaSeleccionado
+    ) {
+      // Solo limpiar si el equipo seleccionado no pertenece al nuevo punto de venta
       setEquipoSeleccionado(null)
       cancelarPlanCanje()
+      setPagos([])
       toast.info(
         `Se ha limpiado la selección debido al cambio de punto de venta a ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
         { position: "bottom-center" },
       )
     }
-  }, [puntoVentaSeleccionado])
+  }, [puntoVentaSeleccionado, equipoSeleccionado, getNombrePuntoVenta]) // Añadir equipoSeleccionado y getNombrePuntoVenta a dependencias
 
   // Renderizado de pasos del Plan Canje
   const renderPasoCanje = () => {
+    // ... (código existente de renderPasoCanje sin cambios)
     switch (pasoActualCanje) {
       case 1:
         return (
@@ -779,6 +817,10 @@ const VentasEquipos = () => {
     setBusquedaIMEI("")
   }
 
+  // ... (resto del componente JSX)
+  // El JSX principal se mantiene igual hasta el Dialog de Finalizar Venta
+  // Se modificarán las partes internas del Dialog de Finalizar Venta
+
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
@@ -910,7 +952,6 @@ const VentasEquipos = () => {
               </DialogContent>
             </Dialog>
 
-            {/* Dialog para crear nuevo cliente */}
             <Dialog open={dialogNuevoClienteAbierto} onOpenChange={setDialogNuevoClienteAbierto}>
               <DialogContent>
                 <DialogHeader>
@@ -919,29 +960,29 @@ const VentasEquipos = () => {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="nombre">
+                    <Label htmlFor="nombre-nuevo">
                       Nombre <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      id="nombre"
+                      id="nombre-nuevo"
                       value={nuevoCliente.nombre}
                       onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
                       placeholder="Nombre del cliente"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="dni">DNI</Label>
+                    <Label htmlFor="dni-nuevo">DNI</Label>
                     <Input
-                      id="dni"
+                      id="dni-nuevo"
                       value={nuevoCliente.dni}
                       onChange={(e) => setNuevoCliente({ ...nuevoCliente, dni: e.target.value })}
                       placeholder="Documento de identidad"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="telefono">Teléfono</Label>
+                    <Label htmlFor="telefono-nuevo">Teléfono</Label>
                     <Input
-                      id="telefono"
+                      id="telefono-nuevo"
                       value={nuevoCliente.telefono}
                       onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })}
                       placeholder="Número de teléfono"
@@ -963,7 +1004,6 @@ const VentasEquipos = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Equipos Disponibles */}
         <Card className="lg:col-span-1 overflow-hidden border-0 shadow-md bg-white">
           <CardHeader className="bg-[#131321]">
             <CardTitle className="flex items-center gap-2 text-orange-600">
@@ -973,8 +1013,6 @@ const VentasEquipos = () => {
             <CardDescription className="text-brand-100">
               Venta en punto: {getNombrePuntoVenta(puntoVentaSeleccionado)} - Solo puedes vender equipos de este punto
             </CardDescription>
-
-            {/* Nueva interfaz de búsqueda con pestañas */}
             <div className="mt-2">
               <Tabs value={tipoFiltroActivo} onValueChange={setTipoFiltroActivo} className="w-full">
                 <TabsList className="grid grid-cols-2 w-full">
@@ -987,7 +1025,6 @@ const VentasEquipos = () => {
                     IMEI
                   </TabsTrigger>
                 </TabsList>
-
                 <TabsContent value="marca-modelo" className="mt-2">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -1010,7 +1047,6 @@ const VentasEquipos = () => {
                     )}
                   </div>
                 </TabsContent>
-
                 <TabsContent value="imei" className="mt-2">
                   <div className="relative">
                     <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -1076,7 +1112,6 @@ const VentasEquipos = () => {
           </CardFooter>
         </Card>
 
-        {/* Detalle de Venta */}
         <Card className="lg:col-span-2 border-0 shadow-md overflow-hidden bg-white">
           <CardHeader className="bg-[#131321] border-b">
             <div className="flex justify-between items-center">
@@ -1091,7 +1126,6 @@ const VentasEquipos = () => {
               </div>
             </div>
           </CardHeader>
-
           <CardContent className="p-0">
             {equipoSeleccionado ? (
               <div className="p-4">
@@ -1150,122 +1184,111 @@ const VentasEquipos = () => {
                   </TableBody>
                 </Table>
 
-                {/* Plan Canje */}
-                <div className="mt-6">
-                  {!canjeCompletado ? (
-                    <div className="flex items-center justify-between">
-                      {!planCanjeAbierto ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={abrirPlanCanje}
-                          className="gap-1 bg-[#131321] text-orange-600 hover:bg-[#1f1f30] hover:text-orange-600"
-                        >
-                          <RefreshCw size={14} className="mr-1" /> Plan Canje
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={cancelarPlanCanje}
-                          className="text-red-500 hover:text-red-700 gap-1"
-                        >
-                          <X size={14} /> Cancelar
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex gap-3">
-                          <div className="bg-green-100 rounded-full p-1 h-6">
-                            <Check size={18} className="text-green-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-medium text-green-800">Plan Canje Aplicado</h3>
-                            <p className="text-sm text-green-700">
-                              {nuevoEquipoCanje.marca} {nuevoEquipoCanje.modelo}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-green-700">${nuevoEquipoCanje.precio.toFixed(2)} USD</span>
-                              <span className="text-xs text-green-700">|</span>
-                              <span className="text-xs text-green-700">
-                                {formatearMonedaARS(nuevoEquipoCanje.precio * dollarPrice)}
-                              </span>
-                            </div>
+                {!canjeCompletado ? (
+                  <div className="mt-6 flex items-center justify-between">
+                    {!planCanjeAbierto ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={abrirPlanCanje}
+                        className="gap-1 bg-[#131321] text-orange-600 hover:bg-[#1f1f30] hover:text-orange-600"
+                      >
+                        <RefreshCw size={14} className="mr-1" /> Plan Canje
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={cancelarPlanCanje}
+                        className="text-red-500 hover:text-red-700 gap-1"
+                      >
+                        <X size={14} /> Cancelar
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex gap-3">
+                        <div className="bg-green-100 rounded-full p-1 h-6 w-6 flex items-center justify-center">
+                          <Check size={18} className="text-green-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-green-800">Plan Canje Aplicado</h3>
+                          <p className="text-sm text-green-700">
+                            {nuevoEquipoCanje.marca} {nuevoEquipoCanje.modelo}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-green-700">${nuevoEquipoCanje.precio.toFixed(2)} USD</span>
+                            <span className="text-xs text-green-700">|</span>
+                            <span className="text-xs text-green-700">
+                              {formatearMonedaARS(nuevoEquipoCanje.precio * dollarPrice)}
+                            </span>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={cancelarPlanCanje}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X size={14} />
-                        </Button>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={cancelarPlanCanje}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X size={14} />
+                      </Button>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {planCanjeAbierto && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="mt-4 border rounded-lg p-4 bg-white border-[#131321]"
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-medium flex items-center gap-2 text-orange-600">
-                          <Smartphone size={16} /> Datos del equipo a entregar
-                        </h3>
-                        <div className="flex items-center gap-1 text-xs text-gray-500">Paso {pasoActualCanje} de 3</div>
-                      </div>
-
-                      <div className="mb-6">
-                        <div className="flex justify-between items-center mb-2">
-                          {[1, 2, 3].map((paso) => (
-                            <div key={paso} className="flex items-center gap-2">
-                              <div
-                                className={`rounded-full text-xs w-5 h-5 flex items-center justify-center ${
-                                  pasoActualCanje >= paso ? "bg-orange-600 text-white" : "bg-gray-200"
-                                }`}
-                              >
-                                {pasoActualCanje > paso ? <Check size={12} /> : paso}
-                              </div>
-                              <span
-                                className={pasoActualCanje === paso ? "font-medium text-sm" : "text-gray-500 text-sm"}
-                              >
-                                {paso === 1 ? "Información básica" : paso === 2 ? "Características" : "Valoración"}
-                              </span>
-                            </div>
-                          ))}
+                {planCanjeAbierto && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-4 border rounded-lg p-4 bg-white border-[#131321]"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-medium flex items-center gap-2 text-orange-600">
+                        <Smartphone size={16} /> Datos del equipo a entregar
+                      </h3>
+                      <div className="flex items-center gap-1 text-xs text-gray-500">Paso {pasoActualCanje} de 3</div>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      {[1, 2, 3].map((paso) => (
+                        <div key={paso} className="flex items-center gap-2">
+                          <div
+                            className={`rounded-full text-xs w-5 h-5 flex items-center justify-center ${
+                              pasoActualCanje >= paso ? "bg-orange-600 text-white" : "bg-gray-200"
+                            }`}
+                          >
+                            {pasoActualCanje > paso ? <Check size={12} /> : paso}
+                          </div>
+                          <span className={pasoActualCanje === paso ? "font-medium text-sm" : "text-gray-500 text-sm"}>
+                            {paso === 1 ? "Información básica" : paso === 2 ? "Características" : "Valoración"}
+                          </span>
                         </div>
-                      </div>
+                      ))}
+                    </div>
+                    {renderPasoCanje()}
+                    <div className="flex justify-between mt-6">
+                      <Button
+                        variant="outline"
+                        onClick={anteriorPasoCanje}
+                        disabled={pasoActualCanje === 1}
+                        className="border-gray-200"
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        onClick={siguientePasoCanje}
+                        disabled={!validarPasoCanje()}
+                        className="bg-orange-600 hover:bg-orange-700"
+                      >
+                        {pasoActualCanje === 3 ? "Finalizar" : "Siguiente"}
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
 
-                      {renderPasoCanje()}
-
-                      <div className="flex justify-between mt-6">
-                        <Button
-                          variant="outline"
-                          onClick={anteriorPasoCanje}
-                          disabled={pasoActualCanje === 1}
-                          className="border-gray-200"
-                        >
-                          Anterior
-                        </Button>
-                        <Button
-                          onClick={siguientePasoCanje}
-                          disabled={!validarPasoCanje()}
-                          className="bg-orange-600 hover:bg-orange-700"
-                        >
-                          {pasoActualCanje === 3 ? "Finalizar" : "Siguiente"}
-                        </Button>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-
-                {/* Cálculos */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -1277,28 +1300,27 @@ const VentasEquipos = () => {
                         <span className="text-gray-500">Subtotal:</span>
                         <span className="font-medium">${subtotal.toFixed(2)}</span>
                       </div>
-
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
                             <Percent className="h-3.5 w-3.5 text-orange-500" />
                             <NumericFormat
-                              value={interesInputValue}
+                              value={interesGeneralInputValue}
                               onValueChange={(values) => {
                                 const { value } = values
-                                setInteresInputValue(value)
-                                setPorcentajeInteres(Number(value) || 0)
-                                setMostrarInteresVisual(Number(value) > 0)
+                                setInteresGeneralInputValue(value)
+                                setPorcentajeInteresGeneral(Number(value) || 0)
+                                setMostrarInteresVisualGeneral(Number(value) > 0)
                               }}
                               decimalScale={2}
                               decimalSeparator=","
                               allowNegative={false}
                               className="w-12 h-6 text-sm p-0 border-0 bg-transparent focus-visible:ring-0 text-center"
-                              onFocus={handleInteresFocus}
-                              onBlur={handleInteresBlur}
+                              onFocus={handleInteresGeneralFocus}
+                              onBlur={handleInteresGeneralBlur}
                             />
                           </div>
-                          <span className="text-sm text-gray-500">Interés</span>
+                          <span className="text-sm text-gray-500">Interés (Visual)</span>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger>
@@ -1306,18 +1328,17 @@ const VentasEquipos = () => {
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p className="max-w-xs text-xs">
-                                  Este interés es solo informativo para mostrar al cliente el precio con tarjeta o
-                                  transferencia. No afecta al total de la venta.
+                                  Este interés es solo informativo para mostrar al cliente el precio con recargo. No
+                                  afecta al total de la venta que se guarda.
                                 </p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                        {porcentajeInteres > 0 && (
-                          <span className="text-orange-600 font-medium">+${interes.toFixed(2)}</span>
+                        {porcentajeInteresGeneral > 0 && (
+                          <span className="text-orange-600 font-medium">+${interesGeneralCalculado.toFixed(2)}</span>
                         )}
                       </div>
-
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
@@ -1340,24 +1361,21 @@ const VentasEquipos = () => {
                           <span className="text-sm text-gray-500">Descuento</span>
                         </div>
                         {porcentajeDescuento > 0 && (
-                          <span className="text-green-600 font-medium">-${descuento.toFixed(2)}</span>
+                          <span className="text-green-600 font-medium">-${descuentoCalculado.toFixed(2)}</span>
                         )}
                       </div>
-
                       <Separator className="my-1" />
-
                       <div className="flex justify-between text-lg font-bold">
-                        <span>Total:</span>
-                        <span className="text-orange-600">${total.toFixed(2)}</span>
+                        <span>Total Venta:</span>
+                        <span className="text-orange-600">${totalVentaSinInteresTarjeta.toFixed(2)}</span>
                       </div>
-
-                      {mostrarInteresVisual && porcentajeInteres > 0 && (
+                      {mostrarInteresVisualGeneral && porcentajeInteresGeneral > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500 flex items-center gap-1">
                             <CreditCardIcon className="h-3.5 w-3.5" />
-                            Total con interés:
+                            Total con interés (Visual):
                           </span>
-                          <span className="text-orange-500">${totalVisual.toFixed(2)}</span>
+                          <span className="text-orange-500">${totalVisualGeneral.toFixed(2)}</span>
                         </div>
                       )}
                     </div>
@@ -1390,7 +1408,6 @@ const VentasEquipos = () => {
             >
               Cancelar
             </Button>
-
             <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
               <DialogTrigger asChild>
                 <Button
@@ -1406,10 +1423,8 @@ const VentasEquipos = () => {
                   <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
                   <DialogDescription>Revisa los detalles y agrega los métodos de pago.</DialogDescription>
                 </DialogHeader>
-
                 <div className="py-4">
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                    {/* Detalles de la venta */}
                     <div className="md:col-span-3">
                       <div className="bg-gray-50 p-4 rounded-lg h-full">
                         <h3 className="text-sm font-medium mb-3 text-gray-700">Detalles de la venta:</h3>
@@ -1442,19 +1457,25 @@ const VentasEquipos = () => {
                           {porcentajeDescuento > 0 && (
                             <div className="flex justify-between">
                               <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
-                              <PrecioConARS precio={-descuento} dollarPrice={dollarPrice} className="text-green-600" />
+                              <PrecioConARS
+                                precio={-descuentoCalculado}
+                                dollarPrice={dollarPrice}
+                                className="text-green-600"
+                              />
                             </div>
                           )}
                           <Separator className="my-2" />
                           <div className="flex justify-between font-bold text-base">
                             <span>Total a Pagar:</span>
-                            <PrecioConARS precio={total} dollarPrice={dollarPrice} className="text-orange-600" />
+                            <PrecioConARS
+                              precio={totalVentaSinInteresTarjeta}
+                              dollarPrice={dollarPrice}
+                              className="text-orange-600"
+                            />
                           </div>
                         </div>
                       </div>
                     </div>
-
-                    {/* MODIFICACIÓN: Nueva sección para múltiples pagos */}
                     <div className="md:col-span-2">
                       <div className="bg-white rounded-lg border p-4 h-full flex flex-col">
                         <h3 className="text-sm font-medium mb-3 text-gray-700">Métodos de pago:</h3>
@@ -1480,7 +1501,7 @@ const VentasEquipos = () => {
                           <div className="relative">
                             <NumericFormat
                               value={montoPagoActual}
-                              onValueChange={(values) => setMontoPagoActual(values.value)}
+                              onValueChange={(values) => setMontoPagoActual(values.formattedValue)} // Usar formattedValue
                               thousandSeparator="."
                               decimalSeparator=","
                               prefix="$ "
@@ -1494,7 +1515,15 @@ const VentasEquipos = () => {
                               variant="ghost"
                               size="sm"
                               className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 text-orange-600"
-                              onClick={() => montoRestante > 0 && setMontoPagoActual(montoRestante.toFixed(2))}
+                              onClick={() =>
+                                montoRestante > 0 &&
+                                setMontoPagoActual(
+                                  new Intl.NumberFormat("es-AR", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  }).format(montoRestante),
+                                )
+                              } // Formatear al setear MAX
                             >
                               MAX
                             </Button>
@@ -1504,38 +1533,101 @@ const VentasEquipos = () => {
                             Agregar Pago
                           </Button>
                         </div>
-
                         <ScrollArea className="flex-grow pr-2">
                           {pagos.length === 0 ? (
                             <p className="text-center text-sm text-gray-500 py-4">No hay pagos agregados.</p>
                           ) : (
-                            <div className="space-y-2">
-                              {pagos.map((pago) => (
-                                <div
-                                  key={pago.id}
-                                  className="flex items-center justify-between bg-gray-50 p-2 rounded-md"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <pago.icono className="h-4 w-4 text-gray-600" />
-                                    <span className="text-sm font-medium">{pago.tipo_pago_nombre}</span>
+                            <div className="space-y-3">
+                              {pagos.map((pago) => {
+                                const montoConInteres = pago.esTarjeta
+                                  ? pago.monto * (1 + pago.interesTarjeta / 100)
+                                  : pago.monto
+                                const valorCuota =
+                                  pago.esTarjeta && pago.cuotasTarjeta > 0 ? montoConInteres / pago.cuotasTarjeta : 0
+
+                                return (
+                                  <div key={pago.id} className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <pago.icono className="h-4 w-4 text-gray-600" />
+                                        <span className="text-sm font-medium">{pago.tipo_pago_nombre}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm">{formatearMonedaARS(pago.monto)}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-red-500 hover:bg-red-100"
+                                          onClick={() => handleRemovePago(pago.id)}
+                                        >
+                                          <Trash2 size={14} />
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    {/* MODIFICACIÓN: Campos de interés y cuotas para tarjeta */}
+                                    {pago.esTarjeta && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                                        <div className="grid grid-cols-2 gap-2 items-end">
+                                          <div>
+                                            <Label htmlFor={`interes-${pago.id}`} className="text-xs">
+                                              Interés Tarjeta (%)
+                                            </Label>
+                                            <NumericFormat
+                                              id={`interes-${pago.id}`}
+                                              value={pago.interesTarjeta}
+                                              onValueChange={(values) =>
+                                                handlePagoTarjetaChange(pago.id, "interesTarjeta", values.value)
+                                              }
+                                              suffix=" %"
+                                              decimalScale={2}
+                                              customInput={Input}
+                                              className="h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <Label htmlFor={`cuotas-${pago.id}`} className="text-xs">
+                                              Cuotas
+                                            </Label>
+                                            <NumericFormat
+                                              id={`cuotas-${pago.id}`}
+                                              value={pago.cuotasTarjeta}
+                                              onValueChange={(values) =>
+                                                handlePagoTarjetaChange(pago.id, "cuotasTarjeta", values.value)
+                                              }
+                                              allowNegative={false}
+                                              decimalScale={0}
+                                              customInput={Input}
+                                              className="h-8 text-sm"
+                                            />
+                                          </div>
+                                        </div>
+                                        {pago.interesTarjeta > 0 && (
+                                          <div className="text-xs space-y-0.5 mt-1">
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">Monto c/interés:</span>
+                                              <span className="font-medium text-blue-600">
+                                                {formatearMonedaARS(montoConInteres)}
+                                              </span>
+                                            </div>
+                                            {pago.cuotasTarjeta > 0 && (
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-600">{pago.cuotasTarjeta} cuota(s) de:</span>
+                                                <span className="font-medium text-blue-600">
+                                                  {formatearMonedaARS(valorCuota)}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm">{formatearMonedaARS(pago.monto)}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-red-500"
-                                      onClick={() => handleRemovePago(pago.id)}
-                                    >
-                                      <Trash2 size={14} />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )}
                         </ScrollArea>
-
                         <div className="mt-4 border-t pt-4 space-y-1 text-sm">
                           <div className="flex justify-between">
                             <span className="text-gray-600">Total Pagado:</span>
@@ -1543,7 +1635,9 @@ const VentasEquipos = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Restante:</span>
-                            <span className={`font-medium ${montoRestante > 0 ? "text-red-600" : "text-green-600"}`}>
+                            <span
+                              className={`font-medium ${montoRestante > 0.01 ? "text-red-600" : montoRestante < -0.01 ? "text-yellow-600" : "text-green-600"}`}
+                            >
                               {formatearMonedaARS(montoRestante)}
                             </span>
                           </div>
@@ -1552,7 +1646,6 @@ const VentasEquipos = () => {
                     </div>
                   </div>
                 </div>
-
                 {cliente.id && cuentaCorrienteInfo && pagosEnCuentaCorriente > 0 && (
                   <div className="flex items-center justify-between gap-2 mt-3 bg-gray-50 rounded-md p-2 text-sm">
                     <div className="flex items-center gap-1">
@@ -1577,7 +1670,6 @@ const VentasEquipos = () => {
                     </div>
                   </div>
                 )}
-
                 <DialogFooter>
                   <Button
                     variant="outline"
@@ -1624,8 +1716,6 @@ const VentasEquipos = () => {
           </CardFooter>
         </Card>
       </div>
-
-      {/* Componente de Precios Canjes */}
       <PreciosCanjes
         isOpen={preciosCanjesAbierto}
         onClose={() => setPreciosCanjesAbierto(false)}
