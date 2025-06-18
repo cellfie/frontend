@@ -922,13 +922,11 @@ const VentasEquipos = () => {
               <DialogTrigger asChild>
                 {" "}
                 <Button variant="outline" size="sm" className="h-9 bg-white shadow-sm flex items-center gap-1">
-                  {" "}
-                  <User size={14} />{" "}
+                  <User size={14} />
                   <span className="hidden sm:inline">
-                    {" "}
-                    Cliente<span className="text-red-500">*</span>:{" "}
-                  </span>{" "}
-                  {cliente.nombre}{" "}
+                    Cliente<span className="text-red-500">*</span>:
+                  </span>
+                  <span className="ml-1">{cliente.nombre}</span>
                 </Button>{" "}
               </DialogTrigger>
               <DialogContent>
@@ -1752,34 +1750,31 @@ const VentasEquipos = () => {
                     disabled={
                       listaPagos.length === 0 ||
                       procesandoVenta ||
-                      Math.abs(saldoPendienteUSD) > 0.01 /* Permitir si está cubierto */
+                      (Math.abs(saldoPendienteUSD) > 0.01 &&
+                        montoTotalPagadoUSD > 0) /* Permitir si el pago es parcial, pero no si es 0 */
                     }
                   >
                     {procesandoVenta ? (
-                      <>
-                        <span className="mr-1">Procesando</span>
-                        <span className="animate-spin">
-                          <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                        </span>
-                      </>
+                      <span className="flex items-center justify-center gap-2">
+                        Procesando
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                      </span>
                     ) : (
-                      <>
+                      <span className="flex items-center justify-center gap-1">
                         <Save size={16} /> Confirmar Venta
-                      </>
+                      </span>
                     )}
                   </Button>
                 </DialogFooter>
