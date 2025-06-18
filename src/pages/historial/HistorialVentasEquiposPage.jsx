@@ -21,6 +21,9 @@ import {
   Battery,
   Clock,
   DollarSign,
+  CreditCard,
+  ArrowUpRight,
+  BookOpen,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -45,7 +48,12 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-import { getVentasEquipos, getVentaEquipoById, anularVentaEquipo } from "@/services/ventasEquiposService"
+import {
+  getVentasEquipos,
+  getVentaEquipoById,
+  anularVentaEquipo,
+  adaptVentaEquipoToFrontend,
+} from "@/services/ventasEquiposService" // MODIFICACIÓN: Importar adaptVentaEquipoToFrontend
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getTiposPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
@@ -64,13 +72,13 @@ const HistorialVentasEquiposPage = () => {
   const [ventaAnular, setVentaAnular] = useState(null)
   const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
   const [puntosVenta, setPuntosVenta] = useState([])
-  const [tiposPago, setTiposPago] = useState([])
+  const [tiposPago, setTiposPago] = useState([]) // Este estado podría usarse para los filtros si se desea filtrar por tipo de pago específico
   const [filtros, setFiltros] = useState({
     busqueda: "",
     fechaInicio: null,
     fechaFin: null,
     puntoVentaId: "",
-    tipoPagoId: "",
+    // tipoPagoId: "", // Se podría reactivar si se quiere filtrar por un tipo de pago específico
     mostrarAnuladas: false,
   })
   const [rangoFechas, setRangoFechas] = useState({
@@ -82,26 +90,30 @@ const HistorialVentasEquiposPage = () => {
     error: false,
     mensaje: "",
   })
-  // Estado para el total general
   const [totalGeneral, setTotalGeneral] = useState({
     usd: 0,
     ars: 0,
     cantidadVentas: 0,
   })
 
-  // Cargar datos iniciales
+  // Función para obtener el icono del método de pago
+  const getIconoMetodoPago = (nombreTipoPago) => {
+    const nombreLower = nombreTipoPago.toLowerCase()
+    if (nombreLower.includes("transferencia")) return <ArrowUpRight className="h-4 w-4 text-blue-500" />
+    if (nombreLower.includes("tarjeta")) return <CreditCard className="h-4 w-4 text-green-500" />
+    if (nombreLower.includes("cuenta")) return <BookOpen className="h-4 w-4 text-purple-500" />
+    return <DollarSign className="h-4 w-4 text-yellow-500" /> // Icono por defecto para efectivo u otros
+  }
+
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        // Cargar puntos de venta
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
 
-        // Cargar tipos de pago
-        const tipos = await getTiposPago()
+        const tipos = await getTiposPago() // Cargar tipos de pago para el filtro si se usa
         setTiposPago(tipos)
 
-        // Cargar ventas iniciales (últimos 30 días por defecto)
         const fechaFin = new Date()
         const fechaInicio = new Date()
         fechaInicio.setDate(fechaInicio.getDate() - 30)
@@ -111,11 +123,12 @@ const HistorialVentasEquiposPage = () => {
           to: fechaFin,
         })
 
-        setFiltros({
-          ...filtros,
+        setFiltros((prevFiltros) => ({
+          // Usar callback para asegurar el estado más reciente
+          ...prevFiltros,
           fechaInicio: formatearFecha(fechaInicio),
           fechaFin: formatearFecha(fechaFin),
-        })
+        }))
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)
         toast.error("Error al cargar datos iniciales")
@@ -123,180 +136,108 @@ const HistorialVentasEquiposPage = () => {
     }
 
     cargarDatosIniciales()
-  }, [])
+  }, []) // Dependencia vacía para que se ejecute solo una vez al montar
 
-  // Cargar ventas cuando cambian los filtros
-  const cargarVentas = async () => {
+  const cargarVentas = useCallback(async () => {
+    // MODIFICACIÓN: Usar useCallback
+    if (!filtros.fechaInicio || !filtros.fechaFin) return // Evitar cargar si las fechas no están listas
+
     setCargando(true)
     try {
-      // Preparar parámetros para la consulta
       const params = {}
       if (filtros.fechaInicio) params.fecha_inicio = filtros.fechaInicio
       if (filtros.fechaFin) params.fecha_fin = filtros.fechaFin
-      if (filtros.puntoVentaId) params.punto_venta_id = filtros.puntoVentaId
+      if (filtros.puntoVentaId && filtros.puntoVentaId !== "all") params.punto_venta_id = filtros.puntoVentaId
+      // params.anuladas = filtros.mostrarAnuladas; // El backend ya maneja esto
 
-      // Obtener ventas
       const ventasData = await getVentasEquipos(params)
-
-      // Adaptar los datos para el frontend
-      const ventasAdaptadas = ventasData.map((venta) => {
-        return {
-          id: venta.id,
-          numeroFactura: venta.numero_factura || `EQ-${venta.id.toString().padStart(6, "0")}`,
-          fecha: venta.fecha,
-          cliente: {
-            id: venta.cliente_id,
-            nombre: venta.cliente_nombre,
-            telefono: venta.cliente_telefono,
-          },
-          equipo: {
-            id: venta.equipo_id,
-            marca: venta.marca,
-            modelo: venta.modelo,
-            imei: venta.imei,
-            memoria: venta.memoria,
-            color: venta.color,
-            bateria: venta.bateria,
-            precio: venta.precio_usd || 0,
-          },
-          puntoVenta: {
-            id: venta.punto_venta_id,
-            nombre: venta.punto_venta_nombre,
-          },
-          tipoPago: {
-            id: null,
-            nombre: venta.tipo_pago,
-          },
-          usuario: {
-            id: venta.usuario_id,
-            nombre: venta.usuario_nombre,
-          },
-          porcentajeInteres: venta.porcentaje_interes || 0,
-          porcentajeDescuento: venta.porcentaje_descuento || 0,
-          montoInteres: venta.monto_interes || 0,
-          montoDescuento: venta.monto_descuento || 0,
-          subtotal: venta.precio_usd || 0,
-          total: venta.total_usd || venta.total_ars || 0,
-          tipoCambio: venta.tipo_cambio || 0,
-          anulada: venta.anulada === 1,
-          fechaAnulacion: venta.fecha_anulacion,
-          motivoAnulacion: venta.motivo_anulacion,
-        }
-      })
-
+      // MODIFICACIÓN: Usar adaptVentaEquipoToFrontend para consistencia
+      const ventasAdaptadas = ventasData.map(adaptVentaEquipoToFrontend)
       setVentas(ventasAdaptadas)
-
-      // Aplicar filtro de búsqueda y tipo de pago
-      filtrarVentas(ventasAdaptadas)
+      // El filtrado se hará en el useEffect que depende de 'ventas' y 'filtros'
     } catch (error) {
       console.error("Error al cargar ventas:", error)
       toast.error("Error al cargar ventas")
     } finally {
       setCargando(false)
     }
-  }
+  }, [filtros.fechaInicio, filtros.fechaFin, filtros.puntoVentaId]) // MODIFICACIÓN: Dependencias de useCallback
 
-  // Filtrar ventas por búsqueda y tipo de pago
-  const filtrarVentas = useCallback(
-    (ventasAFiltrar = ventas) => {
-      let resultado = [...ventasAFiltrar]
+  const filtrarVentasLocalmente = useCallback(() => {
+    // Renombrado para claridad
+    let resultado = [...ventas]
 
-      // Filtrar por ventas anuladas si el checkbox está activo
-      if (filtros.mostrarAnuladas) {
-        resultado = resultado.filter((v) => v.anulada === true)
-      } else {
-        resultado = resultado.filter((v) => v.anulada === false)
-      }
+    if (filtros.mostrarAnuladas) {
+      resultado = resultado.filter((v) => v.anulada === true)
+    } else {
+      resultado = resultado.filter((v) => v.anulada === false)
+    }
 
-      // Filtrar por tipo de pago
-      if (filtros.tipoPagoId) {
-        resultado = resultado.filter((v) => v.tipoPago && v.tipoPago.nombre === filtros.tipoPagoId)
-      }
+    // if (filtros.tipoPagoId && filtros.tipoPagoId !== "all") { // Descomentar si se reactiva el filtro de tipo de pago
+    //   resultado = resultado.filter((v) => v.pagos && v.pagos.some(p => p.tipoPago.nombre === filtros.tipoPagoId));
+    // }
 
-      // Filtrar por término de búsqueda
-      if (filtros.busqueda) {
-        const termino = filtros.busqueda.toLowerCase()
-        resultado = resultado.filter(
-          (v) =>
-            v.numeroFactura?.toLowerCase().includes(termino) ||
-            v.cliente?.nombre?.toLowerCase().includes(termino) ||
-            v.usuario?.nombre?.toLowerCase().includes(termino) ||
-            v.equipo?.marca?.toLowerCase().includes(termino) ||
-            v.equipo?.modelo?.toLowerCase().includes(termino) ||
-            v.equipo?.imei?.toLowerCase().includes(termino),
-        )
-      }
+    if (filtros.busqueda) {
+      const termino = filtros.busqueda.toLowerCase()
+      resultado = resultado.filter(
+        (v) =>
+          v.numeroFactura?.toLowerCase().includes(termino) ||
+          v.cliente?.nombre?.toLowerCase().includes(termino) ||
+          v.usuario?.nombre?.toLowerCase().includes(termino) ||
+          v.equipo?.marca?.toLowerCase().includes(termino) ||
+          v.equipo?.modelo?.toLowerCase().includes(termino) ||
+          v.equipo?.imei?.toLowerCase().includes(termino),
+      )
+    }
 
-      setVentasFiltradas(resultado)
+    setVentasFiltradas(resultado)
+    calcularTotalGeneral(resultado)
+  }, [filtros.busqueda, filtros.mostrarAnuladas, ventas]) // MODIFICACIÓN: Dependencias actualizadas
 
-      // Calcular el total general
-      calcularTotalGeneral(resultado)
-    },
-    [filtros.busqueda, filtros.tipoPagoId, filtros.mostrarAnuladas, ventas],
-  )
-
-  // Calcular el total general de ventas
-  const calcularTotalGeneral = (ventasFiltradas) => {
-    // Solo considerar ventas no anuladas para el total
-    const ventasValidas = ventasFiltradas.filter((v) => !v.anulada)
-
-    const totalUSD = ventasValidas.reduce((sum, venta) => sum + Number(venta.total || 0), 0)
-
-    // Calcular el total en ARS usando el tipo de cambio de cada venta
-    const totalARS = ventasValidas.reduce((sum, venta) => {
-      const tipoCambio = venta.tipoCambio || dollarPrice
-      return sum + Number(venta.total || 0) * tipoCambio
-    }, 0)
+  const calcularTotalGeneral = (ventasParaCalcular) => {
+    const ventasValidas = ventasParaCalcular.filter((v) => !v.anulada)
+    const totalUSD = ventasValidas.reduce((sum, venta) => sum + Number(venta.totalUSD || 0), 0)
+    const totalARS = ventasValidas.reduce((sum, venta) => sum + Number(venta.totalARS || 0), 0)
 
     setTotalGeneral({
       usd: totalUSD,
-      ars: totalARS,
+      ars: totalARS, // Usar el totalARS que ya viene calculado
       cantidadVentas: ventasValidas.length,
     })
   }
 
-  // Efecto para aplicar filtros de búsqueda y tipo de pago
   useEffect(() => {
-    filtrarVentas()
-  }, [filtros.busqueda, filtros.tipoPagoId, filtros.mostrarAnuladas, ventas, filtrarVentas])
+    filtrarVentasLocalmente()
+  }, [filtrarVentasLocalmente]) // Dependencia única a la función memoizada
 
-  // Actualizar filtros cuando cambia el rango de fechas
   useEffect(() => {
     if (rangoFechas.from && rangoFechas.to) {
-      setFiltros({
-        ...filtros,
+      setFiltros((prevFiltros) => ({
+        // Usar callback para asegurar el estado más reciente
+        ...prevFiltros,
         fechaInicio: formatearFecha(rangoFechas.from),
         fechaFin: formatearFecha(rangoFechas.to),
-      })
+      }))
     }
   }, [rangoFechas])
 
-  // Formatear fecha para la API
   const formatearFecha = (fecha) => {
     if (!fecha) return null
     return fecha.toISOString().split("T")[0]
   }
 
-  // Formatear fecha para mostrar con corrección de 3 horas
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
-
-    // Crear la fecha a partir del string
     const fecha = new Date(fechaString)
-
-    // Verificar si la fecha es válida
     if (isNaN(fecha.getTime())) return ""
-
-    // Sumar 3 horas para corregir el desfase
-    fecha.setHours(fecha.getHours() + 3)
-
-    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
+    // La corrección de 3 horas ya se hace en el servicio al adaptar.
     return fecha.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false, // Usar formato 24 horas
     })
   }
 
@@ -309,20 +250,16 @@ const HistorialVentasEquiposPage = () => {
     }).format(precioNumerico)
   }
 
-  const formatearPrecio = (precio, tipoCambio = null) => {
+  const formatearPrecioARS = (precio) => {
     const precioNumerico = Number.parseFloat(precio) || 0
-    const cambio = tipoCambio !== null ? tipoCambio : dollarPrice
-    const precioARS = precioNumerico * cambio
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
       minimumFractionDigits: 2,
-    }).format(precioARS)
+    }).format(precioNumerico)
   }
 
-  // Limpiar filtros
   const limpiarFiltros = () => {
-    // Mantener solo las fechas
     const fechaFin = new Date()
     const fechaInicio = new Date()
     fechaInicio.setDate(fechaInicio.getDate() - 30)
@@ -337,79 +274,32 @@ const HistorialVentasEquiposPage = () => {
       fechaInicio: formatearFecha(fechaInicio),
       fechaFin: formatearFecha(fechaFin),
       puntoVentaId: "",
-      tipoPagoId: "",
+      // tipoPagoId: "", // Descomentar si se reactiva
       mostrarAnuladas: false,
     })
   }
 
-  // Abrir detalle de venta
   const abrirDetalleVenta = async (ventaId) => {
     if (detalleVentaAbierto === ventaId) {
       setDetalleVentaAbierto(null)
+      setVentaSeleccionada(null) // Limpiar selección al cerrar
       return
     }
 
+    // Optimización: Si ya tenemos la venta en el listado, usarla y solo fetchear si es necesario (ej. para más detalles como los pagos)
+    const ventaExistente = ventas.find((v) => v.id === ventaId)
+    if (ventaExistente && ventaExistente.pagos && ventaExistente.pagos.length > 0) {
+      // Si ya tiene pagos, asumimos que está completa
+      setVentaSeleccionada(ventaExistente)
+      setDetalleVentaAbierto(ventaId)
+      return
+    }
+
+    setCargando(true) // Mostrar carga solo si se va a fetchear
     try {
-      setCargando(true)
-      const ventaDetallada = await getVentaEquipoById(ventaId)
-
-      // Adaptar la venta detallada al formato del frontend
-      const ventaAdaptada = {
-        id: ventaDetallada.id,
-        numeroFactura: ventaDetallada.numero_factura || `EQ-${ventaDetallada.id.toString().padStart(6, "0")}`,
-        fecha: ventaDetallada.fecha,
-        cliente: {
-          id: ventaDetallada.cliente_id,
-          nombre: ventaDetallada.cliente_nombre,
-          telefono: ventaDetallada.cliente_telefono,
-        },
-        equipo: {
-          id: ventaDetallada.equipo_id,
-          marca: ventaDetallada.marca,
-          modelo: ventaDetallada.modelo,
-          imei: ventaDetallada.imei,
-          memoria: ventaDetallada.memoria,
-          color: ventaDetallada.color,
-          bateria: ventaDetallada.bateria,
-          precio: ventaDetallada.precio_usd || 0,
-          tipoCambio: ventaDetallada.equipo?.tipoCambio || ventaDetallada.tipo_cambio || 0,
-          tipoCambioOriginal: ventaDetallada.equipo?.tipoCambioOriginal || ventaDetallada.tipo_cambio || 0,
-        },
-        puntoVenta: {
-          id: ventaDetallada.punto_venta_id,
-          nombre: ventaDetallada.punto_venta_nombre,
-        },
-        tipoPago: {
-          id: null,
-          nombre: ventaDetallada.tipo_pago,
-        },
-        usuario: {
-          id: ventaDetallada.usuario_id,
-          nombre: ventaDetallada.usuario_nombre,
-        },
-        porcentajeInteres: ventaDetallada.porcentaje_interes || 0,
-        porcentajeDescuento: ventaDetallada.porcentaje_descuento || 0,
-        montoInteres: ventaDetallada.monto_interes || 0,
-        montoDescuento: ventaDetallada.monto_descuento || 0,
-        subtotal: ventaDetallada.precio_usd || 0,
-        total: ventaDetallada.total_usd || ventaDetallada.total_ars || 0,
-        tipoCambio: ventaDetallada.tipo_cambio || 0,
-        anulada: ventaDetallada.anulada === 1,
-        fechaAnulacion: ventaDetallada.fecha_anulacion,
-        motivoAnulacion: ventaDetallada.motivo_anulacion,
-        planCanje: ventaDetallada.plan_canje
-          ? {
-              marca: ventaDetallada.plan_canje.marca,
-              modelo: ventaDetallada.plan_canje.modelo,
-              precio: ventaDetallada.plan_canje.precio,
-              memoria: ventaDetallada.plan_canje.memoria,
-              color: ventaDetallada.plan_canje.color,
-              imei: ventaDetallada.plan_canje.imei,
-            }
-          : null,
-        notas: ventaDetallada.notas,
-      }
-
+      const ventaDetalladaData = await getVentaEquipoById(ventaId)
+      // MODIFICACIÓN: Usar adaptVentaEquipoToFrontend para asegurar que 'pagos' esté en el formato correcto
+      const ventaAdaptada = adaptVentaEquipoToFrontend(ventaDetalladaData)
       setVentaSeleccionada(ventaAdaptada)
       setDetalleVentaAbierto(ventaId)
     } catch (error) {
@@ -420,7 +310,6 @@ const HistorialVentasEquiposPage = () => {
     }
   }
 
-  // Abrir diálogo de anulación
   const abrirDialogAnulacion = (venta) => {
     setVentaAnular(venta)
     setMotivoAnulacion("")
@@ -428,7 +317,6 @@ const HistorialVentasEquiposPage = () => {
     setDialogAnularAbierto(true)
   }
 
-  // Anular venta
   const confirmarAnulacion = async () => {
     if (!motivoAnulacion.trim()) {
       toast.error("El motivo de anulación es obligatorio")
@@ -441,24 +329,23 @@ const HistorialVentasEquiposPage = () => {
     try {
       await anularVentaEquipo(ventaAnular.id, motivoAnulacion)
 
-      // Actualizar la lista de ventas
-      const ventasActualizadas = ventas.map((v) =>
-        v.id === ventaAnular.id
-          ? { ...v, anulada: true, fechaAnulacion: new Date().toISOString(), motivoAnulacion }
-          : v,
+      // Actualizar la lista de ventas localmente
+      setVentas((prevVentas) =>
+        prevVentas.map((v) =>
+          v.id === ventaAnular.id
+            ? { ...v, anulada: true, fechaAnulacion: new Date().toISOString(), motivoAnulacion }
+            : v,
+        ),
       )
+      // El useEffect que depende de 'ventas' y 'filtros' se encargará de actualizar 'ventasFiltradas'
 
-      setVentas(ventasActualizadas)
-      filtrarVentas(ventasActualizadas)
-
-      // Si la venta anulada es la que está seleccionada, actualizar su estado
       if (ventaSeleccionada && ventaSeleccionada.id === ventaAnular.id) {
-        setVentaSeleccionada({
-          ...ventaSeleccionada,
+        setVentaSeleccionada((prev) => ({
+          ...prev,
           anulada: true,
           fechaAnulacion: new Date().toISOString(),
           motivoAnulacion,
-        })
+        }))
       }
 
       setEstadoAnulacion({
@@ -467,7 +354,6 @@ const HistorialVentasEquiposPage = () => {
         mensaje: "Venta anulada correctamente. El equipo ha sido marcado como disponible nuevamente.",
       })
 
-      // Cerrar el diálogo después de 2 segundos
       setTimeout(() => {
         setDialogAnularAbierto(false)
         toast.success("Venta anulada correctamente")
@@ -485,7 +371,6 @@ const HistorialVentasEquiposPage = () => {
     }
   }
 
-  // Renderizar skeletons durante la carga
   const renderSkeletons = () =>
     Array.from({ length: 5 }).map((_, idx) => (
       <TableRow key={idx}>
@@ -508,24 +393,24 @@ const HistorialVentasEquiposPage = () => {
           <Skeleton className="h-4 w-20" />
         </TableCell>
         <TableCell>
+          <Skeleton className="h-4 w-20" />
+        </TableCell>
+        <TableCell>
           <Skeleton className="h-8 w-20" />
         </TableCell>
       </TableRow>
     ))
 
-  // Modificar el useEffect que carga las ventas
   useEffect(() => {
-    // Solo cargar si tenemos fechas
     if (filtros.fechaInicio && filtros.fechaFin) {
       cargarVentas()
     }
-  }, [filtros.fechaInicio, filtros.fechaFin, filtros.puntoVentaId])
+  }, [cargarVentas]) // MODIFICACIÓN: Dependencia a la función memoizada
 
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
 
-      {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Historial de Ventas de Equipos</h1>
@@ -533,31 +418,25 @@ const HistorialVentasEquiposPage = () => {
         </div>
       </div>
 
-      {/* Tarjeta de Total General */}
       <Card className="mb-6 border-0 shadow-md bg-gradient-to-r from-orange-500 to-orange-700">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
               <span className="text-white/70 text-sm mb-1 flex items-center gap-1">
-                <DollarSign size={14} />
-                Total en USD
+                <DollarSign size={14} /> Total en USD
               </span>
               <span className="text-white text-2xl font-bold">{formatearPrecioUSD(totalGeneral.usd)}</span>
             </div>
-
             <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
               <span className="text-white/70 text-sm mb-1 flex items-center gap-1">
-                <DollarSign size={14} />
-                Total en ARS
+                <DollarSign size={14} /> Total en ARS
               </span>
-              <span className="text-white text-2xl font-bold">{formatearPrecio(totalGeneral.usd)}</span>
-              <span className="text-white/70 text-xs">Tipo de cambio actual: ${dollarPrice.toFixed(2)}</span>
+              <span className="text-white text-2xl font-bold">{formatearPrecioARS(totalGeneral.ars)}</span>
+              <span className="text-white/70 text-xs">TC promedio de ventas</span>
             </div>
-
             <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
               <span className="text-white/70 text-sm mb-1 flex items-center gap-1">
-                <Smartphone size={14} />
-                Cantidad de Ventas
+                <Smartphone size={14} /> Cantidad de Ventas
               </span>
               <span className="text-white text-2xl font-bold">{totalGeneral.cantidadVentas}</span>
               <span className="text-white/70 text-xs">
@@ -568,12 +447,10 @@ const HistorialVentasEquiposPage = () => {
         </CardContent>
       </Card>
 
-      {/* Filtros */}
       <Card className="mb-6 border-0 shadow-md">
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
-            <Filter size={20} />
-            Filtros de Búsqueda
+            <Filter size={20} /> Filtros de Búsqueda
           </CardTitle>
           <CardDescription className="text-gray-300">
             Utiliza los filtros para encontrar ventas específicas
@@ -581,7 +458,6 @@ const HistorialVentasEquiposPage = () => {
         </CardHeader>
         <CardContent className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            {/* Búsqueda */}
             <div className="relative col-span-1 sm:col-span-2 xl:col-span-1">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -591,8 +467,6 @@ const HistorialVentasEquiposPage = () => {
                 onChange={(e) => setFiltros({ ...filtros, busqueda: e.target.value })}
               />
             </div>
-
-            {/* Punto de venta */}
             <div>
               <Select
                 value={filtros.puntoVentaId}
@@ -611,9 +485,7 @@ const HistorialVentasEquiposPage = () => {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Tipo de pago */}
-            <div>
+            {/* <div> // Descomentar si se reactiva el filtro de tipo de pago
               <Select
                 value={filtros.tipoPagoId}
                 onValueChange={(value) => setFiltros({ ...filtros, tipoPagoId: value })}
@@ -630,16 +502,11 @@ const HistorialVentasEquiposPage = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Rango de fechas */}
+            </div> */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-1">
               <DateRangePicker date={rangoFechas} setDate={setRangoFechas} className="w-full" />
             </div>
-
-            {/* Controles adicionales */}
             <div className="col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-1 flex items-center justify-between gap-2">
-              {/* Mostrar anuladas */}
               <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-md border flex-1">
                 <Checkbox
                   id="mostrarAnuladas"
@@ -653,8 +520,6 @@ const HistorialVentasEquiposPage = () => {
                   Mostrar anuladas
                 </label>
               </div>
-
-              {/* Botón limpiar */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -672,17 +537,15 @@ const HistorialVentasEquiposPage = () => {
         </CardContent>
       </Card>
 
-      {/* Tabla de ventas */}
       <Card className="border-0 shadow-md">
         <CardHeader className="bg-[#131321] pb-3">
           <CardTitle className="text-orange-600 flex items-center gap-2">
-            <Smartphone size={20} />
-            Listado de Ventas de Equipos
+            <Smartphone size={20} /> Listado de Ventas de Equipos
           </CardTitle>
           <CardDescription className="text-gray-300 flex items-center justify-between">
             <span>{ventasFiltradas.length} ventas encontradas</span>
             <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-200">
-              Tipo de cambio actual: ${dollarPrice.toFixed(2)} ARS
+              TC Actual: ${dollarPrice.toFixed(2)} ARS
             </Badge>
           </CardDescription>
         </CardHeader>
@@ -755,14 +618,25 @@ const HistorialVentasEquiposPage = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="font-normal">
-                              {venta.tipoPago ? venta.tipoPago.nombre : "N/A"}
-                            </Badge>
+                            {/* MODIFICACIÓN: Mostrar "Múltiples" si hay más de un pago, o el nombre del único pago */}
+                            {venta.pagos && venta.pagos.length > 1 ? (
+                              <Badge variant="outline" className="font-normal">
+                                Múltiples Pagos
+                              </Badge>
+                            ) : venta.pagos && venta.pagos.length === 1 ? (
+                              <Badge variant="secondary" className="font-normal">
+                                {venta.pagos[0].tipoPago.nombre}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="font-normal">
+                                N/A
+                              </Badge> // Caso por si no hay pagos (debería tener al menos uno)
+                            )}
                           </TableCell>
                           <TableCell className="font-medium">
-                            <div>{formatearPrecioUSD(venta.total)}</div>
+                            <div>{formatearPrecioUSD(venta.totalUSD)}</div>
                             <div className="text-xs text-gray-500">
-                              {formatearPrecio(venta.total, venta.tipoCambio)}
+                              {formatearPrecioARS(venta.totalARS)}
                               {venta.tipoCambio && (
                                 <span className="text-xs text-gray-400 ml-1">
                                   (TC: {Number(venta.tipoCambio).toFixed(2)})
@@ -797,7 +671,6 @@ const HistorialVentasEquiposPage = () => {
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-
                               {!venta.anulada &&
                                 (currentUser?.role === "admin" || currentUser?.role === "empleado") && (
                                   <TooltipProvider>
@@ -823,7 +696,6 @@ const HistorialVentasEquiposPage = () => {
                           </TableCell>
                         </TableRow>
 
-                        {/* Detalle de venta */}
                         <AnimatePresence>
                           {detalleVentaAbierto === venta.id && ventaSeleccionada && (
                             <TableRow>
@@ -836,14 +708,12 @@ const HistorialVentasEquiposPage = () => {
                                 >
                                   <Card className="mx-4 my-2 border border-orange-200 shadow-sm">
                                     <CardContent className="p-4">
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        {/* Información de la venta */}
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         <div className="space-y-3">
                                           <div className="flex items-center gap-2 text-orange-700">
                                             <FileText size={16} />
                                             <h3 className="font-medium">Información de la venta</h3>
                                           </div>
-
                                           <div className="space-y-2 text-sm">
                                             <div className="flex justify-between">
                                               <span className="text-gray-500">Factura:</span>
@@ -861,22 +731,40 @@ const HistorialVentasEquiposPage = () => {
                                               <span className="text-gray-500">Punto de venta:</span>
                                               <Badge
                                                 variant="outline"
-                                                className={`font-normal ${
-                                                  ventaSeleccionada.puntoVenta.nombre === "Tala"
-                                                    ? "border-orange-300 bg-orange-50 text-orange-700"
-                                                    : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                                                }`}
+                                                className={`font-normal ${ventaSeleccionada.puntoVenta.nombre === "Tala" ? "border-orange-300 bg-orange-50 text-orange-700" : "border-indigo-300 bg-indigo-50 text-indigo-700"}`}
                                               >
                                                 <MapPin className="h-3 w-3 mr-1" />
                                                 {ventaSeleccionada.puntoVenta.nombre}
                                               </Badge>
                                             </div>
-                                            <div className="flex justify-between">
-                                              <span className="text-gray-500">Método de pago:</span>
-                                              <Badge variant="secondary" className="font-normal">
-                                                {ventaSeleccionada.tipoPago ? ventaSeleccionada.tipoPago.nombre : "N/A"}
-                                              </Badge>
+
+                                            {/* MODIFICACIÓN: Mostrar lista de pagos */}
+                                            <div>
+                                              <span className="text-gray-500">Métodos de pago:</span>
+                                              {ventaSeleccionada.pagos && ventaSeleccionada.pagos.length > 0 ? (
+                                                <ul className="mt-1 space-y-1">
+                                                  {ventaSeleccionada.pagos.map((pago) => (
+                                                    <li
+                                                      key={pago.id || pago.fecha}
+                                                      className="flex justify-between items-center text-xs"
+                                                    >
+                                                      <div className="flex items-center gap-1">
+                                                        {getIconoMetodoPago(pago.tipoPago.nombre)}
+                                                        <span>{pago.tipoPago.nombre}:</span>
+                                                      </div>
+                                                      <Badge variant="secondary" className="font-normal">
+                                                        {formatearPrecioARS(pago.monto)}
+                                                      </Badge>
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              ) : (
+                                                <Badge variant="secondary" className="font-normal">
+                                                  N/A
+                                                </Badge>
+                                              )}
                                             </div>
+
                                             <div className="flex justify-between">
                                               <span className="text-gray-500">Cliente:</span>
                                               <span>
@@ -915,13 +803,11 @@ const HistorialVentasEquiposPage = () => {
                                           </div>
                                         </div>
 
-                                        {/* Detalle del equipo */}
                                         <div className="md:col-span-2">
                                           <div className="flex items-center gap-2 text-orange-700 mb-3">
                                             <Smartphone size={16} />
                                             <h3 className="font-medium">Detalle del Equipo</h3>
                                           </div>
-
                                           <div className="bg-gray-50 p-4 rounded-lg border">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                               <div className="space-y-3">
@@ -931,12 +817,10 @@ const HistorialVentasEquiposPage = () => {
                                                     {ventaSeleccionada.equipo.marca} {ventaSeleccionada.equipo.modelo}
                                                   </div>
                                                 </div>
-
                                                 <div>
                                                   <span className="text-gray-500 text-sm">IMEI</span>
                                                   <div className="font-medium">{ventaSeleccionada.equipo.imei}</div>
                                                 </div>
-
                                                 <div className="flex gap-4">
                                                   <div>
                                                     <span className="text-gray-500 text-sm">Memoria</span>
@@ -951,19 +835,12 @@ const HistorialVentasEquiposPage = () => {
                                                     </div>
                                                   </div>
                                                 </div>
-
                                                 <div>
                                                   <span className="text-gray-500 text-sm">Batería</span>
                                                   <div className="flex items-center gap-2">
                                                     <div className="w-16 h-3 bg-gray-200 rounded-full overflow-hidden">
                                                       <div
-                                                        className={`h-full ${
-                                                          ventaSeleccionada.equipo.bateria >= 80
-                                                            ? "bg-green-500"
-                                                            : ventaSeleccionada.equipo.bateria >= 60
-                                                              ? "bg-orange-500"
-                                                              : "bg-red-500"
-                                                        }`}
+                                                        className={`h-full ${ventaSeleccionada.equipo.bateria >= 80 ? "bg-green-500" : ventaSeleccionada.equipo.bateria >= 60 ? "bg-orange-500" : "bg-red-500"}`}
                                                         style={{ width: `${ventaSeleccionada.equipo.bateria}%` }}
                                                       ></div>
                                                     </div>
@@ -983,7 +860,6 @@ const HistorialVentasEquiposPage = () => {
                                                   </div>
                                                 </div>
                                               </div>
-
                                               <div className="space-y-3">
                                                 {ventaSeleccionada.planCanje && (
                                                   <div className="bg-blue-50 p-3 rounded-md border border-blue-200 mb-3">
@@ -1018,31 +894,25 @@ const HistorialVentasEquiposPage = () => {
                                                     </div>
                                                   </div>
                                                 )}
-
                                                 <div>
                                                   <span className="text-gray-500 text-sm">Precio del equipo</span>
                                                   <div className="text-xl font-bold text-orange-700">
-                                                    {formatearPrecioUSD(ventaSeleccionada.equipo.precio)}
+                                                    {formatearPrecioUSD(ventaSeleccionada.precioUSD)}
                                                   </div>
-
-                                                  {/* Precio ARS con tipo de cambio de la venta */}
-                                                  <div className="flex items-center gap-1 mt-1">
-                                                    <Badge
-                                                      variant="outline"
-                                                      className="font-normal border-blue-300 bg-blue-50 text-blue-700"
-                                                    >
-                                                      <Clock className="h-3 w-3 mr-1" />
-                                                      Precio ARS
-                                                    </Badge>
-                                                    <div className="text-sm text-blue-700">
-                                                      {formatearPrecio(
-                                                        ventaSeleccionada.equipo.precio,
-                                                        ventaSeleccionada.tipoCambio,
-                                                      )}
-                                                      <span className="text-xs text-gray-500 ml-1">
-                                                        (TC: {Number(ventaSeleccionada.tipoCambio).toFixed(2)})
-                                                      </span>
-                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 mt-1">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="font-normal border-blue-300 bg-blue-50 text-blue-700"
+                                                  >
+                                                    <Clock className="h-3 w-3 mr-1" />
+                                                    Precio ARS
+                                                  </Badge>
+                                                  <div className="text-sm text-blue-700">
+                                                    {formatearPrecioARS(ventaSeleccionada.precioARS)}
+                                                    <span className="text-xs text-gray-500 ml-1">
+                                                      (TC: {Number(ventaSeleccionada.tipoCambio).toFixed(2)})
+                                                    </span>
                                                   </div>
                                                 </div>
 
@@ -1054,82 +924,39 @@ const HistorialVentasEquiposPage = () => {
                                                     </div>
                                                     <div className="text-sm text-gray-500">
                                                       -
-                                                      {formatearPrecio(
-                                                        ventaSeleccionada.planCanje.precio,
-                                                        ventaSeleccionada.tipoCambio,
+                                                      {formatearPrecioARS(
+                                                        ventaSeleccionada.planCanje.precio *
+                                                          ventaSeleccionada.tipoCambio,
                                                       )}
                                                     </div>
                                                   </div>
                                                 )}
-
-                                                {ventaSeleccionada.porcentajeInteres > 0 && (
-                                                  <div>
-                                                    <span className="text-gray-500 text-sm">
-                                                      Interés ({ventaSeleccionada.porcentajeInteres}%)
-                                                    </span>
-                                                    <div className="text-orange-600 font-medium">
-                                                      +{formatearPrecioUSD(ventaSeleccionada.montoInteres)}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                      +
-                                                      {formatearPrecio(
-                                                        ventaSeleccionada.montoInteres,
-                                                        ventaSeleccionada.tipoCambio,
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                )}
-
-                                                {ventaSeleccionada.porcentajeDescuento > 0 && (
-                                                  <div>
-                                                    <span className="text-gray-500 text-sm">
-                                                      Descuento ({ventaSeleccionada.porcentajeDescuento}%)
-                                                    </span>
-                                                    <div className="text-green-600 font-medium">
-                                                      -{formatearPrecioUSD(ventaSeleccionada.montoDescuento)}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                      -
-                                                      {formatearPrecio(
-                                                        ventaSeleccionada.montoDescuento,
-                                                        ventaSeleccionada.tipoCambio,
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                )}
-
+                                                {/* El interés y descuento ya no se aplican directamente a la venta de equipo, sino a los pagos si es necesario. Se mantiene el total. */}
                                                 <Separator />
-
                                                 <div>
-                                                  <span className="text-gray-500 text-sm">Total</span>
+                                                  <span className="text-gray-500 text-sm">Total Venta</span>
                                                   <div className="text-2xl font-bold text-orange-700">
-                                                    {formatearPrecioUSD(ventaSeleccionada.total)}
+                                                    {formatearPrecioUSD(ventaSeleccionada.totalUSD)}
                                                   </div>
-
-                                                  {/* Total ARS con tipo de cambio de la venta */}
-                                                  <div className="flex items-center gap-1 mt-1">
-                                                    <Badge
-                                                      variant="outline"
-                                                      className="font-normal border-blue-300 bg-blue-50 text-blue-700"
-                                                    >
-                                                      <Clock className="h-3 w-3 mr-1" />
-                                                      Total ARS
-                                                    </Badge>
-                                                    <div className="text-sm text-blue-700">
-                                                      {formatearPrecio(
-                                                        ventaSeleccionada.total,
-                                                        ventaSeleccionada.tipoCambio,
-                                                      )}
-                                                      <span className="text-xs text-gray-500 ml-1">
-                                                        (TC: {Number(ventaSeleccionada.tipoCambio).toFixed(2)})
-                                                      </span>
-                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 mt-1">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="font-normal border-blue-300 bg-blue-50 text-blue-700"
+                                                  >
+                                                    <Clock className="h-3 w-3 mr-1" />
+                                                    Total ARS
+                                                  </Badge>
+                                                  <div className="text-sm text-blue-700">
+                                                    {formatearPrecioARS(ventaSeleccionada.totalARS)}
+                                                    <span className="text-xs text-gray-500 ml-1">
+                                                      (TC: {Number(ventaSeleccionada.tipoCambio).toFixed(2)})
+                                                    </span>
                                                   </div>
                                                 </div>
                                               </div>
                                             </div>
                                           </div>
-
                                           {ventaSeleccionada.notas && (
                                             <div className="mt-4 p-3 bg-gray-50 rounded-md border">
                                               <div className="text-gray-500 text-sm mb-1">Notas</div>
@@ -1155,7 +982,6 @@ const HistorialVentasEquiposPage = () => {
         </CardContent>
       </Card>
 
-      {/* Diálogo de anulación */}
       <Dialog open={dialogAnularAbierto} onOpenChange={setDialogAnularAbierto}>
         <DialogContent>
           <DialogHeader>
@@ -1167,7 +993,6 @@ const HistorialVentasEquiposPage = () => {
               Esta acción anulará la venta y marcará el equipo como disponible nuevamente. No se puede deshacer.
             </DialogDescription>
           </DialogHeader>
-
           <div className="py-4">
             <div className="bg-gray-50 p-3 rounded border mb-4">
               <div className="text-sm">
@@ -1192,16 +1017,14 @@ const HistorialVentasEquiposPage = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Total:</span>
                   <div>
-                    <span className="font-medium">{ventaAnular && formatearPrecioUSD(ventaAnular.total)}</span>
+                    <span className="font-medium">{ventaAnular && formatearPrecioUSD(ventaAnular.totalUSD)}</span>
                     <div className="text-xs text-gray-500">
-                      {ventaAnular && formatearPrecio(ventaAnular.total, ventaAnular.tipoCambio)}
+                      {ventaAnular && formatearPrecioARS(ventaAnular.totalARS)}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* Estado de anulación */}
             {estadoAnulacion.exito && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 flex items-start gap-2">
                 <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
@@ -1211,7 +1034,6 @@ const HistorialVentasEquiposPage = () => {
                 </div>
               </div>
             )}
-
             {estadoAnulacion.error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 flex items-start gap-2">
                 <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
@@ -1221,7 +1043,6 @@ const HistorialVentasEquiposPage = () => {
                 </div>
               </div>
             )}
-
             <div className="space-y-2">
               <Label htmlFor="motivo">
                 Motivo de anulación <span className="text-red-500">*</span>
@@ -1237,7 +1058,6 @@ const HistorialVentasEquiposPage = () => {
               />
             </div>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogAnularAbierto(false)} disabled={procesandoAnulacion}>
               {estadoAnulacion.exito ? "Cerrar" : "Cancelar"}
