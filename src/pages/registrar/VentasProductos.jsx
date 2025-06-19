@@ -157,7 +157,7 @@ const VentasProductos = () => {
         position: "bottom-center",
       })
     }
-  }, [puntoVentaSeleccionado, productosSeleccionados]) // Agregado productosSeleccionados a las dependencias
+  }, [puntoVentaSeleccionado]) // Solo depende de puntoVentaSeleccionado
 
   // Búsqueda de productos
   const buscarProductos = useCallback(async () => {
