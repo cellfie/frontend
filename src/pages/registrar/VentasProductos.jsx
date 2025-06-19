@@ -1050,7 +1050,7 @@ const VentasProductos = () => {
                   <Receipt size={16} className="mr-1" /> Finalizar Venta
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-4xl">
                 {" "}
                 {/* Aumentado el ancho del modal */}
                 <DialogHeader>
@@ -1200,7 +1200,7 @@ const VentasProductos = () => {
                       </div>
 
                       {pagos.length > 0 && (
-                        <ScrollArea className="h-[150px] pr-3 border-t pt-3 mt-3">
+                        <ScrollArea className="h-[200px] pr-3 border-t pt-3 mt-3">
                           {" "}
                           {/* Ajuste de altura y padding */}
                           <div className="space-y-3">
@@ -1208,15 +1208,15 @@ const VentasProductos = () => {
                               <div key={pago.id} className="bg-gray-50 p-3 rounded-lg">
                                 <div className="flex justify-between items-start">
                                   <div>
-                                    <p className="font-medium">{pago.tipo_pago_nombre}</p>
-                                    <p className="text-lg font-bold text-orange-700">
+                                    <p className="text-sm font-medium">{pago.tipo_pago_nombre}</p>
+                                    <p className="text-sm font-bold text-orange-700">
                                       {formatearMonedaARS(pago.monto)}
                                     </p>
                                   </div>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7 text-red-500 hover:bg-red-100"
+                                    className="h-6 w-6 text-red-500 hover:bg-red-100"
                                     onClick={() => handleRemovePago(pago.id)}
                                   >
                                     <Trash2 size={14} />
