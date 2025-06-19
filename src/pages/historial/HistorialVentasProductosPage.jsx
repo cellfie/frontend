@@ -1503,7 +1503,12 @@ const HistorialVentas = () => {
                                                             >
                                                               <div className="flex items-center gap-1">
                                                                 <IconoPago size={14} className="text-gray-600" />
-                                                                <span>{pago.tipo_pago_nombre}</span>
+                                                                {/* MODIFICACIÓN AQUÍ para fallback */}
+                                                                <span>
+                                                                  {pago.tipo_pago_nombre
+                                                                    ? pago.tipo_pago_nombre
+                                                                    : "Nombre no disponible"}
+                                                                </span>
                                                               </div>
                                                               <span>{formatearPrecio(pago.monto)}</span>
                                                             </Badge>
