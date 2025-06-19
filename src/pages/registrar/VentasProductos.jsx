@@ -1,12 +1,9 @@
 "use client"
 
-import { DialogTrigger } from "@/components/ui/dialog"
-
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import ReactTooltip from "react-tooltip"
 import {
   Search,
   ShoppingCart,
@@ -20,15 +17,12 @@ import {
   Info,
   Receipt,
   X,
-  DollarSign,
-  ArrowUpRight,
-  CreditCardIcon,
-  BookOpen,
   MapPin,
   PercentCircle,
   Filter,
   UserPlus,
-  AlertCircle,
+  TrendingUp,
+  CalendarDays,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -45,14 +39,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Importar servicios optimizados
 import { getProductosPaginados, adaptProductoToFrontend } from "@/services/productosService"
@@ -81,6 +74,15 @@ const useDebounce = (value, delay) => {
   return debouncedValue
 }
 
+// Función para formatear moneda
+const formatearMonedaARS = (valor) => {
+  const numero = Number(valor) || 0
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+  }).format(numero)
+}
+
 const VentasProductos = () => {
   const { currentUser } = useAuth()
 
@@ -91,14 +93,11 @@ const VentasProductos = () => {
   const [cargando, setCargando] = useState(false)
 
   // Estados de venta
-  const [porcentajeInteres, setPorcentajeInteres] = useState(0)
   const [porcentajeDescuento, setPorcentajeDescuento] = useState(0)
   const [cliente, setCliente] = useState({ id: null, nombre: "Cliente General", telefono: "", dni: "" })
   const [dialogClienteAbierto, setDialogClienteAbierto] = useState(false)
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", telefono: "", dni: "" })
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false)
-  const [tipoPagoSeleccionado, setTipoPagoSeleccionado] = useState("")
-  const [interesInputValue, setInteresInputValue] = useState("0")
   const [descuentoInputValue, setDescuentoInputValue] = useState("0")
 
   // Estados de configuración
@@ -113,7 +112,11 @@ const VentasProductos = () => {
   const [procesandoVenta, setProcesandoVenta] = useState(false)
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
-  const [mostrarInteresVisual, setMostrarInteresVisual] = useState(false)
+
+  // Estados para múltiples pagos
+  const [pagos, setPagos] = useState([])
+  const [montoPagoActual, setMontoPagoActual] = useState("")
+  const [tipoPagoActual, setTipoPagoActual] = useState("")
 
   // Debounce para la búsqueda
   const debouncedSearchTerm = useDebounce(busqueda, 300)
@@ -122,20 +125,21 @@ const VentasProductos = () => {
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        // Cargar puntos de venta
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
+        if (puntos.length > 0) {
+          const trancas = puntos.find((p) => p.nombre.toLowerCase() === "trancas")
+          setPuntoVentaSeleccionado(trancas ? trancas.id.toString() : puntos[0].id.toString())
+        }
 
-        // Establecer punto de venta por defecto a Trancas (ID 1)
-        setPuntoVentaSeleccionado("1")
-
-        // Cargar categorías
         const cats = await getCategorias()
         setCategorias(cats)
 
-        // Cargar tipos de pago
         const tipos = await getTiposPago()
         setTiposPagoDisponibles(tipos)
+        if (tipos.length > 0) {
+          setTipoPagoActual(tipos[0].id.toString())
+        }
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)
         toast.error("Error al cargar datos iniciales")
@@ -149,17 +153,14 @@ const VentasProductos = () => {
   useEffect(() => {
     if (puntoVentaSeleccionado && productosSeleccionados.length > 0) {
       setProductosSeleccionados([])
-      toast.info(
-        `Se ha limpiado el carrito debido al cambio de punto de venta a ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
-        {
-          position: "bottom-center",
-        },
-      )
+      toast.info(`Se ha limpiado el carrito debido al cambio de punto de venta.`, {
+        position: "bottom-center",
+      })
     }
   }, [puntoVentaSeleccionado])
 
-  // Búsqueda rápida de productos (solo cuando hay búsqueda)
-  const buscarProductosRapido = useCallback(async () => {
+  // Búsqueda de productos
+  const buscarProductos = useCallback(async () => {
     if (!debouncedSearchTerm || debouncedSearchTerm.length < 2) {
       setProductos([])
       return
@@ -167,22 +168,10 @@ const VentasProductos = () => {
 
     setCargando(true)
     try {
-      // Usar la función de búsqueda paginada en lugar de search-rapido
       const filters = {
         search: debouncedSearchTerm,
-      }
-
-      // Filtrar por punto de venta si está seleccionado
-      if (puntoVentaSeleccionado !== "todos") {
-        filters.punto_venta_id = puntoVentaSeleccionado
-      }
-
-      // Filtrar por categoría si está seleccionado
-      if (filtroCategoria !== "todos") {
-        const categoria = categorias.find((cat) => cat.nombre === filtroCategoria)
-        if (categoria) {
-          filters.categoria_id = categoria.id
-        }
+        punto_venta_id: puntoVentaSeleccionado,
+        categoria_id: filtroCategoria !== "todos" ? filtroCategoria : undefined,
       }
 
       const result = await getProductosPaginados(1, 50, filters)
@@ -193,26 +182,24 @@ const VentasProductos = () => {
 
       setProductos(productosAdaptados)
     } catch (error) {
-      console.error("Error en búsqueda rápida:", error)
+      console.error("Error en búsqueda:", error)
       toast.error("Error al buscar productos")
     } finally {
       setCargando(false)
     }
-  }, [debouncedSearchTerm, puntoVentaSeleccionado, filtroCategoria, categorias])
+  }, [debouncedSearchTerm, puntoVentaSeleccionado, filtroCategoria])
 
-  // Efecto para manejar la búsqueda
   useEffect(() => {
-    buscarProductosRapido()
-  }, [debouncedSearchTerm, filtroCategoria, puntoVentaSeleccionado])
+    buscarProductos()
+  }, [buscarProductos])
 
-  // Buscar clientes cuando cambia la búsqueda
+  // Búsqueda de clientes
   useEffect(() => {
-    const buscarClientes = async () => {
+    const buscar = async () => {
       if (busquedaCliente.length < 2) {
         setClientesBusqueda([])
         return
       }
-
       try {
         const clientes = await searchClientes(busquedaCliente)
         setClientesBusqueda(clientes)
@@ -220,58 +207,35 @@ const VentasProductos = () => {
         console.error("Error al buscar clientes:", error)
       }
     }
-
-    const timeoutId = setTimeout(() => {
-      buscarClientes()
-    }, 300)
-
+    const timeoutId = setTimeout(buscar, 300)
     return () => clearTimeout(timeoutId)
   }, [busquedaCliente])
 
-  // Cargar información de cuenta corriente cuando cambia el cliente seleccionado
+  // Cargar cuenta corriente del cliente
   useEffect(() => {
-    const cargarCuentaCorriente = async () => {
+    const cargarCuenta = async () => {
       if (!cliente.id) {
         setCuentaCorrienteInfo(null)
         return
       }
-
       setCargandoCuentaCorriente(true)
       try {
-        const cuentaCorriente = await getCuentaCorrienteByCliente(cliente.id)
-        setCuentaCorrienteInfo(cuentaCorriente)
+        const cuenta = await getCuentaCorrienteByCliente(cliente.id)
+        setCuentaCorrienteInfo(cuenta)
       } catch (error) {
-        console.error("Error al cargar cuenta corriente:", error)
-        if (error.message && error.message.includes("no tiene cuenta corriente")) {
+        if (error.message?.includes("no tiene cuenta corriente")) {
           setCuentaCorrienteInfo({ saldo: 0, limite_credito: 0, activo: true, cliente_id: cliente.id })
         } else {
-          toast.error("Error al cargar información de cuenta corriente")
+          toast.error("Error al cargar cuenta corriente")
         }
       } finally {
         setCargandoCuentaCorriente(false)
       }
     }
-
-    if (cliente.id) {
-      cargarCuentaCorriente()
-    }
+    cargarCuenta()
   }, [cliente.id])
 
-  // Actualizar tipo de pago cuando cambia el cliente
-  useEffect(() => {
-    if (tipoPagoSeleccionado) {
-      const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-      if (
-        tipoPago &&
-        (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta") &&
-        !cliente.id
-      ) {
-        setTipoPagoSeleccionado("")
-      }
-    }
-  }, [cliente, tipoPagoSeleccionado, tiposPagoDisponibles])
-
-  // Cálculos
+  // Cálculos de la venta
   const calcularPrecioConDescuento = (producto) => {
     if (!producto.discount || new Date(producto.discount.endDate) <= new Date()) {
       return Number.parseFloat(producto.price) || 0
@@ -281,46 +245,21 @@ const VentasProductos = () => {
 
   const calcularSubtotal = () => {
     return productosSeleccionados.reduce((sum, item) => {
-      const precioFinal = calcularPrecioConDescuento(item)
-      return sum + precioFinal * item.cantidad
+      return sum + calcularPrecioConDescuento(item) * item.cantidad
     }, 0)
   }
 
-  const calcularInteres = () => {
-    const sub = calcularSubtotal()
-    return (sub * porcentajeInteres) / 100
-  }
+  const calcularDescuento = () => (calcularSubtotal() * porcentajeDescuento) / 100
 
-  const calcularDescuento = () => {
-    const sub = calcularSubtotal()
-    return (sub * porcentajeDescuento) / 100
-  }
+  const calcularTotal = () => calcularSubtotal() - calcularDescuento()
 
-  const calcularTotal = () => {
-    return calcularSubtotal() - calcularDescuento()
-  }
+  const calcularTotalPagado = () => pagos.reduce((total, pago) => total + Number(pago.monto), 0)
 
-  const calcularTotalVisual = () => {
-    return calcularSubtotal() + calcularInteres() - calcularDescuento()
-  }
+  const calcularRestante = () => calcularTotal() - calcularTotalPagado()
 
-  const handleInteresFocus = () => {
-    if (interesInputValue === "0") {
-      setInteresInputValue("")
-    }
-  }
-
+  // Handlers de inputs
   const handleDescuentoFocus = () => {
-    if (descuentoInputValue === "0") {
-      setDescuentoInputValue("")
-    }
-  }
-
-  const handleInteresBlur = () => {
-    if (interesInputValue === "") {
-      setInteresInputValue("0")
-      setPorcentajeInteres(0)
-    }
+    if (descuentoInputValue === "0") setDescuentoInputValue("")
   }
 
   const handleDescuentoBlur = () => {
@@ -332,230 +271,198 @@ const VentasProductos = () => {
 
   // Acciones sobre productos
   const agregarProducto = (prod) => {
-    // Verificar si el producto pertenece al punto de venta seleccionado
     if (prod.punto_venta_id.toString() !== puntoVentaSeleccionado) {
-      toast.error(
-        `No puedes agregar productos de ${prod.pointOfSale}. Solo puedes vender productos de ${getNombrePuntoVenta(puntoVentaSeleccionado)}`,
-        {
-          position: "bottom-right",
-        },
-      )
+      toast.error(`Solo puedes vender productos de ${getNombrePuntoVenta(puntoVentaSeleccionado)}`)
       return
     }
-
-    // Verificar stock
     if (prod.stock <= 0) {
-      toast.error("Este producto no tiene stock disponible", {
-        position: "bottom-right",
-      })
+      toast.error("Este producto no tiene stock disponible")
       return
     }
-
     const existe = productosSeleccionados.find((i) => i.id === prod.id)
     if (existe) {
       if (existe.cantidad >= prod.stock) {
-        toast.error(`Solo hay ${prod.stock} unidades disponibles`, {
-          position: "bottom-right",
-        })
+        toast.error(`Solo hay ${prod.stock} unidades disponibles`)
         return
       }
-
       setProductosSeleccionados((ps) => ps.map((i) => (i.id === prod.id ? { ...i, cantidad: i.cantidad + 1 } : i)))
     } else {
       setProductosSeleccionados((ps) => [...ps, { ...prod, cantidad: 1 }])
     }
-
-    toast.success(`${prod.name} agregado al carrito`, {
-      icon: "🛒",
-      position: "bottom-right",
-    })
+    toast.success(`${prod.name} agregado al carrito`, { icon: "🛒" })
   }
 
   const cambiarCantidad = (id, nueva) => {
     if (nueva < 1) return
-
     const producto = productos.find((x) => x.id === id) || productosSeleccionados.find((x) => x.id === id)
     if (nueva > producto.stock) {
-      toast.error(`Solo hay ${producto.stock} unidades disponibles`, {
-        position: "bottom-right",
-      })
+      toast.error(`Solo hay ${producto.stock} unidades disponibles`)
       return
     }
-
     setProductosSeleccionados((ps) => ps.map((i) => (i.id === id ? { ...i, cantidad: nueva } : i)))
   }
 
   const eliminarProducto = (id) => {
     setProductosSeleccionados((ps) => ps.filter((i) => i.id !== id))
-    toast.success("Producto eliminado del carrito", {
-      icon: "🗑️",
-      position: "bottom-right",
-    })
+    toast.success("Producto eliminado del carrito", { icon: "🗑️" })
   }
 
-  // Crear nuevo cliente
+  // Acciones sobre clientes
   const crearNuevoCliente = async () => {
     if (!nuevoCliente.nombre.trim()) {
-      toast.error("El nombre del cliente es obligatorio", {
-        position: "bottom-right",
-      })
+      toast.error("El nombre del cliente es obligatorio")
       return
     }
-
     try {
       const clienteCreado = await createCliente(nuevoCliente)
-
-      setCliente({
-        id: clienteCreado.id,
-        nombre: clienteCreado.nombre,
-        telefono: clienteCreado.telefono || "",
-        dni: clienteCreado.dni || "",
-      })
-
+      setCliente(clienteCreado)
       setDialogNuevoClienteAbierto(false)
       setDialogClienteAbierto(false)
-
-      toast.success("Cliente creado correctamente", {
-        position: "bottom-right",
-      })
+      toast.success("Cliente creado correctamente")
     } catch (error) {
-      console.error("Error al crear cliente:", error)
-      toast.error("Error al crear cliente: " + error.message)
+      toast.error(`Error al crear cliente: ${error.message}`)
     }
   }
 
-  // Seleccionar cliente de la búsqueda
   const seleccionarCliente = (clienteSeleccionado) => {
-    setCliente({
-      id: clienteSeleccionado.id,
-      nombre: clienteSeleccionado.nombre,
-      telefono: clienteSeleccionado.telefono || "",
-      dni: clienteSeleccionado.dni || "",
-    })
-
+    setCliente(clienteSeleccionado)
     setDialogClienteAbierto(false)
     setBusquedaCliente("")
     setClientesBusqueda([])
+    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado`)
+  }
 
-    toast.success(`Cliente ${clienteSeleccionado.nombre} seleccionado correctamente`, {
-      position: "bottom-right",
-    })
+  // Acciones sobre pagos
+  const handleAddPago = () => {
+    const monto = Number.parseFloat(montoPagoActual.replace(/[^0-9,-]+/g, "").replace(",", "."))
+    if (!monto || monto <= 0) {
+      toast.error("El monto del pago debe ser mayor a cero.")
+      return
+    }
+    if (monto > calcularRestante() + 0.01) {
+      // Se agrega 0.01 para problemas de redondeo
+      toast.error("El monto del pago no puede ser mayor que el restante.")
+      return
+    }
+    const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoActual)
+    if (!tipoPago) {
+      toast.error("Seleccione un tipo de pago válido.")
+      return
+    }
+    if (tipoPago.nombre.toLowerCase().includes("cuenta") && !cliente.id) {
+      toast.error("Debe seleccionar un cliente para usar Cuenta Corriente.")
+      return
+    }
+
+    const nuevoPago = {
+      id: Date.now(),
+      tipo_pago_id: tipoPago.id,
+      tipo_pago_nombre: tipoPago.nombre,
+      monto: monto,
+      esTarjeta: tipoPago.nombre.toLowerCase().includes("tarjeta"),
+      interesTarjeta: 0,
+      cuotasTarjeta: 1,
+    }
+
+    setPagos([...pagos, nuevoPago])
+    setMontoPagoActual("")
+  }
+
+  const handleRemovePago = (pagoId) => {
+    setPagos(pagos.filter((p) => p.id !== pagoId))
+  }
+
+  const handlePagoTarjetaChange = (pagoId, campo, valor) => {
+    setPagos(
+      pagos.map((p) => {
+        if (p.id === pagoId) {
+          return { ...p, [campo]: valor }
+        }
+        return p
+      }),
+    )
   }
 
   // Finalizar venta
   const finalizarVenta = async () => {
-    if (!productosSeleccionados.length) {
-      toast.error("Debe seleccionar al menos un producto", {
-        position: "bottom-right",
-      })
+    if (productosSeleccionados.length === 0) {
+      toast.error("Debe seleccionar al menos un producto.")
       return
     }
-
-    if (!tipoPagoSeleccionado) {
-      toast.error("Debe seleccionar un tipo de pago", {
-        position: "bottom-right",
-      })
+    if (pagos.length === 0) {
+      toast.error("Debe agregar al menos un método de pago.")
       return
     }
-
+    if (Math.abs(calcularRestante()) > 0.01) {
+      toast.error("El total pagado no coincide con el total de la venta.")
+      return
+    }
     if (!currentUser || !currentUser.id) {
-      toast.error("El usuario no está autenticado. Por favor, inicie sesión.", {
-        position: "bottom-right",
-      })
+      toast.error("Usuario no autenticado. Por favor, inicie sesión.")
       return
     }
 
-    const tipoPago = tiposPagoDisponibles.find((m) => m.id.toString() === tipoPagoSeleccionado)
-    if (tipoPago && tipoPago.nombre.toLowerCase() === "cuenta corriente" && !cliente.id) {
-      toast.error("Debe seleccionar un cliente para ventas con cuenta corriente", {
-        position: "bottom-right",
-      })
-      return
-    }
-
-    if (
-      tipoPago &&
-      tipoPago.nombre.toLowerCase() === "cuenta corriente" &&
-      cuentaCorrienteInfo &&
-      cuentaCorrienteInfo.limite_credito > 0 &&
-      cuentaCorrienteInfo.saldo + calcularTotal() > cuentaCorrienteInfo.limite_credito
-    ) {
-      toast.error(`La venta excede el límite de crédito del cliente (${cuentaCorrienteInfo.limite_credito})`, {
-        position: "bottom-right",
-      })
-      return
+    const pagoEnCuentaCorriente = pagos.find((p) => p.tipo_pago_nombre.toLowerCase().includes("cuenta"))
+    if (pagoEnCuentaCorriente) {
+      if (!cliente.id) {
+        toast.error("Debe seleccionar un cliente para ventas con cuenta corriente.")
+        return
+      }
+      if (
+        cuentaCorrienteInfo &&
+        cuentaCorrienteInfo.limite_credito > 0 &&
+        cuentaCorrienteInfo.saldo + pagoEnCuentaCorriente.monto > cuentaCorrienteInfo.limite_credito
+      ) {
+        toast.error(
+          `La venta excede el límite de crédito del cliente (${formatearMonedaARS(cuentaCorrienteInfo.limite_credito)})`,
+        )
+        return
+      }
     }
 
     setProcesandoVenta(true)
-
     try {
       const ventaData = {
         cliente_id: cliente.id || null,
         punto_venta_id: Number.parseInt(puntoVentaSeleccionado),
-        tipo_pago: tipoPago.nombre,
-        porcentaje_interes: 0,
         porcentaje_descuento: porcentajeDescuento,
         productos: productosSeleccionados.map((p) => ({
           id: p.id,
           cantidad: p.cantidad,
           precio: Number.parseFloat(p.price) || 0,
-          descuento: p.discount
-            ? {
-                porcentaje: Number.parseFloat(p.discount.percentage) || 0,
-              }
-            : null,
+          descuento: p.discount ? { porcentaje: Number.parseFloat(p.discount.percentage) || 0 } : null,
         })),
-        notas: `Venta de ${productosSeleccionados.length} productos`,
+        pagos: pagos.map((p) => ({
+          tipo_pago_id: p.tipo_pago_id,
+          monto: p.monto,
+        })),
+        notas: `Venta de ${productosSeleccionados.length} productos.`,
       }
 
       const resultado = await createVenta(ventaData)
-
-      toast.success(`Venta #${resultado.numero_factura} registrada con éxito`, {
-        icon: "✅",
-        position: "bottom-center",
-        autoClose: 3000,
-      })
+      toast.success(`Venta #${resultado.numero_factura} registrada con éxito`, { icon: "✅" })
 
       // Resetear estados
       setProductosSeleccionados([])
-      setPorcentajeInteres(0)
       setPorcentajeDescuento(0)
-      setInteresInputValue("0")
       setDescuentoInputValue("0")
       setCliente({ id: null, nombre: "Cliente General", telefono: "", dni: "" })
       setDialogFinalizarAbierto(false)
-      setTipoPagoSeleccionado("")
       setCuentaCorrienteInfo(null)
-      setMostrarInteresVisual(false)
+      setPagos([])
+      setMontoPagoActual("")
 
-      // Recargar productos si hay búsqueda activa
-      if (debouncedSearchTerm) {
-        buscarProductosRapido()
-      }
+      if (debouncedSearchTerm) buscarProductos()
     } catch (error) {
-      console.error("Error al finalizar venta:", error)
-      toast.error("Error al finalizar venta: " + error.message)
+      toast.error(`Error al finalizar venta: ${error.message}`)
     } finally {
       setProcesandoVenta(false)
     }
   }
 
-  // Obtener nombre del punto de venta
-  const getNombrePuntoVenta = (id) => {
-    const puntoVenta = puntosVenta.find((p) => p.id.toString() === id)
-    return puntoVenta ? puntoVenta.nombre : ""
-  }
+  // Helpers
+  const getNombrePuntoVenta = (id) => puntosVenta.find((p) => p.id.toString() === id)?.nombre || ""
 
-  // Formatear precio para mostrar en formato de moneda argentina
-  const formatearPrecio = (precio) => {
-    const precioNumerico = Number.parseFloat(precio) || 0
-    return `$ ${precioNumerico
-      .toFixed(2)
-      .replace(/\./g, ",")
-      .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
-  }
-
-  // Skeletons
   const renderSkeletons = () =>
     Array.from({ length: 3 }).map((_, idx) => (
       <div key={idx} className="flex items-center space-x-4 p-3 border-b">
@@ -570,8 +477,9 @@ const VentasProductos = () => {
 
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
-      <ToastContainer position="bottom-right" />
+      <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} />
 
+      {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -749,7 +657,7 @@ const VentasProductos = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Productos Disponibles - SOLO BÚSQUEDA */}
+        {/* Columna de Búsqueda de Productos */}
         <Card className="lg:col-span-1 overflow-hidden border-0 shadow-md bg-white">
           <CardHeader className="bg-[#131321] pb-3">
             <CardTitle className="text-orange-600 flex items-center gap-2">
@@ -770,8 +678,6 @@ const VentasProductos = () => {
                 autoFocus
               />
             </div>
-
-            {/* Solo filtro de categorías */}
             <div className="flex gap-2 mt-3">
               <Popover>
                 <PopoverTrigger asChild>
@@ -788,15 +694,11 @@ const VentasProductos = () => {
                     <span className="hidden sm:inline">
                       {filtroCategoria === "todos"
                         ? "Todas las categorías"
-                        : categorias.find((c) => c.nombre === filtroCategoria)?.nombre || "Categoría"}
+                        : categorias.find((c) => c.id.toString() === filtroCategoria)?.nombre || "Categoría"}
                     </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-0" align="start">
-                  <div className="font-medium px-4 py-2 bg-gray-50 border-b text-sm flex items-center">
-                    <Filter size={14} className="mr-2 text-gray-500" />
-                    Filtrar por categoría
-                  </div>
                   <div className="p-2">
                     <div className="space-y-1">
                       <Button
@@ -812,8 +714,8 @@ const VentasProductos = () => {
                           key={cat.id}
                           variant="ghost"
                           size="sm"
-                          className={`w-full justify-start ${filtroCategoria === cat.nombre ? "bg-orange-50 text-orange-700" : ""}`}
-                          onClick={() => setFiltroCategoria(cat.nombre)}
+                          className={`w-full justify-start ${filtroCategoria === cat.id.toString() ? "bg-orange-50 text-orange-700" : ""}`}
+                          onClick={() => setFiltroCategoria(cat.id.toString())}
                         >
                           {cat.nombre}
                         </Button>
@@ -841,16 +743,8 @@ const VentasProductos = () => {
                       <div
                         className={`p-3 cursor-pointer hover:bg-blue-50 transition-colors border-b border-gray-100 ${
                           prod.stock <= 0 ? "opacity-50 pointer-events-none bg-gray-50" : ""
-                        } ${prod.punto_venta_id.toString() !== puntoVentaSeleccionado ? "bg-gray-50" : ""}`}
+                        }`}
                         onDoubleClick={() => agregarProducto(prod)}
-                        data-tooltip-id="tooltip-product"
-                        data-tooltip-content={
-                          prod.punto_venta_id.toString() !== puntoVentaSeleccionado
-                            ? `Este producto pertenece a ${prod.pointOfSale}. Solo puedes vender productos de ${getNombrePuntoVenta(puntoVentaSeleccionado)}`
-                            : prod.stock <= 0
-                              ? "Sin stock disponible"
-                              : "Doble click para agregar al carrito"
-                        }
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1 pr-2">
@@ -870,14 +764,6 @@ const VentasProductos = () => {
                                 <MapPin className="h-3 w-3 mr-1" />
                                 {prod.pointOfSale}
                               </Badge>
-                              {prod.punto_venta_id.toString() !== puntoVentaSeleccionado && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs font-normal border-red-300 bg-red-50 text-red-700"
-                                >
-                                  Punto de venta diferente
-                                </Badge>
-                              )}
                             </div>
                             <p className="text-xs text-gray-500 line-clamp-1 mt-1">{prod.description}</p>
                           </div>
@@ -885,16 +771,16 @@ const VentasProductos = () => {
                             {prod.discount && new Date(prod.discount.endDate) > new Date() ? (
                               <div>
                                 <p className="font-semibold text-orange-600">
-                                  {formatearPrecio(calcularPrecioConDescuento(prod))}
+                                  {formatearMonedaARS(calcularPrecioConDescuento(prod))}
                                 </p>
-                                <p className="text-xs text-gray-500 line-through">{formatearPrecio(prod.price)}</p>
+                                <p className="text-xs text-gray-500 line-through">{formatearMonedaARS(prod.price)}</p>
                                 <Badge className="mt-1 bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-300">
                                   <PercentCircle className="h-3 w-3 mr-1" />
                                   {prod.discount.percentage}% OFF
                                 </Badge>
                               </div>
                             ) : (
-                              <p className="font-semibold text-orange-600">{formatearPrecio(prod.price)}</p>
+                              <p className="font-semibold text-orange-600">{formatearMonedaARS(prod.price)}</p>
                             )}
                             <Badge
                               variant={prod.stock > 10 ? "outline" : prod.stock > 5 ? "secondary" : "secondary"}
@@ -913,7 +799,6 @@ const VentasProductos = () => {
                   <Search className="mx-auto h-12 w-12 text-gray-400 mb-3" />
                   <h3 className="text-lg font-medium mb-1 text-gray-800">No se encontraron productos</h3>
                   <p className="text-sm text-gray-500">No hay productos que coincidan con "{busqueda}"</p>
-                  <p className="text-xs text-gray-400 mt-2">Intenta con otro término de búsqueda</p>
                 </div>
               ) : (
                 <div className="text-center py-12 text-gray-600">
@@ -923,10 +808,6 @@ const VentasProductos = () => {
                     <p className="text-sm text-gray-600 mb-3">
                       Escribe el nombre o código del producto que quieres vender
                     </p>
-                    <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                      <Info size={12} />
-                      <span>Mínimo 2 caracteres para buscar</span>
-                    </div>
                   </div>
                 </div>
               )}
@@ -942,7 +823,7 @@ const VentasProductos = () => {
           </CardFooter>
         </Card>
 
-        {/* Detalle de Venta - SIN CAMBIOS */}
+        {/* Columna de Detalle de Venta */}
         <Card className="lg:col-span-2 border-0 shadow-md overflow-hidden bg-white">
           <CardHeader className="bg-[#131321] border-b pb-3">
             <CardTitle className="flex items-center gap-2 text-orange-600">
@@ -995,14 +876,14 @@ const VentasProductos = () => {
                             {prod.discount && new Date(prod.discount.endDate) > new Date() ? (
                               <div>
                                 <span className="text-orange-600">
-                                  {formatearPrecio(calcularPrecioConDescuento(prod))}
+                                  {formatearMonedaARS(calcularPrecioConDescuento(prod))}
                                 </span>
                                 <span className="text-gray-400 text-xs line-through ml-1">
-                                  {formatearPrecio(prod.price)}
+                                  {formatearMonedaARS(prod.price)}
                                 </span>
                               </div>
                             ) : (
-                              <span>{formatearPrecio(prod.price)}</span>
+                              <span>{formatearMonedaARS(prod.price)}</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -1028,7 +909,7 @@ const VentasProductos = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-medium">
-                            {formatearPrecio(calcularPrecioConDescuento(prod) * prod.cantidad)}
+                            {formatearMonedaARS(calcularPrecioConDescuento(prod) * prod.cantidad)}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -1051,7 +932,7 @@ const VentasProductos = () => {
                 <div className="bg-gray-50 p-8 rounded-xl inline-flex flex-col items-center">
                   <ShoppingCart className="h-16 w-16 text-gray-300 mb-4" strokeWidth={1.5} />
                   <h3 className="text-xl font-medium mb-2 text-gray-800">Carrito vacío</h3>
-                  <p className="text-sm max-w-md">Busca y selecciona productos para agregarlos al carrito de compras</p>
+                  <p className="text-sm max-w-md">Busca y selecciona productos para agregarlos al carrito</p>
                 </div>
               </div>
             )}
@@ -1063,47 +944,7 @@ const VentasProductos = () => {
                     <div className="flex flex-col space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-500">Subtotal:</span>
-                        <span className="font-medium">{formatearPrecio(calcularSubtotal())}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-gray-100 rounded-md px-2 py-1">
-                            <Percent className="h-3.5 w-3.5 text-orange-500" />
-                            <NumericFormat
-                              value={interesInputValue}
-                              onValueChange={(values) => {
-                                const { value } = values
-                                setInteresInputValue(value)
-                                setPorcentajeInteres(Number(value) || 0)
-                                setMostrarInteresVisual(Number(value) > 0)
-                              }}
-                              decimalScale={2}
-                              decimalSeparator=","
-                              allowNegative={false}
-                              className="w-12 h-6 text-sm p-0 border-0 bg-transparent focus-visible:ring-0 text-center"
-                              onFocus={handleInteresFocus}
-                              onBlur={handleInteresBlur}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-500">Interés</span>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <AlertCircle className="h-4 w-4 text-orange-500" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs text-xs">
-                                  Este interés es solo informativo para mostrar al cliente el precio con tarjeta o
-                                  transferencia. No afecta al total de la venta.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        {porcentajeInteres > 0 && (
-                          <span className="text-orange-600 font-medium">+{formatearPrecio(calcularInteres())}</span>
-                        )}
+                        <span className="font-medium">{formatearMonedaARS(calcularSubtotal())}</span>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -1128,7 +969,7 @@ const VentasProductos = () => {
                           <span className="text-sm text-gray-500">Descuento</span>
                         </div>
                         {porcentajeDescuento > 0 && (
-                          <span className="text-green-600 font-medium">-{formatearPrecio(calcularDescuento())}</span>
+                          <span className="text-green-600 font-medium">-{formatearMonedaARS(calcularDescuento())}</span>
                         )}
                       </div>
 
@@ -1136,18 +977,8 @@ const VentasProductos = () => {
 
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total:</span>
-                        <span className="text-orange-600">{formatearPrecio(calcularTotal())}</span>
+                        <span className="text-orange-600">{formatearMonedaARS(calcularTotal())}</span>
                       </div>
-
-                      {mostrarInteresVisual && porcentajeInteres > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500 flex items-center gap-1">
-                            <CreditCardIcon className="h-3.5 w-3.5" />
-                            Total con interés:
-                          </span>
-                          <span className="text-orange-500">{formatearPrecio(calcularTotalVisual())}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1168,189 +999,221 @@ const VentasProductos = () => {
             <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
               <DialogTrigger asChild>
                 <Button
-                  onClick={() => setDialogFinalizarAbierto(true)}
+                  onClick={() => {
+                    setPagos([])
+                    setMontoPagoActual("")
+                    setDialogFinalizarAbierto(true)
+                  }}
                   disabled={!productosSeleccionados.length}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
                   <Receipt size={16} className="mr-1" /> Finalizar Venta
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
-                  <DialogDescription>Revisa los detalles antes de finalizar la venta</DialogDescription>
+                  <DialogDescription>Agrega los métodos de pago para completar la venta.</DialogDescription>
                 </DialogHeader>
 
-                <div className="py-4">
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-gray-600">Cliente:</span>
-                      <span className="font-medium">{cliente.nombre}</span>
-                    </div>
-                    {cliente.dni && (
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-600">DNI:</span>
-                        <span>{cliente.dni}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                  {/* Columna de Resumen */}
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800">Resumen de la Venta</h3>
+                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Cliente:</span>
+                        <span className="font-medium text-right">{cliente.nombre}</span>
                       </div>
-                    )}
-                    {cliente.telefono && (
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-600">Teléfono:</span>
-                        <span>{cliente.telefono}</span>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Punto de venta:</span>
+                        <Badge
+                          variant="outline"
+                          className={`${
+                            getNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                              ? "border-orange-300 bg-orange-50 text-orange-700"
+                              : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                          }`}
+                        >
+                          {getNombrePuntoVenta(puntoVentaSeleccionado)}
+                        </Badge>
                       </div>
-                    )}
-                    <div className="flex justify-between mb-2">
-                      <span className="text-gray-600">Punto de venta:</span>
-                      <Badge
-                        variant="outline"
-                        className={`${
-                          getNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
-                            ? "border-orange-300 bg-orange-50 text-orange-700"
-                            : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                        }`}
-                      >
-                        <MapPin className="h-3.5 w-3.5 mr-1" />
-                        {getNombrePuntoVenta(puntoVentaSeleccionado)}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-gray-600">Productos:</span>
-                      <span>{productosSeleccionados.length} items</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-gray-600">Subtotal:</span>
-                      <span>{formatearPrecio(calcularSubtotal())}</span>
-                    </div>
-                    {porcentajeInteres > 0 && (
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-600 flex items-center gap-1">
-                          Interés ({porcentajeInteres}%):
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <AlertCircle className="h-3.5 w-3.5 text-orange-500" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-xs text-xs">
-                                  Este interés es solo informativo y no se incluirá en el total de la venta.
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </span>
-                        <span className="text-orange-600">+{formatearPrecio(calcularInteres())}</span>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Subtotal:</span>
+                        <span>{formatearMonedaARS(calcularSubtotal())}</span>
                       </div>
-                    )}
-                    {porcentajeDescuento > 0 && (
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
-                        <span className="text-green-600">-{formatearPrecio(calcularDescuento())}</span>
+                      {porcentajeDescuento > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
+                          <span className="text-green-600">-{formatearMonedaARS(calcularDescuento())}</span>
+                        </div>
+                      )}
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-bold text-lg">
+                        <span>Total a cobrar:</span>
+                        <span className="text-orange-700">{formatearMonedaARS(calcularTotal())}</span>
                       </div>
-                    )}
-                    <Separator className="my-2" />
-                    <div className="flex justify-between font-bold">
-                      <span>Total a cobrar:</span>
-                      <span className="text-orange-700">{formatearPrecio(calcularTotal())}</span>
                     </div>
-                    {mostrarInteresVisual && porcentajeInteres > 0 && (
-                      <div className="flex justify-between text-sm mt-2 pt-2 border-t border-gray-200">
-                        <span className="text-gray-600 flex items-center gap-1">
-                          <CreditCardIcon className="h-3.5 w-3.5" />
-                          Total con interés:
-                        </span>
-                        <span className="text-orange-500">{formatearPrecio(calcularTotalVisual())}</span>
+                    {cliente.id && cuentaCorrienteInfo && (
+                      <div className="mt-3 bg-blue-50 p-3 rounded-lg text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-blue-800">Cuenta Corriente</span>
+                          <span
+                            className={`font-bold ${cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-600"}`}
+                          >
+                            {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {cliente.id && cuentaCorrienteInfo && (
-                    <div className="flex items-center justify-between gap-2 mt-3 bg-gray-50 rounded-md p-2 text-sm">
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="h-3.5 w-3.5 text-gray-500" />
-                        <span className="text-gray-600">Cuenta corriente:</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-600">Actual:</span>
-                          <span
-                            className={`font-medium ${cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-600"}`}
-                          >
-                            {formatearPrecio(cuentaCorrienteInfo.saldo)}
-                          </span>
+                  {/* Columna de Pagos */}
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800">Métodos de Pago</h3>
+                    <div className="bg-white rounded-lg border p-4 space-y-4">
+                      {/* Agregar Pago */}
+                      <div className="flex items-end gap-2">
+                        <div className="flex-grow">
+                          <Label htmlFor="monto-pago">Monto</Label>
+                          <NumericFormat
+                            id="monto-pago"
+                            value={montoPagoActual}
+                            onValueChange={(values) => setMontoPagoActual(values.value)}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            prefix="$ "
+                            className="w-full mt-1"
+                            customInput={Input}
+                          />
                         </div>
-                        {tipoPagoSeleccionado &&
-                          tiposPagoDisponibles
-                            .find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-                            ?.nombre.toLowerCase()
-                            .includes("cuenta") && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-gray-600">Nuevo:</span>
-                              <span
-                                className={`font-medium ${(Number(cuentaCorrienteInfo.saldo) + Number(calcularTotal())) > 0 ? "text-red-600" : "text-green-600"}`}
-                              >
-                                {formatearPrecio(Number(cuentaCorrienteInfo.saldo) + Number(calcularTotal()))}
-                              </span>
-                            </div>
-                          )}
+                        <div className="flex-grow">
+                          <Label htmlFor="tipo-pago">Tipo</Label>
+                          <Select value={tipoPagoActual} onValueChange={setTipoPagoActual}>
+                            <SelectTrigger id="tipo-pago" className="mt-1">
+                              <SelectValue placeholder="Seleccionar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {tiposPagoDisponibles.map((tipo) => (
+                                <SelectItem key={tipo.id} value={tipo.id.toString()}>
+                                  {tipo.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button onClick={handleAddPago} size="sm">
+                          <Plus size={16} />
+                        </Button>
                       </div>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-orange-600"
+                          onClick={() => setMontoPagoActual(calcularRestante().toString().replace(".", ","))}
+                        >
+                          Asignar restante ({formatearMonedaARS(calcularRestante())})
+                        </Button>
+                      </div>
+
+                      <Separator />
+
+                      {/* Pagos Agregados */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span>Total Pagado:</span>
+                          <span>{formatearMonedaARS(calcularTotalPagado())}</span>
+                        </div>
+                        <div
+                          className={`flex justify-between text-sm font-medium ${
+                            calcularRestante() > 0 ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          <span>Restante:</span>
+                          <span>{formatearMonedaARS(calcularRestante())}</span>
+                        </div>
+                      </div>
+
+                      {pagos.length > 0 && (
+                        <ScrollArea className="h-[150px] pr-3">
+                          <div className="space-y-3">
+                            {pagos.map((pago) => (
+                              <div key={pago.id} className="bg-gray-50 p-3 rounded-lg">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium">{pago.tipo_pago_nombre}</p>
+                                    <p className="text-lg font-bold text-orange-700">
+                                      {formatearMonedaARS(pago.monto)}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-red-500 hover:bg-red-100"
+                                    onClick={() => handleRemovePago(pago.id)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </Button>
+                                </div>
+                                {pago.esTarjeta && (
+                                  <div className="mt-3 space-y-3 border-t pt-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex-1">
+                                        <Label className="text-xs flex items-center gap-1 mb-1">
+                                          <TrendingUp size={12} /> Interés %
+                                        </Label>
+                                        <NumericFormat
+                                          value={pago.interesTarjeta}
+                                          onValueChange={(values) =>
+                                            handlePagoTarjetaChange(pago.id, "interesTarjeta", Number(values.value))
+                                          }
+                                          suffix=" %"
+                                          className="h-8 text-sm"
+                                          customInput={Input}
+                                        />
+                                      </div>
+                                      <div className="flex-1">
+                                        <Label className="text-xs flex items-center gap-1 mb-1">
+                                          <CalendarDays size={12} /> Cuotas
+                                        </Label>
+                                        <NumericFormat
+                                          value={pago.cuotasTarjeta}
+                                          onValueChange={(values) =>
+                                            handlePagoTarjetaChange(pago.id, "cuotasTarjeta", Number(values.value))
+                                          }
+                                          allowDecimal={false}
+                                          className="h-8 text-sm"
+                                          customInput={Input}
+                                        />
+                                      </div>
+                                    </div>
+                                    {pago.interesTarjeta > 0 && (
+                                      <div className="text-xs space-y-1 bg-orange-50 p-2 rounded-md">
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">Monto c/interés:</span>
+                                          <span className="font-medium text-orange-800">
+                                            {formatearMonedaARS(pago.monto * (1 + pago.interesTarjeta / 100))}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">{pago.cuotasTarjeta} cuota(s) de:</span>
+                                          <span className="font-medium text-orange-800">
+                                            {formatearMonedaARS(
+                                              (pago.monto * (1 + pago.interesTarjeta / 100)) / pago.cuotasTarjeta,
+                                            )}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
                     </div>
-                  )}
-
-                  {/* Selección de método de pago */}
-                  <div className="bg-white rounded-lg border p-4 mb-4">
-                    <h3 className="text-sm font-medium mb-3 text-gray-700">Seleccione tipo de pago:</h3>
-                    <RadioGroup
-                      value={tipoPagoSeleccionado}
-                      onValueChange={setTipoPagoSeleccionado}
-                      className="grid grid-cols-2 gap-3"
-                    >
-                      {tiposPagoDisponibles.map((tipo) => {
-                        // Determinar el icono basado en el nombre del tipo de pago
-                        let IconComponent = DollarSign
-                        if (tipo.nombre.toLowerCase().includes("transferencia")) IconComponent = ArrowUpRight
-                        if (tipo.nombre.toLowerCase().includes("tarjeta")) IconComponent = CreditCardIcon
-                        if (tipo.nombre.toLowerCase().includes("cuenta")) IconComponent = BookOpen
-
-                        // Verificar si es cuenta corriente y no hay cliente seleccionado
-                        const esCuentaCorriente =
-                          tipo.nombre.toLowerCase() === "cuenta corriente" || tipo.nombre.toLowerCase() === "cuenta"
-                        const disabled = esCuentaCorriente && !cliente.id
-
-                        return (
-                          <Label
-                            key={tipo.id}
-                            htmlFor={`pago-${tipo.id}`}
-                            className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${
-                              disabled
-                                ? "opacity-50 cursor-not-allowed"
-                                : tipoPagoSeleccionado === tipo.id.toString()
-                                  ? "border-orange-500 bg-orange-50"
-                                  : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <RadioGroupItem
-                              id={`pago-${tipo.id}`}
-                              value={tipo.id.toString()}
-                              className="sr-only"
-                              disabled={disabled}
-                            />
-                            <div
-                              className={`p-2 rounded-full ${
-                                tipoPagoSeleccionado === tipo.id.toString()
-                                  ? "bg-orange-100 text-orange-600"
-                                  : "bg-gray-100 text-gray-500"
-                              }`}
-                            >
-                              <IconComponent className="h-4 w-4" />
-                            </div>
-                            <span className="text-sm font-medium">{tipo.nombre}</span>
-                            {esCuentaCorriente && !cliente.id && (
-                              <span className="text-xs text-red-500 ml-auto">Requiere cliente</span>
-                            )}
-                          </Label>
-                        )
-                      })}
-                    </RadioGroup>
                   </div>
                 </div>
 
@@ -1361,11 +1224,11 @@ const VentasProductos = () => {
                   <Button
                     onClick={finalizarVenta}
                     className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={!tipoPagoSeleccionado || procesandoVenta}
+                    disabled={Math.abs(calcularRestante()) > 0.01 || pagos.length === 0 || procesandoVenta}
                   >
                     {procesandoVenta ? (
                       <>
-                        <span className="mr-1">Procesando</span>
+                        <span className="mr-1">Procesando...</span>
                         <span className="animate-spin">
                           <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle
@@ -1396,9 +1259,6 @@ const VentasProductos = () => {
           </CardFooter>
         </Card>
       </div>
-
-      {/* Tooltip global */}
-      <ReactTooltip id="tooltip-product" place="top" effect="solid" />
     </div>
   )
 }
