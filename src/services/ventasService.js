@@ -2,27 +2,20 @@ const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Cache simple para ventas
 const cache = new Map()
-const CACHE_DURATION = 2 * 60 * 1000 // 2 minutos (menos que productos por ser más dinámico)
+const CACHE_DURATION = 2 * 60 * 1000 // 2 minutos
 
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
   try {
-    // Manejar fechas que vienen de la base de datos
     let fecha
-
     if (fechaString.includes("T") || fechaString.includes("+")) {
-      // La fecha ya tiene información de timezone
       fecha = new Date(fechaString)
     } else {
-      // La fecha viene sin timezone desde MySQL, asumimos que está en Argentina
-      // Agregamos el offset de Argentina (-03:00)
       fecha = new Date(fechaString + " GMT-0300")
     }
 
     if (isNaN(fecha.getTime())) return ""
-
-    // SOLUCIÓN: Sumar 3 horas para corregir el desfase
     fecha.setHours(fecha.getHours() + 3)
 
     return fecha.toLocaleString("es-AR", {
@@ -40,10 +33,8 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
-// Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
-// NUEVA FUNCIÓN: Obtener ventas con paginación optimizada
 export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => {
   try {
     const queryParams = new URLSearchParams({
@@ -53,8 +44,6 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     })
 
     const cacheKey = `ventas_${queryParams.toString()}`
-
-    // Verificar cache
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey)
       if (Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -73,13 +62,7 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     }
 
     const data = await response.json()
-
-    // Guardar en cache
-    cache.set(cacheKey, {
-      data,
-      timestamp: Date.now(),
-    })
-
+    cache.set(cacheKey, { data, timestamp: Date.now() })
     return data
   } catch (error) {
     console.error("Error en getVentasPaginadas:", error)
@@ -87,7 +70,6 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
   }
 }
 
-// NUEVA FUNCIÓN: Búsqueda rápida de ventas optimizada
 export const searchVentasRapido = async (query) => {
   try {
     if (!query || query.length < 2) {
@@ -103,7 +85,6 @@ export const searchVentasRapido = async (query) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error en búsqueda rápida de ventas")
     }
-
     return await response.json()
   } catch (error) {
     console.error("Error en searchVentasRapido:", error)
@@ -111,7 +92,6 @@ export const searchVentasRapido = async (query) => {
   }
 }
 
-// NUEVA FUNCIÓN: Búsqueda de ventas por producto
 export const searchVentasByProducto = async (productoQuery) => {
   try {
     if (!productoQuery || productoQuery.length < 2) {
@@ -130,7 +110,6 @@ export const searchVentasByProducto = async (productoQuery) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error en búsqueda de ventas por producto")
     }
-
     return await response.json()
   } catch (error) {
     console.error("Error en searchVentasByProducto:", error)
@@ -138,15 +117,12 @@ export const searchVentasByProducto = async (productoQuery) => {
   }
 }
 
-// Limpiar cache cuando sea necesario
 export const clearVentasCache = () => {
   cache.clear()
 }
 
-// Obtener todas las ventas (optimizado para usar paginación)
 export const getVentas = async (filters = {}) => {
   try {
-    // Para mantener compatibilidad, obtener una página grande
     const result = await getVentasPaginadas(1, 1000, filters)
     return result.ventas || []
   } catch (error) {
@@ -155,12 +131,9 @@ export const getVentas = async (filters = {}) => {
   }
 }
 
-// Obtener una venta por ID
 export const getVentaById = async (id) => {
   try {
     const cacheKey = `venta_${id}`
-
-    // Verificar cache
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey)
       if (Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -179,13 +152,7 @@ export const getVentaById = async (id) => {
     }
 
     const data = await response.json()
-
-    // Guardar en cache
-    cache.set(cacheKey, {
-      data,
-      timestamp: Date.now(),
-    })
-
+    cache.set(cacheKey, { data, timestamp: Date.now() })
     return data
   } catch (error) {
     console.error("Error en getVentaById:", error)
@@ -193,7 +160,6 @@ export const getVentaById = async (id) => {
   }
 }
 
-// Obtener devoluciones de una venta
 export const getDevolucionesByVenta = async (id) => {
   try {
     const response = await fetch(`${API_URL}/ventas/${id}/devoluciones`, {
@@ -205,7 +171,6 @@ export const getDevolucionesByVenta = async (id) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error al obtener devoluciones de la venta")
     }
-
     return await response.json()
   } catch (error) {
     console.error("Error en getDevolucionesByVenta:", error)
@@ -213,27 +178,23 @@ export const getDevolucionesByVenta = async (id) => {
   }
 }
 
-// Crear una nueva venta
+// MODIFICADO: Crear una nueva venta, ahora espera un array 'pagos'
 export const createVenta = async (ventaData) => {
   try {
     // Adaptar los datos del frontend al formato que espera el backend
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
+      pagos: ventaData.pagos, // Se envía el array de pagos
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
-      notas: ventaData.notas || "",
       productos: ventaData.productos.map((p) => ({
         id: p.id,
         cantidad: p.cantidad,
-        precio: p.precio || p.price,
-        descuento: p.descuento || p.discount,
+        precio: p.precio || p.price, // Asegurar compatibilidad si viene como price
+        descuento: p.descuento || p.discount, // Asegurar compatibilidad si viene como discount
       })),
-      // MODIFICACIÓN: Enviar el array de pagos en lugar de un tipo_pago único
-      pagos: ventaData.pagos.map((pago) => ({
-        tipo_pago: pago.tipo_pago_nombre, // El backend espera el nombre del tipo de pago
-        monto: pago.monto,
-      })),
+      notas: ventaData.notas || "",
     }
 
     const response = await fetch(`${API_URL}/ventas`, {
@@ -250,9 +211,7 @@ export const createVenta = async (ventaData) => {
       throw new Error(errorData.message || "Error al crear la venta")
     }
 
-    // Limpiar cache después de crear
     clearVentasCache()
-
     return await response.json()
   } catch (error) {
     console.error("Error en createVenta:", error)
@@ -260,7 +219,6 @@ export const createVenta = async (ventaData) => {
   }
 }
 
-// Anular una venta
 export const anularVenta = async (id, motivo) => {
   try {
     const response = await fetch(`${API_URL}/ventas/${id}/anular`, {
@@ -277,9 +235,7 @@ export const anularVenta = async (id, motivo) => {
       throw new Error(errorData.message || "Error al anular la venta")
     }
 
-    // Limpiar cache después de anular
     clearVentasCache()
-
     return await response.json()
   } catch (error) {
     console.error("Error en anularVenta:", error)
@@ -287,18 +243,14 @@ export const anularVenta = async (id, motivo) => {
   }
 }
 
-// Obtener estadísticas de ventas
 export const getEstadisticasVentas = async (params = {}) => {
   try {
-    // Construir la URL con los parámetros de búsqueda
     const queryParams = new URLSearchParams()
-
     if (params.fecha_inicio) queryParams.append("fecha_inicio", params.fecha_inicio)
     if (params.fecha_fin) queryParams.append("fecha_fin", params.fecha_fin)
     if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
 
     const url = `${API_URL}/ventas/estadisticas?${queryParams.toString()}`
-
     const response = await fetch(url, {
       method: "GET",
       credentials: "include",
@@ -308,7 +260,6 @@ export const getEstadisticasVentas = async (params = {}) => {
       const errorData = await response.json()
       throw new Error(errorData.message || "Error al obtener estadísticas de ventas")
     }
-
     return await response.json()
   } catch (error) {
     console.error("Error en getEstadisticasVentas:", error)
@@ -316,12 +267,12 @@ export const getEstadisticasVentas = async (params = {}) => {
   }
 }
 
-// Función para adaptar los datos del backend al formato que espera el frontend
+// MODIFICADO: Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptVentaToFrontend = (venta) => {
   return {
     id: venta.id,
     numeroFactura: venta.numero_factura,
-    fecha: venta.fecha,
+    fecha: venta.fecha, // Asumimos que el backend ya la devuelve formateada o el componente la formatea
     fechaCreacion: venta.fecha_creacion,
     fechaActualizacion: venta.fecha_actualizacion,
     subtotal: venta.subtotal,
@@ -330,10 +281,10 @@ export const adaptVentaToFrontend = (venta) => {
     porcentajeDescuento: venta.porcentaje_descuento,
     montoDescuento: venta.monto_descuento,
     total: venta.total,
-    anulada: venta.anulada === 1,
+    anulada: venta.anulada === 1 || venta.anulada === true,
     fechaAnulacion: venta.fecha_anulacion,
     motivoAnulacion: venta.motivo_anulacion,
-    tieneDevoluciones: venta.tiene_devoluciones === 1,
+    tieneDevoluciones: venta.tiene_devoluciones === 1 || venta.tiene_devoluciones === true,
     productosNombres: venta.productos_nombres,
     cantidadProductos: venta.cantidad_productos,
     cliente: venta.cliente_id
@@ -351,18 +302,18 @@ export const adaptVentaToFrontend = (venta) => {
       id: venta.punto_venta_id || 0,
       nombre: venta.punto_venta_nombre || "Punto de venta eliminado",
     },
-    // MODIFICACIÓN: Ahora el backend devuelve los pagos en un array
-    pagos: venta.pagos
+    tipoPago: { // Mantenido para resumen, el backend ahora envía 'Múltiple' o el tipo único
+      nombre: venta.tipo_pago_nombre || "N/A",
+    },
+    pagos: venta.pagos // Array de pagos individuales
       ? venta.pagos.map((pago) => ({
           id: pago.id,
           monto: pago.monto,
-          tipo_pago_nombre: pago.tipo_pago_nombre,
+          fecha: pago.fecha, // Asumimos que el backend ya la devuelve formateada o el componente la formatea
+          anulado: pago.anulado === 1 || pago.anulado === true,
+          tipoPagoNombre: pago.tipo_pago_nombre || "N/A",
         }))
       : [],
-    // Mantenemos tipoPago por compatibilidad, pero ahora puede ser "Múltiple"
-    tipoPago: {
-      nombre: venta.tipo_pago_nombre || "N/A",
-    },
     detalles: venta.detalles
       ? venta.detalles.map((detalle) => ({
           id: detalle.id,
@@ -376,9 +327,10 @@ export const adaptVentaToFrontend = (venta) => {
           precioUnitario: detalle.precio_unitario,
           precioConDescuento: detalle.precio_con_descuento,
           subtotal: detalle.subtotal,
-          devuelto: detalle.devuelto === 1,
-          es_reemplazo: detalle.es_reemplazo === 1,
+          devuelto: detalle.devuelto === 1 || detalle.devuelto === true,
+          es_reemplazo: detalle.es_reemplazo === 1 || detalle.es_reemplazo === true,
         }))
       : [],
+    notas: venta.notas || "",
   }
 }

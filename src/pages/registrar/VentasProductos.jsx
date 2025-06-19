@@ -157,7 +157,7 @@ const VentasProductos = () => {
         position: "bottom-center",
       })
     }
-  }, [puntoVentaSeleccionado])
+  }, [puntoVentaSeleccionado, productosSeleccionados]) // Agregado productosSeleccionados a las dependencias
 
   // Búsqueda de productos
   const buscarProductos = useCallback(async () => {
@@ -459,8 +459,9 @@ const VentasProductos = () => {
           precio: Number.parseFloat(p.price) || 0,
           descuento: p.discount ? { porcentaje: Number.parseFloat(p.discount.percentage) || 0 } : null,
         })),
+        // MODIFICACIÓN AQUÍ: Enviar tipo_pago_nombre en lugar de tipo_pago_id
         pagos: pagos.map((p) => ({
-          tipo_pago_id: p.tipo_pago_id,
+          tipo_pago: p.tipo_pago_nombre, // <--- CAMBIO
           monto: p.monto,
         })),
         notas: `Venta de ${productosSeleccionados.length} productos.`,
