@@ -1533,7 +1533,7 @@ const VentasEquipos = () => {
                             Agregar Pago
                           </Button>
                         </div>
-                        <ScrollArea className="max-h-[280px] pr-2">
+                        <ScrollArea className="max-h-[200px] pr-2">
                           {pagos.length === 0 ? (
                             <p className="text-center text-sm text-gray-500 py-4">No hay pagos agregados.</p>
                           ) : (
