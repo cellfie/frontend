@@ -12,14 +12,22 @@ const formatearFechaArgentina = (fechaString) => {
     if (fechaString.includes("T") || fechaString.includes("+")) {
       fecha = new Date(fechaString)
     } else {
-      fecha = new Date(fechaString + " GMT-0300")
+      // Asumir que si no tiene T o +, es una fecha que podría necesitar ajuste de zona horaria local
+      // Esta lógica puede ser compleja dependiendo del formato exacto que envíe el backend
+      // Si el backend envía fechas en UTC, new Date() las interpretará correctamente.
+      // Si el backend envía fechas ya en "hora local" pero sin info de zona, puede haber problemas.
+      // La corrección de +3 horas aquí es una solución específica que podría no ser universal.
+      fecha = new Date(fechaString + " GMT-0300") // Intenta forzar GMT-3 si es una fecha simple
     }
 
     if (isNaN(fecha.getTime())) return ""
-    fecha.setHours(fecha.getHours() + 3)
+    // La corrección de +3 horas aquí podría ser redundante o incorrecta si la fecha ya está bien.
+    // Es mejor que el backend envíe fechas en ISO 8601 (con 'Z' o offset)
+    // y que el frontend las formatee sin manipulaciones de horas manuales.
+    // fecha.setHours(fecha.getHours() + 3); // Comentado para revisión, puede causar doble ajuste.
 
     return fecha.toLocaleString("es-AR", {
-      timeZone: "America/Argentina/Buenos_Aires",
+      timeZone: "America/Argentina/Buenos_Aires", // Asegura la zona horaria correcta para la visualización
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -178,21 +186,19 @@ export const getDevolucionesByVenta = async (id) => {
   }
 }
 
-// MODIFICADO: Crear una nueva venta, ahora espera un array 'pagos'
 export const createVenta = async (ventaData) => {
   try {
-    // Adaptar los datos del frontend al formato que espera el backend
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
-      pagos: ventaData.pagos, // Se envía el array de pagos
+      pagos: ventaData.pagos,
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
       productos: ventaData.productos.map((p) => ({
         id: p.id,
         cantidad: p.cantidad,
-        precio: p.precio || p.price, // Asegurar compatibilidad si viene como price
-        descuento: p.descuento || p.discount, // Asegurar compatibilidad si viene como discount
+        precio: p.precio || p.price,
+        descuento: p.descuento || p.discount,
       })),
       notas: ventaData.notas || "",
     }
@@ -267,26 +273,25 @@ export const getEstadisticasVentas = async (params = {}) => {
   }
 }
 
-// MODIFICADO: Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptVentaToFrontend = (venta) => {
   return {
     id: venta.id,
     numeroFactura: venta.numero_factura,
-    fecha: venta.fecha, // Asumimos que el backend ya la devuelve formateada o el componente la formatea
+    fecha: venta.fecha,
     fechaCreacion: venta.fecha_creacion,
     fechaActualizacion: venta.fecha_actualizacion,
-    subtotal: venta.subtotal,
-    porcentajeInteres: venta.porcentaje_interes,
-    montoInteres: venta.monto_interes,
-    porcentajeDescuento: venta.porcentaje_descuento,
-    montoDescuento: venta.monto_descuento,
-    total: venta.total,
+    subtotal: Number.parseFloat(venta.subtotal) || 0,
+    porcentajeInteres: Number.parseFloat(venta.porcentaje_interes) || 0,
+    montoInteres: Number.parseFloat(venta.monto_interes) || 0,
+    porcentajeDescuento: Number.parseFloat(venta.porcentaje_descuento) || 0,
+    montoDescuento: Number.parseFloat(venta.monto_descuento) || 0,
+    total: Number.parseFloat(venta.total) || 0,
     anulada: venta.anulada === 1 || venta.anulada === true,
     fechaAnulacion: venta.fecha_anulacion,
     motivoAnulacion: venta.motivo_anulacion,
     tieneDevoluciones: venta.tiene_devoluciones === 1 || venta.tiene_devoluciones === true,
     productosNombres: venta.productos_nombres,
-    cantidadProductos: venta.cantidad_productos,
+    cantidadProductos: Number.parseInt(venta.cantidad_productos, 10) || 0,
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,
@@ -302,19 +307,20 @@ export const adaptVentaToFrontend = (venta) => {
       id: venta.punto_venta_id || 0,
       nombre: venta.punto_venta_nombre || "Punto de venta eliminado",
     },
-    tipoPago: { // Mantenido para resumen, el backend ahora envía 'Múltiple' o el tipo único
-      nombre: venta.tipo_pago_nombre || "N/A",
+    tipoPago: {
+      nombre: venta.tipo_pago_nombre || "N/A", // Este es el nombre general de la venta (ej. "Múltiple")
     },
-    pagos: venta.pagos // Array de pagos individuales
+    // CORRECCIÓN AQUÍ: Cambiar 'tipoPagoNombre' a 'tipo_pago_nombre'
+    pagos: Array.isArray(venta.pagos)
       ? venta.pagos.map((pago) => ({
           id: pago.id,
-          monto: pago.monto,
-          fecha: pago.fecha, // Asumimos que el backend ya la devuelve formateada o el componente la formatea
+          monto: Number.parseFloat(pago.monto) || 0,
+          fecha: pago.fecha,
           anulado: pago.anulado === 1 || pago.anulado === true,
-          tipoPagoNombre: pago.tipo_pago_nombre || "N/A",
+          tipo_pago_nombre: pago.tipo_pago_nombre || "N/A", // Asegura que el nombre de la propiedad sea el esperado
         }))
       : [],
-    detalles: venta.detalles
+    detalles: Array.isArray(venta.detalles)
       ? venta.detalles.map((detalle) => ({
           id: detalle.id,
           producto: {
@@ -322,11 +328,11 @@ export const adaptVentaToFrontend = (venta) => {
             codigo: detalle.producto_codigo || "N/A",
             nombre: detalle.producto_nombre || "Producto eliminado",
           },
-          cantidad: detalle.cantidad,
-          cantidadDevuelta: detalle.cantidad_devuelta || 0,
-          precioUnitario: detalle.precio_unitario,
-          precioConDescuento: detalle.precio_con_descuento,
-          subtotal: detalle.subtotal,
+          cantidad: Number.parseInt(detalle.cantidad, 10) || 0,
+          cantidadDevuelta: Number.parseInt(detalle.cantidad_devuelta, 10) || 0,
+          precioUnitario: Number.parseFloat(detalle.precio_unitario) || 0,
+          precioConDescuento: Number.parseFloat(detalle.precio_con_descuento) || 0,
+          subtotal: Number.parseFloat(detalle.subtotal) || 0,
           devuelto: detalle.devuelto === 1 || detalle.devuelto === true,
           es_reemplazo: detalle.es_reemplazo === 1 || detalle.es_reemplazo === true,
         }))
