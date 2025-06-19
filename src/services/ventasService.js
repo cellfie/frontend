@@ -40,24 +40,6 @@ const formatearFechaArgentina = (fechaString) => {
   }
 }
 
-// Función para formatear fecha local sin conversión UTC
-const formatLocalDate = (date, includeTime = false) => {
-  if (!date) return null
-
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-
-  if (includeTime) {
-    const hours = String(date.getHours()).padStart(2, "0")
-    const minutes = String(date.getMinutes()).padStart(2, "0")
-    const seconds = String(date.getSeconds()).padStart(2, "0")
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-  }
-
-  return `${year}-${month}-${day}`
-}
-
 // Exportar la función para usar en otros componentes
 export { formatearFechaArgentina }
 
@@ -238,14 +220,19 @@ export const createVenta = async (ventaData) => {
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
-      tipo_pago: ventaData.tipo_pago,
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
+      notas: ventaData.notas || "",
       productos: ventaData.productos.map((p) => ({
         id: p.id,
         cantidad: p.cantidad,
         precio: p.precio || p.price,
         descuento: p.descuento || p.discount,
+      })),
+      // MODIFICACIÓN: Enviar el array de pagos en lugar de un tipo_pago único
+      pagos: ventaData.pagos.map((pago) => ({
+        tipo_pago: pago.tipo_pago_nombre, // El backend espera el nombre del tipo de pago
+        monto: pago.monto,
       })),
     }
 
@@ -364,6 +351,15 @@ export const adaptVentaToFrontend = (venta) => {
       id: venta.punto_venta_id || 0,
       nombre: venta.punto_venta_nombre || "Punto de venta eliminado",
     },
+    // MODIFICACIÓN: Ahora el backend devuelve los pagos en un array
+    pagos: venta.pagos
+      ? venta.pagos.map((pago) => ({
+          id: pago.id,
+          monto: pago.monto,
+          tipo_pago_nombre: pago.tipo_pago_nombre,
+        }))
+      : [],
+    // Mantenemos tipoPago por compatibilidad, pero ahora puede ser "Múltiple"
     tipoPago: {
       nombre: venta.tipo_pago_nombre || "N/A",
     },

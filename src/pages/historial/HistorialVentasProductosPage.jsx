@@ -29,6 +29,10 @@ import {
   TrendingUp,
   Eye,
   EyeOff,
+  CreditCard,
+  Landmark,
+  University,
+  Wallet,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -97,6 +101,16 @@ const formatLocalDate = (date) => {
   const day = String(date.getDate()).padStart(2, "0")
 
   return `${year}-${month}-${day}`
+}
+
+const getPaymentIcon = (paymentMethodName) => {
+  if (!paymentMethodName) return Wallet
+  const lowerCaseName = paymentMethodName.toLowerCase()
+  if (lowerCaseName.includes("efectivo")) return Wallet
+  if (lowerCaseName.includes("tarjeta")) return CreditCard
+  if (lowerCaseName.includes("transferencia")) return Landmark
+  if (lowerCaseName.includes("cuenta corriente") || lowerCaseName.includes("cuenta")) return University // O BookOpen
+  return DollarSign // Icono por defecto
 }
 
 const HistorialVentas = () => {
@@ -263,7 +277,7 @@ const HistorialVentas = () => {
     }
 
     if (selectedMetodoPago !== "todos") {
-      filters.tipo_pago = selectedMetodoPago
+      filters.tipo_pago = selectedMetodoPago // El backend puede filtrar por un tipo de pago específico si está en el array de pagos
     }
 
     if (mostrarAnuladas !== undefined) {
@@ -456,13 +470,18 @@ const HistorialVentas = () => {
       setLoadingDetalle(true)
       setDetalleVentaAbierto(ventaId) // Abrir inmediatamente para mostrar loading
 
-      const ventaDetallada = await getVentaById(ventaId)
+      const ventaDetalladaCruda = await getVentaById(ventaId)
 
-      if (!ventaDetallada) {
+      if (!ventaDetalladaCruda) {
         throw new Error("No se pudo obtener la información de la venta")
       }
 
-      if (ventaDetallada.detalles) {
+      const ventaAdaptada = adaptVentaToFrontend(ventaDetalladaCruda)
+      // Asegurarse de que los pagos estén en el formato esperado si vienen del backend
+      // adaptVentaToFrontend ya debería manejar esto.
+      // ventaAdaptada.pagos = ventaDetalladaCruda.pagos || [];
+
+      if (ventaAdaptada.detalles) {
         try {
           const devoluciones = await getDevolucionesByVenta(ventaId)
           const productosDevueltos = new Map()
@@ -511,7 +530,7 @@ const HistorialVentas = () => {
               }
             })
 
-          ventaDetallada.detalles = ventaDetallada.detalles.map((detalle) => {
+          ventaAdaptada.detalles = ventaAdaptada.detalles.map((detalle) => {
             const key = `${detalle.producto_id}_${detalle.id}`
             const cantidadDevuelta = productosDevueltos.get(key) || 0
             detalle.cantidadDevuelta = cantidadDevuelta
@@ -532,14 +551,14 @@ const HistorialVentas = () => {
             return detalle
           })
 
-          ventaDetallada.productosReemplazo = productosReemplazo
+          ventaAdaptada.productosReemplazo = productosReemplazo
         } catch (devolucionError) {
           console.warn("Error al cargar devoluciones:", devolucionError)
           // Continuar sin devoluciones si hay error
         }
       }
 
-      setVentaSeleccionada(adaptVentaToFrontend(ventaDetallada))
+      setVentaSeleccionada(ventaAdaptada)
       setTabActiva("detalles")
 
       // Scroll automático después de que se complete la carga
@@ -1301,9 +1320,28 @@ const HistorialVentas = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="font-normal">
-                              {venta.tipoPago ? venta.tipoPago.nombre : "N/A"}
-                            </Badge>
+                            {venta.pagos && venta.pagos.length > 0 ? (
+                              venta.pagos.length === 1 ? (
+                                <Badge variant="secondary" className="font-normal">
+                                  {venta.pagos[0].tipo_pago_nombre}
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="secondary"
+                                  className="font-normal bg-purple-100 text-purple-700 border-purple-300"
+                                >
+                                  Múltiple
+                                </Badge>
+                              )
+                            ) : venta.tipoPago?.nombre ? (
+                              <Badge variant="secondary" className="font-normal">
+                                {venta.tipoPago.nombre}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="font-normal">
+                                N/A
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className="font-medium">{formatearPrecio(venta.total)}</TableCell>
                           <TableCell className="text-right">
@@ -1449,14 +1487,40 @@ const HistorialVentas = () => {
                                                       {ventaSeleccionada.puntoVenta.nombre}
                                                     </Badge>
                                                   </div>
-                                                  <div className="flex justify-between">
-                                                    <span className="text-gray-500">Método de pago:</span>
-                                                    <Badge variant="secondary" className="font-normal">
-                                                      {ventaSeleccionada.tipoPago
-                                                        ? ventaSeleccionada.tipoPago.nombre
-                                                        : "N/A"}
-                                                    </Badge>
+
+                                                  {/* MODIFICACIÓN: Mostrar múltiples métodos de pago */}
+                                                  <div className="flex flex-col">
+                                                    <span className="text-gray-500 mb-1">Métodos de pago:</span>
+                                                    {ventaSeleccionada.pagos && ventaSeleccionada.pagos.length > 0 ? (
+                                                      <div className="space-y-1">
+                                                        {ventaSeleccionada.pagos.map((pago, index) => {
+                                                          const IconoPago = getPaymentIcon(pago.tipo_pago_nombre)
+                                                          return (
+                                                            <Badge
+                                                              key={index}
+                                                              variant="secondary"
+                                                              className="font-normal mr-1 mb-1 flex items-center justify-between w-full"
+                                                            >
+                                                              <div className="flex items-center gap-1">
+                                                                <IconoPago size={14} className="text-gray-600" />
+                                                                <span>{pago.tipo_pago_nombre}</span>
+                                                              </div>
+                                                              <span>{formatearPrecio(pago.monto)}</span>
+                                                            </Badge>
+                                                          )
+                                                        })}
+                                                      </div>
+                                                    ) : ventaSeleccionada.tipoPago?.nombre ? (
+                                                      <Badge variant="secondary" className="font-normal">
+                                                        {ventaSeleccionada.tipoPago.nombre}
+                                                      </Badge>
+                                                    ) : (
+                                                      <Badge variant="outline" className="font-normal">
+                                                        N/A
+                                                      </Badge>
+                                                    )}
                                                   </div>
+
                                                   <div className="flex justify-between">
                                                     <span className="text-gray-500">Cliente:</span>
                                                     <span>
