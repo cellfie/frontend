@@ -55,7 +55,7 @@ export const PaginationControls = ({
         <div className="flex items-center gap-4">
           <div className="text-sm text-gray-700">
             Mostrando <span className="font-medium">{startItem}</span> a <span className="font-medium">{endItem}</span>{" "}
-            de <span className="font-medium">{totalItems}</span> equipos
+            de <span className="font-medium">{totalItems}</span> 
           </div>
         </div>
 

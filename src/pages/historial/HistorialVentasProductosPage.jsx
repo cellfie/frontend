@@ -24,12 +24,12 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PaginationControls } from "@/lib/PaginationControls" 
+import { PaginationControls } from "@/lib/PaginationControls"
 
 import {
   getVentasPaginadas,
@@ -39,9 +39,11 @@ import {
   clearVentasCache,
   getCacheInfo,
   cleanExpiredCache,
+  getMetodosPagoVentas, // NUEVO: Importar función para métodos de pago
+  buildVentasFilters,
+  validateVentasFilters,
 } from "@/services/ventasService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
-import { getMetodosPago } from "@/services/metodosPagoService"
 import { getDevolucionesByVenta } from "@/services/devolucionesService"
 import { searchProductosRapido } from "@/services/productosService"
 import { useAuth } from "@/context/AuthContext"
@@ -77,6 +79,7 @@ const formatLocalDate = (date) => {
   return `${year}-${month}-${day}`
 }
 
+// CORREGIDO: Función para obtener icono de método de pago
 const getPaymentIcon = (paymentMethodName) => {
   if (!paymentMethodName) return Wallet
   const lowerCaseName = paymentMethodName.toLowerCase()
@@ -84,7 +87,59 @@ const getPaymentIcon = (paymentMethodName) => {
   if (lowerCaseName.includes("tarjeta")) return CreditCard
   if (lowerCaseName.includes("transferencia")) return Landmark
   if (lowerCaseName.includes("cuenta corriente") || lowerCaseName.includes("cuenta")) return University
+  if (lowerCaseName.includes("múltiple")) return ArrowLeftRight
   return DollarSign
+}
+
+// NUEVA: Función para determinar si una venta tiene múltiples métodos de pago
+const hasMultiplePaymentMethods = (venta) => {
+  // Verificar si tiene múltiples pagos registrados
+  if (venta.pagos && venta.pagos.length > 1) return true
+  
+  // Verificar si el tipo de pago es "Múltiple"
+  if (venta.tipoPago?.nombre === "Múltiple") return true
+  
+  // Verificar si tiene métodos de pago reales múltiples
+  if (venta.metodosPagoReales && venta.metodosPagoReales.includes(',')) return true
+  
+  return false
+}
+
+// NUEVA: Función para obtener los métodos de pago de una venta
+const getVentaPaymentMethods = (venta) => {
+  // Si tiene pagos individuales registrados, usar esos
+  if (venta.pagos && venta.pagos.length > 0) {
+    return venta.pagos.map(pago => ({
+      nombre: pago.tipo_pago_nombre,
+      monto: pago.monto,
+      anulado: pago.anulado
+    }))
+  }
+  
+  // Si tiene métodos de pago reales del backend
+  if (venta.metodosPagoReales) {
+    const metodos = venta.metodosPagoReales.split(', ').filter(m => m.trim())
+    return metodos.map(metodo => ({
+      nombre: metodo.trim(),
+      monto: null, // No tenemos el monto individual
+      anulado: false
+    }))
+  }
+  
+  // Fallback al tipo de pago general
+  if (venta.tipoPago?.nombre) {
+    return [{
+      nombre: venta.tipoPago.nombre,
+      monto: venta.total,
+      anulado: false
+    }]
+  }
+  
+  return [{
+    nombre: "N/A",
+    monto: venta.total,
+    anulado: false
+  }]
 }
 
 const HistorialVentas = () => {
@@ -114,7 +169,7 @@ const HistorialVentas = () => {
   // Estados de filtros
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPuntoVenta, setSelectedPuntoVenta] = useState("todos")
-  const [selectedMetodoPago, setSelectedMetodoPago] = useState("todos")
+  const [selectedMetodoPago, setSelectedMetodoPago] = useState("todos") // CORREGIDO: Estado para método de pago
   const [mostrarAnuladas, setMostrarAnuladas] = useState(false)
   const [dateRange, setDateRange] = useState({
     from: null,
@@ -134,7 +189,7 @@ const HistorialVentas = () => {
 
   // Estados de datos auxiliares
   const [puntosVenta, setPuntosVenta] = useState([])
-  const [metodosPago, setMetodosPago] = useState([])
+  const [metodosPago, setMetodosPago] = useState([]) // CORREGIDO: Para métodos de pago reales
 
   // Estados para devoluciones
   const [dialogDevolucionAbierto, setDialogDevolucionAbierto] = useState(false)
@@ -157,6 +212,7 @@ const HistorialVentas = () => {
   const [debugInfo, setDebugInfo] = useState(null)
   const [lastFetchTime, setLastFetchTime] = useState(null)
   const [fetchError, setFetchError] = useState(null)
+  const [loadingMetodosPago, setLoadingMetodosPago] = useState(false) // NUEVO: Loading para métodos de pago
 
   // Debounce para la búsqueda
   const debouncedSearchTerm = useDebounce(searchTerm, 500)
@@ -193,14 +249,22 @@ const HistorialVentas = () => {
     return () => clearInterval(interval)
   }, [])
 
-  // Cargar datos iniciales
+  // CORREGIDO: Cargar datos iniciales incluyendo métodos de pago
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
-        const [puntosData, metodosData] = await Promise.all([getPuntosVenta(), getMetodosPago()])
+        setLoadingMetodosPago(true)
+        
+        // CORREGIDO: Cargar métodos de pago reales desde ventas
+        const [puntosData, metodosData] = await Promise.all([
+          getPuntosVenta(), 
+          getMetodosPagoVentas() // NUEVO: Usar la nueva función
+        ])
 
         setPuntosVenta(puntosData)
         setMetodosPago(metodosData)
+
+        console.log("Métodos de pago cargados:", metodosData)
 
         // Configurar rango de fechas inicial
         const fechaFin = new Date()
@@ -220,7 +284,9 @@ const HistorialVentas = () => {
         })
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)
-        toast.error("Error al cargar datos iniciales")
+        toast.error("Error al cargar datos iniciales: " + error.message)
+      } finally {
+        setLoadingMetodosPago(false)
       }
     }
 
@@ -254,46 +320,31 @@ const HistorialVentas = () => {
     buscarProductos()
   }, [debouncedBusquedaProducto])
 
-  // CORREGIDO: Función para construir filtros mejorada
+  // CORREGIDO: Función para construir filtros mejorada con validación
   const buildFilters = useCallback(() => {
-    const filters = {}
-
-    if (debouncedSearchTerm && debouncedSearchTerm.trim()) {
-      filters.search = debouncedSearchTerm.trim()
+    const filters = {
+      search: debouncedSearchTerm?.trim() || undefined,
+      punto_venta_id: selectedPuntoVenta !== "todos" ? 
+        puntosVenta.find(pv => pv.nombre === selectedPuntoVenta)?.id : undefined,
+      tipo_pago: selectedMetodoPago !== "todos" ? selectedMetodoPago : undefined, // CORREGIDO: Filtro de método de pago
+      anuladas: mostrarAnuladas,
+      producto_id: productoSeleccionado?.id || undefined,
+      fecha_inicio: dateRange?.from ? formatLocalDate(dateRange.from) : undefined,
+      fecha_fin: dateRange?.to ? formatLocalDate(dateRange.to) : undefined,
     }
 
-    if (selectedPuntoVenta !== "todos") {
-      const puntoVenta = puntosVenta.find((pv) => pv.nombre === selectedPuntoVenta)
-      if (puntoVenta) filters.punto_venta_id = puntoVenta.id
+    // Validar filtros antes de enviar
+    const validationErrors = validateVentasFilters(filters)
+    if (validationErrors.length > 0) {
+      console.warn("Errores de validación en filtros:", validationErrors)
+      toast.warning("Algunos filtros tienen errores: " + validationErrors.join(", "))
     }
 
-    if (selectedMetodoPago !== "todos") {
-      filters.tipo_pago = selectedMetodoPago
-    }
-
-    // CORREGIDO: Manejo del filtro de anuladas
-    filters.anuladas = mostrarAnuladas
-
-    if (productoSeleccionado) {
-      filters.producto_id = productoSeleccionado.id
-    }
-
-    // CORREGIDO: Filtros de fecha mejorados
-    if (dateRange?.from) {
-      const fechaInicio = formatLocalDate(dateRange.from)
-      filters.fecha_inicio = fechaInicio
-    }
-
-    if (dateRange?.to) {
-      const fechaFin = formatLocalDate(dateRange.to)
-      filters.fecha_fin = fechaFin
-    }
-
-    return filters
+    return buildVentasFilters(filters)
   }, [
     debouncedSearchTerm,
     selectedPuntoVenta,
-    selectedMetodoPago,
+    selectedMetodoPago, // CORREGIDO: Incluir método de pago
     mostrarAnuladas,
     productoSeleccionado,
     dateRange,
@@ -386,7 +437,7 @@ const HistorialVentas = () => {
   }, [
     debouncedSearchTerm,
     selectedPuntoVenta,
-    selectedMetodoPago,
+    selectedMetodoPago, // CORREGIDO: Incluir método de pago
     mostrarAnuladas,
     productoSeleccionado,
     itemsPerPage,
@@ -466,6 +517,7 @@ const HistorialVentas = () => {
     }).format(precioNumerico)
   }
 
+  // CORREGIDO: Limpiar filtros incluyendo método de pago
   const limpiarFiltros = () => {
     const fechaFin = new Date()
     let fechaInicio
@@ -485,7 +537,7 @@ const HistorialVentas = () => {
 
     setSearchTerm("")
     setSelectedPuntoVenta("todos")
-    setSelectedMetodoPago("todos")
+    setSelectedMetodoPago("todos") // CORREGIDO: Limpiar método de pago
     setMostrarAnuladas(false)
     limpiarFiltroProducto()
     setCurrentPage(1)
@@ -1192,8 +1244,8 @@ const HistorialVentas = () => {
                   </SelectContent>
                 </Select>
 
-                {/* Método de pago */}
-                <Select value={selectedMetodoPago} onValueChange={setSelectedMetodoPago}>
+                {/* CORREGIDO: Método de pago con datos reales */}
+                <Select value={selectedMetodoPago} onValueChange={setSelectedMetodoPago} disabled={loadingMetodosPago}>
                   <SelectTrigger
                     className={`w-full sm:w-auto ${
                       selectedMetodoPago !== "todos"
@@ -1202,15 +1254,29 @@ const HistorialVentas = () => {
                     }`}
                   >
                     <div className="flex items-center gap-1">
-                      <DollarSign size={14} />
-                      <span>{selectedMetodoPago === "todos" ? "Todos los métodos" : selectedMetodoPago}</span>
+                      {loadingMetodosPago ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <DollarSign size={14} />
+                      )}
+                      <span>
+                        {loadingMetodosPago 
+                          ? "Cargando..." 
+                          : selectedMetodoPago === "todos" 
+                            ? "Todos los métodos" 
+                            : selectedMetodoPago
+                        }
+                      </span>
                     </div>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos los métodos</SelectItem>
                     {metodosPago.map((metodo) => (
                       <SelectItem key={metodo.id} value={metodo.nombre}>
-                        {metodo.nombre}
+                        <div className="flex items-center gap-2">
+                          {React.createElement(getPaymentIcon(metodo.nombre), { size: 14 })}
+                          {metodo.nombre}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1254,7 +1320,10 @@ const HistorialVentas = () => {
                   )}
                   {selectedMetodoPago !== "todos" && (
                     <Badge variant="outline" className="ml-1 text-xs bg-gray-50">
-                      Pago: {selectedMetodoPago}
+                      <div className="flex items-center gap-1">
+                        {React.createElement(getPaymentIcon(selectedMetodoPago), { size: 12 })}
+                        Pago: {selectedMetodoPago}
+                      </div>
                     </Badge>
                   )}
                   {productoSeleccionado && (
@@ -1400,28 +1469,40 @@ const HistorialVentas = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {venta.pagos && venta.pagos.length > 0 ? (
-                              venta.pagos.length === 1 ? (
-                                <Badge variant="secondary" className="font-normal">
-                                  {venta.pagos[0].tipo_pago_nombre}
-                                </Badge>
-                              ) : (
-                                <Badge
-                                  variant="secondary"
-                                  className="font-normal bg-purple-100 text-purple-700 border-purple-300"
-                                >
-                                  Múltiple
-                                </Badge>
-                              )
-                            ) : venta.tipoPago?.nombre ? (
-                              <Badge variant="secondary" className="font-normal">
-                                {venta.tipoPago.nombre}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="font-normal">
-                                N/A
-                              </Badge>
-                            )}
+                            {/* CORREGIDO: Mostrar métodos de pago mejorado */}
+                            {(() => {
+                              const metodosVenta = getVentaPaymentMethods(venta)
+                              const esMultiple = hasMultiplePaymentMethods(venta)
+                              
+                              if (esMultiple) {
+                                return (
+                                  <div className="flex flex-wrap gap-1">
+                                    <Badge
+                                      variant="secondary"
+                                      className="font-normal bg-purple-100 text-purple-700 border-purple-300"
+                                    >
+                                      <ArrowLeftRight className="h-3 w-3 mr-1" />
+                                      Múltiple ({metodosVenta.length})
+                                    </Badge>
+                                  </div>
+                                )
+                              } else if (metodosVenta.length > 0) {
+                                const metodo = metodosVenta[0]
+                                const IconoMetodo = getPaymentIcon(metodo.nombre)
+                                return (
+                                  <Badge variant="secondary" className="font-normal">
+                                    <IconoMetodo className="h-3 w-3 mr-1" />
+                                    {metodo.nombre}
+                                  </Badge>
+                                )
+                              } else {
+                                return (
+                                  <Badge variant="outline" className="font-normal">
+                                    N/A
+                                  </Badge>
+                                )
+                              }
+                            })()}
                           </TableCell>
                           <TableCell className="font-medium">{formatearPrecio(venta.total)}</TableCell>
                           <TableCell className="text-right">
@@ -1567,39 +1648,62 @@ const HistorialVentas = () => {
                                                     </Badge>
                                                   </div>
 
-                                                  {/* CORREGIDO: Mostrar múltiples métodos de pago */}
+                                                  {/* CORREGIDO: Mostrar múltiples métodos de pago en detalle */}
                                                   <div className="flex flex-col">
-                                                    <span className="text-gray-500 mb-1">Métodos de pago:</span>
-                                                    {ventaSeleccionada.pagos && ventaSeleccionada.pagos.length > 0 ? (
-                                                      <div className="space-y-1">
-                                                        {ventaSeleccionada.pagos.map((pago, index) => {
-                                                          const IconoPago = getPaymentIcon(pago.tipo_pago_nombre)
-                                                          return (
-                                                            <Badge
-                                                              key={index}
-                                                              variant="secondary"
-                                                              className="font-normal mr-1 mb-1 flex items-center justify-between w-full"
-                                                            >
-                                                              <div className="flex items-center gap-1">
-                                                                <IconoPago size={14} className="text-gray-600" />
-                                                                <span>
-                                                                  {pago.tipo_pago_nombre || "Nombre no disponible"}
-                                                                </span>
+                                                    <span className="text-gray-500 mb-2">Métodos de pago:</span>
+                                                    {(() => {
+                                                      const metodosVenta = getVentaPaymentMethods(ventaSeleccionada)
+                                                      
+                                                      if (metodosVenta.length > 0) {
+                                                        return (
+                                                          <div className="space-y-2">
+                                                            {metodosVenta.map((metodo, index) => {
+                                                              const IconoMetodo = getPaymentIcon(metodo.nombre)
+                                                              return (
+                                                                <div
+                                                                  key={index}
+                                                                  className="flex items-center justify-between p-2 bg-gray-50 rounded-md border"
+                                                                >
+                                                                  <div className="flex items-center gap-2">
+                                                                    <IconoMetodo size={16} className="text-gray-600" />
+                                                                    <span className="font-medium">
+                                                                      {metodo.nombre}
+                                                                    </span>
+                                                                    {metodo.anulado && (
+                                                                      <Badge variant="destructive" className="text-xs">
+                                                                        Anulado
+                                                                      </Badge>
+                                                                    )}
+                                                                  </div>
+                                                                  {metodo.monto && (
+                                                                    <span className="font-medium text-orange-600">
+                                                                      {formatearPrecio(metodo.monto)}
+                                                                    </span>
+                                                                  )}
+                                                                </div>
+                                                              )
+                                                            })}
+                                                            
+                                                            {metodosVenta.length > 1 && (
+                                                              <div className="pt-2 border-t">
+                                                                <div className="flex justify-between font-medium">
+                                                                  <span>Total pagado:</span>
+                                                                  <span className="text-orange-600">
+                                                                    {formatearPrecio(ventaSeleccionada.total)}
+                                                                  </span>
+                                                                </div>
                                                               </div>
-                                                              <span>{formatearPrecio(pago.monto)}</span>
-                                                            </Badge>
-                                                          )
-                                                        })}
-                                                      </div>
-                                                    ) : ventaSeleccionada.tipoPago?.nombre ? (
-                                                      <Badge variant="secondary" className="font-normal">
-                                                        {ventaSeleccionada.tipoPago.nombre}
-                                                      </Badge>
-                                                    ) : (
-                                                      <Badge variant="outline" className="font-normal">
-                                                        N/A
-                                                      </Badge>
-                                                    )}
+                                                            )}
+                                                          </div>
+                                                        )
+                                                      } else {
+                                                        return (
+                                                          <Badge variant="outline" className="font-normal">
+                                                            N/A
+                                                          </Badge>
+                                                        )
+                                                      }
+                                                    })()}
                                                   </div>
 
                                                   <div className="flex justify-between">

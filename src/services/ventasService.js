@@ -45,7 +45,7 @@ const formatearFechaArgentina = (fechaString) => {
 
 export { formatearFechaArgentina }
 
-// CORREGIDO: Función principal de paginación con mejor manejo de errores y cache
+// CORREGIDO: Función principal de paginación con filtro de método de pago mejorado
 export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => {
   try {
     // Limpiar filtros vacíos o undefined
@@ -54,6 +54,7 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
         value !== undefined && 
         value !== null && 
         value !== "" && 
+        value !== "todos" && // NUEVO: Excluir "todos" del filtro
         !(Array.isArray(value) && value.length === 0)
       )
     )
@@ -133,7 +134,8 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     console.log("Respuesta procesada:", {
       ventasCount: data.ventas.length,
       pagination,
-      cacheKey
+      cacheKey,
+      appliedFilters: data.debug?.appliedFilters || {}
     })
 
     return result
@@ -149,6 +151,56 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     enhancedError.limit = limit
     
     throw enhancedError
+  }
+}
+
+// NUEVA FUNCIÓN: Obtener métodos de pago únicos para el filtro
+export const getMetodosPagoVentas = async () => {
+  try {
+    const cacheKey = 'metodos_pago_ventas'
+    
+    // Verificar cache
+    if (cache.has(cacheKey)) {
+      const cached = cache.get(cacheKey)
+      if (Date.now() - cached.timestamp < CACHE_DURATION) {
+        console.log("Métodos de pago obtenidos desde cache")
+        return cached.data
+      } else {
+        cache.delete(cacheKey)
+      }
+    }
+
+    console.log("Obteniendo métodos de pago desde el backend...")
+
+    const response = await fetch(`${API_URL}/ventas/metodos-pago`, {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Error de conexión" }))
+      throw new Error(errorData.message || "Error al obtener métodos de pago")
+    }
+
+    const data = await response.json()
+    
+    // Validar que sea un array
+    if (!Array.isArray(data)) {
+      throw new Error("Formato de métodos de pago inválido")
+    }
+
+    // Guardar en cache
+    cache.set(cacheKey, { data, timestamp: Date.now() })
+    
+    console.log("Métodos de pago obtenidos:", data.length)
+    return data
+  } catch (error) {
+    console.error("Error en getMetodosPagoVentas:", error)
+    throw error
   }
 }
 
@@ -390,6 +442,7 @@ export const createVenta = async (ventaData) => {
     
     // Limpiar cache después de crear venta
     clearVentasCache('ventas_paginadas')
+    clearVentasCache('metodos_pago_ventas') // NUEVO: Limpiar cache de métodos de pago
     
     return result
   } catch (error) {
@@ -474,7 +527,7 @@ export const getEstadisticasVentas = async (params = {}) => {
   }
 }
 
-// CORREGIDO: Función de adaptación mejorada para el frontend
+// CORREGIDO: Función de adaptación mejorada para el frontend con métodos de pago
 export const adaptVentaToFrontend = (venta) => {
   if (!venta || typeof venta !== 'object') {
     console.warn("Venta inválida recibida para adaptación:", venta)
@@ -520,10 +573,14 @@ export const adaptVentaToFrontend = (venta) => {
         nombre: venta.punto_venta_nombre || "Punto de venta eliminado",
       },
       
-      // CORREGIDO: Información del tipo de pago general
+      // CORREGIDO: Información del tipo de pago general (para compatibilidad)
       tipoPago: {
         nombre: venta.tipo_pago_nombre || "N/A",
       },
+
+      // NUEVO: Información de métodos de pago reales
+      metodosPagoReales: venta.metodos_pago_reales || null,
+      cantidadMetodosPago: Number(venta.cantidad_metodos_pago) || 0,
       
       // CORREGIDO: Array de pagos individuales
       pagos: Array.isArray(venta.pagos) ? venta.pagos.map((pago) => ({
@@ -532,6 +589,7 @@ export const adaptVentaToFrontend = (venta) => {
         fecha: pago.fecha || "",
         anulado: Boolean(pago.anulado === 1 || pago.anulado === true),
         tipo_pago_nombre: pago.tipo_pago_nombre || pago.tipo_pago || "N/A",
+        notas: pago.notas || "",
       })) : [],
       
       // CORREGIDO: Detalles de productos
@@ -567,7 +625,7 @@ export const getCacheInfo = () => {
     age: Date.now() - value.timestamp,
     expired: Date.now() - value.timestamp > CACHE_DURATION
   }))
-  
+
   return {
     totalEntries: cache.size,
     entries,
@@ -580,14 +638,103 @@ export const getCacheInfo = () => {
 export const cleanExpiredCache = () => {
   const now = Date.now()
   let cleaned = 0
-  
+
   for (const [key, value] of cache) {
     if (now - value.timestamp > CACHE_DURATION) {
       cache.delete(key)
       cleaned++
     }
   }
-  
+
   console.log(`Cache limpiado: ${cleaned} entradas expiradas eliminadas`)
   return cleaned
+}
+
+// NUEVA FUNCIÓN: Construir filtros para la consulta
+export const buildVentasFilters = (filters) => {
+  const cleanFilters = {}
+
+  // Filtro de búsqueda general
+  if (filters.search && filters.search.trim()) {
+    cleanFilters.search = filters.search.trim()
+  }
+
+  // Filtro de punto de venta
+  if (filters.punto_venta_id && filters.punto_venta_id !== "todos") {
+    cleanFilters.punto_venta_id = filters.punto_venta_id
+  }
+
+  // CORREGIDO: Filtro de método de pago
+  if (filters.tipo_pago && filters.tipo_pago !== "todos") {
+    cleanFilters.tipo_pago = filters.tipo_pago
+  }
+
+  // Filtro de anuladas
+  if (filters.anuladas !== undefined) {
+    cleanFilters.anuladas = filters.anuladas
+  }
+
+  // Filtro de producto
+  if (filters.producto_id) {
+    cleanFilters.producto_id = filters.producto_id
+  }
+
+  if (filters.producto_nombre && filters.producto_nombre.trim()) {
+    cleanFilters.producto_nombre = filters.producto_nombre.trim()
+  }
+
+  // Filtros de fecha
+  if (filters.fecha_inicio) {
+    cleanFilters.fecha_inicio = filters.fecha_inicio
+  }
+
+  if (filters.fecha_fin) {
+    cleanFilters.fecha_fin = filters.fecha_fin
+  }
+
+  // Filtros de ordenamiento
+  if (filters.sort_by) {
+    cleanFilters.sort_by = filters.sort_by
+  }
+
+  if (filters.sort_order) {
+    cleanFilters.sort_order = filters.sort_order
+  }
+
+  return cleanFilters
+}
+
+// NUEVA FUNCIÓN: Validar filtros antes de enviar
+export const validateVentasFilters = (filters) => {
+  const errors = []
+
+  // Validar fechas
+  if (filters.fecha_inicio && filters.fecha_fin) {
+    const fechaInicio = new Date(filters.fecha_inicio)
+    const fechaFin = new Date(filters.fecha_fin)
+    
+    if (fechaInicio > fechaFin) {
+      errors.push("La fecha de inicio no puede ser mayor que la fecha de fin")
+    }
+
+    // Validar que no sea un rango muy amplio (más de 1 año)
+    const diffTime = Math.abs(fechaFin - fechaInicio)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays > 365) {
+      errors.push("El rango de fechas no puede ser mayor a 1 año")
+    }
+  }
+
+  // Validar punto de venta
+  if (filters.punto_venta_id && isNaN(Number(filters.punto_venta_id)) && filters.punto_venta_id !== "todos") {
+    errors.push("ID de punto de venta inválido")
+  }
+
+  // Validar producto
+  if (filters.producto_id && isNaN(Number(filters.producto_id))) {
+    errors.push("ID de producto inválido")
+  }
+
+  return errors
 }
