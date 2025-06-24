@@ -29,7 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PaginationControls } from "@/lib/PaginationControls"
+import { PaginationControls } from "@/lib/PaginationControls" 
 
 import {
   getVentasPaginadas,
