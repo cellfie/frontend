@@ -293,6 +293,7 @@ const HistorialVentas = () => {
     cargarDatosIniciales()
   }, [isAdmin])
 
+  
   // MEJORADO: Búsqueda de productos con debounce
   useEffect(() => {
     const buscarProductos = async () => {
@@ -1453,7 +1454,7 @@ const HistorialVentas = () => {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>{formatearFechaHora(venta.fecha)}</TableCell>
+                          <TableCell>{venta.fecha}</TableCell>
                           <TableCell>{venta.cliente ? venta.cliente.nombre : "Cliente General"}</TableCell>
                           <TableCell>
                             <Badge
@@ -1627,7 +1628,7 @@ const HistorialVentas = () => {
                                                   </div>
                                                   <div className="flex justify-between">
                                                     <span className="text-gray-500">Fecha:</span>
-                                                    <span>{formatearFechaHora(ventaSeleccionada.fecha)}</span>
+                                                    <span>{ventaSeleccionada.fecha}</span>
                                                   </div>
                                                   <div className="flex justify-between">
                                                     <span className="text-gray-500">Vendedor:</span>
@@ -1731,7 +1732,7 @@ const HistorialVentas = () => {
                                                         <div className="text-xs mt-1">
                                                           <div>
                                                             <span className="text-gray-500">Fecha:</span>{" "}
-                                                            {formatearFechaHora(ventaSeleccionada.fechaAnulacion)}
+                                                            {ventaSeleccionada.fechaAnulacion}
                                                           </div>
                                                           <div>
                                                             <span className="text-gray-500">Motivo:</span>{" "}
@@ -2024,7 +2025,7 @@ const HistorialVentas = () => {
                 </div>
                 <div className="flex justify-between mb-1">
                   <span className="text-gray-500">Fecha:</span>
-                  <span>{ventaAnular && formatearFechaHora(ventaAnular.fecha)}</span>
+                  <span>{ventaAnular && ventaAnular.fecha}</span>
                 </div>
                 <div className="flex justify-between mb-1">
                   <span className="text-gray-500">Cliente:</span>
