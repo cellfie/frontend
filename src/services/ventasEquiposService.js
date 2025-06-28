@@ -94,12 +94,10 @@ export const getVentaEquipoById = async (id) => {
 // Crear una nueva venta de equipo
 export const createVentaEquipo = async (ventaData) => {
   try {
-    // MODIFICACIÓN: Se envía el array 'pagos' en lugar de 'tipo_pago'.
-    // El campo 'tipo_cambio' ya no se envía desde aquí, se obtiene en el backend.
     const backendData = {
       cliente_id: ventaData.cliente_id,
       punto_venta_id: ventaData.punto_venta_id,
-      pagos: ventaData.pagos, // <--- Array de pagos
+      pagos: ventaData.pagos, // Array de pagos con tipo_pago y monto
       equipo_id: ventaData.equipo_id,
       porcentaje_interes: ventaData.porcentaje_interes || 0,
       porcentaje_descuento: ventaData.porcentaje_descuento || 0,
@@ -152,6 +150,22 @@ export const anularVentaEquipo = async (id, motivo) => {
   }
 }
 
+// Función para determinar el método de pago a mostrar en la tabla
+const determinarMetodoPagoParaTabla = (venta) => {
+  // Si tiene múltiples métodos de pago
+  if (venta.multiples_pagos === 1 || venta.cantidad_metodos_pago > 1) {
+    return "Múltiple"
+  }
+
+  // Si tiene un solo método de pago
+  if (venta.metodos_pago) {
+    return venta.metodos_pago
+  }
+
+  // Fallback para compatibilidad con datos antiguos
+  return "N/A"
+}
+
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptVentaEquipoToFrontend = (venta) => {
   return {
@@ -170,6 +184,11 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     anulada: venta.anulada === 1,
     fechaAnulacion: venta.fecha_anulacion ? formatearFechaArgentina(venta.fecha_anulacion) : null,
     motivoAnulacion: venta.motivo_anulacion,
+    multiplesPagos: venta.multiples_pagos === 1,
+    // Información de métodos de pago para la tabla
+    metodoPagoTabla: determinarMetodoPagoParaTabla(venta),
+    metodosPago: venta.metodos_pago || null,
+    cantidadMetodosPago: venta.cantidad_metodos_pago || 0,
     cliente: venta.cliente_id
       ? {
           id: venta.cliente_id,
@@ -185,8 +204,6 @@ export const adaptVentaEquipoToFrontend = (venta) => {
       id: venta.punto_venta_id,
       nombre: venta.punto_venta_nombre,
     },
-    // MODIFICACIÓN: 'tipoPago' ya no existe directamente en la venta, se obtiene de 'pagos'.
-    // Se mantiene 'pagos' para tener la lista completa.
     equipo: {
       id: venta.equipo_id,
       marca: venta.marca,
@@ -216,14 +233,14 @@ export const adaptVentaEquipoToFrontend = (venta) => {
     pagos: venta.pagos
       ? venta.pagos.map((pago) => ({
           id: pago.id,
-          monto: pago.monto, // El backend ahora devuelve 'monto' en ARS para pagos_ventas_equipos
+          monto: pago.monto, // El backend devuelve 'monto' en ARS
           fecha: formatearFechaArgentina(pago.fecha),
           anulado: pago.anulado === 1,
           tipoPago: {
-            // El backend devuelve 'tipo_pago' como string
             nombre: pago.tipo_pago,
           },
         }))
       : [],
+    notas: venta.notas,
   }
 }

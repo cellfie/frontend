@@ -53,10 +53,9 @@ import {
   getVentaEquipoById,
   anularVentaEquipo,
   adaptVentaEquipoToFrontend,
-  formatearFechaArgentina, // MODIFICACIÓN: Importar para usar consistentemente
+  formatearFechaArgentina,
 } from "@/services/ventasEquiposService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
-// import { getTiposPago } from "@/services/pagosService"; // No se usa para filtro por ahora
 import { useAuth } from "@/context/AuthContext"
 import { DollarContext } from "@/context/DollarContext"
 
@@ -73,7 +72,6 @@ const HistorialVentasEquiposPage = () => {
   const [ventaAnular, setVentaAnular] = useState(null)
   const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
   const [puntosVenta, setPuntosVenta] = useState([])
-  // const [tiposPago, setTiposPago] = useState([]); // No se usa para filtro por ahora
   const [filtros, setFiltros] = useState({
     busqueda: "",
     fechaInicio: null,
@@ -104,13 +102,54 @@ const HistorialVentasEquiposPage = () => {
     return <DollarSign className="h-4 w-4 text-yellow-500" />
   }
 
+  const getBadgeMetodoPago = (metodoPago) => {
+    if (metodoPago === "Múltiple") {
+      return (
+        <Badge variant="outline" className="font-normal border-purple-300 bg-purple-50 text-purple-700">
+          <CreditCard className="h-3 w-3 mr-1" />
+          Múltiple
+        </Badge>
+      )
+    }
+
+    const nombreLower = metodoPago.toLowerCase()
+    if (nombreLower.includes("transferencia")) {
+      return (
+        <Badge variant="outline" className="font-normal border-blue-300 bg-blue-50 text-blue-700">
+          <ArrowUpRight className="h-3 w-3 mr-1" />
+          Transferencia
+        </Badge>
+      )
+    }
+    if (nombreLower.includes("tarjeta")) {
+      return (
+        <Badge variant="outline" className="font-normal border-green-300 bg-green-50 text-green-700">
+          <CreditCard className="h-3 w-3 mr-1" />
+          Tarjeta
+        </Badge>
+      )
+    }
+    if (nombreLower.includes("cuenta")) {
+      return (
+        <Badge variant="outline" className="font-normal border-purple-300 bg-purple-50 text-purple-700">
+          <BookOpen className="h-3 w-3 mr-1" />
+          Cuenta Corriente
+        </Badge>
+      )
+    }
+    return (
+      <Badge variant="outline" className="font-normal border-yellow-300 bg-yellow-50 text-yellow-700">
+        <DollarSign className="h-3 w-3 mr-1" />
+        {metodoPago}
+      </Badge>
+    )
+  }
+
   useEffect(() => {
     const cargarDatosIniciales = async () => {
       try {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
-        // const tipos = await getTiposPago(); // No se usa para filtro por ahora
-        // setTiposPago(tipos);
 
         const fechaFin = new Date()
         const fechaInicio = new Date()
@@ -206,11 +245,6 @@ const HistorialVentasEquiposPage = () => {
     if (!fecha) return null
     return fecha.toISOString().split("T")[0]
   }
-
-  // MODIFICACIÓN: Usar directamente la fecha formateada del adaptador (venta.fecha)
-  // La función formatearFechaHora local ya no es necesaria si el adaptador lo hace bien.
-  // Si se necesita específicamente para el detalle y el adaptador no es suficiente, se puede mantener.
-  // Por ahora, asumimos que venta.fecha ya está bien formateada.
 
   const formatearPrecioUSD = (precio) => {
     const precioNumerico = Number.parseFloat(precio) || 0
@@ -341,7 +375,9 @@ const HistorialVentasEquiposPage = () => {
         <TableCell>
           <Skeleton className="h-4 w-24" />
         </TableCell>
-        {/* <TableCell><Skeleton className="h-4 w-20" /></TableCell> // Columna Método de Pago eliminada */}
+        <TableCell>
+          <Skeleton className="h-4 w-20" />
+        </TableCell>
         <TableCell>
           <Skeleton className="h-4 w-20" />
         </TableCell>
@@ -405,8 +441,6 @@ const HistorialVentasEquiposPage = () => {
         </CardHeader>
         <CardContent className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {" "}
-            {/* Ajustado para 4 columnas en XL */}
             <div className="relative col-span-1 sm:col-span-2 xl:col-span-1">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -454,7 +488,12 @@ const HistorialVentasEquiposPage = () => {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" onClick={limpiarFiltros} className="h-10 w-10 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={limpiarFiltros}
+                      className="h-10 w-10 flex-shrink-0 bg-transparent"
+                    >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
@@ -490,7 +529,7 @@ const HistorialVentasEquiposPage = () => {
                     <TableHead className="bg-white">Cliente</TableHead>
                     <TableHead className="bg-white">Equipo</TableHead>
                     <TableHead className="bg-white">Punto de Venta</TableHead>
-                    {/* MODIFICACIÓN: Columna Método de Pago eliminada */}
+                    <TableHead className="bg-white">Método de Pago</TableHead>
                     <TableHead className="bg-white">Total</TableHead>
                     <TableHead className="bg-white text-right">Acciones</TableHead>
                   </TableRow>
@@ -500,8 +539,7 @@ const HistorialVentasEquiposPage = () => {
                     renderSkeletons()
                   ) : ventasFiltradas.length === 0 ? (
                     <TableRow>
-                      {/* MODIFICACIÓN: Ajustar colSpan */}
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Smartphone className="h-12 w-12 text-gray-300" />
                           <h3 className="text-lg font-medium text-gray-500">No hay ventas disponibles</h3>
@@ -527,7 +565,6 @@ const HistorialVentasEquiposPage = () => {
                               )}
                             </div>
                           </TableCell>
-                          {/* MODIFICACIÓN: Usar venta.fecha que ya está formateada por el adaptador */}
                           <TableCell>{venta.fecha}</TableCell>
                           <TableCell>{venta.cliente ? venta.cliente.nombre : "Cliente General"}</TableCell>
                           <TableCell>
@@ -545,7 +582,7 @@ const HistorialVentasEquiposPage = () => {
                               {venta.puntoVenta.nombre}
                             </Badge>
                           </TableCell>
-                          {/* MODIFICACIÓN: Celda de Método de Pago eliminada */}
+                          <TableCell>{getBadgeMetodoPago(venta.metodoPagoTabla)}</TableCell>
                           <TableCell className="font-medium">
                             <div>{formatearPrecioUSD(venta.totalUSD)}</div>
                             <div className="text-xs text-gray-500">
@@ -611,8 +648,7 @@ const HistorialVentasEquiposPage = () => {
                         <AnimatePresence>
                           {detalleVentaAbierto === venta.id && ventaSeleccionada && (
                             <TableRow>
-                              {/* MODIFICACIÓN: Ajustar colSpan */}
-                              <TableCell colSpan={7} className="p-0 border-0">
+                              <TableCell colSpan={8} className="p-0 border-0">
                                 <motion.div
                                   initial={{ opacity: 0, height: 0 }}
                                   animate={{ opacity: 1, height: "auto" }}
@@ -632,7 +668,6 @@ const HistorialVentasEquiposPage = () => {
                                               <span className="text-gray-500">Factura:</span>
                                               <span className="font-medium">{ventaSeleccionada.numeroFactura}</span>
                                             </div>
-                                            {/* MODIFICACIÓN: Usar ventaSeleccionada.fecha que ya está formateada por el adaptador */}
                                             <div className="flex justify-between">
                                               <span className="text-gray-500">Fecha:</span>
                                               <span>{ventaSeleccionada.fecha}</span>
@@ -699,7 +734,6 @@ const HistorialVentasEquiposPage = () => {
                                                     Venta anulada
                                                   </div>
                                                   <div className="text-xs mt-1">
-                                                    {/* MODIFICACIÓN: Usar formatearFechaArgentina para la fecha de anulación si es necesario */}
                                                     <div>
                                                       <span className="text-gray-500">Fecha:</span>{" "}
                                                       {formatearFechaArgentina(ventaSeleccionada.fechaAnulacion)}
@@ -908,7 +942,6 @@ const HistorialVentasEquiposPage = () => {
                   <span className="text-gray-500">Factura:</span>
                   <span className="font-medium">{ventaAnular?.numeroFactura}</span>
                 </div>
-                {/* MODIFICACIÓN: Usar ventaAnular.fecha que ya está formateada por el adaptador */}
                 <div className="flex justify-between mb-1">
                   <span className="text-gray-500">Fecha:</span>
                   <span>{ventaAnular?.fecha}</span>
