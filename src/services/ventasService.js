@@ -21,7 +21,7 @@ const formatearFechaArgentina = (fechaString) => {
     if (isNaN(fecha.getTime())) return ""
 
     fecha.setHours(fecha.getHours() + 3)
-    
+
     return fecha.toLocaleString("es-AR", {
       timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
@@ -532,7 +532,7 @@ export const adaptVentaToFrontend = (venta) => {
     return {
       id: Number(venta.id) || 0,
       numeroFactura: venta.numero_factura || "",
-      fecha: venta.fecha || "",
+      fecha: formatearFechaArgentina(venta.fecha),
       fechaCreacion: venta.fecha_creacion || venta.fecha,
       fechaActualizacion: venta.fecha_actualizacion || null,
       subtotal: Number(venta.subtotal) || 0,
@@ -542,7 +542,7 @@ export const adaptVentaToFrontend = (venta) => {
       montoDescuento: Number(venta.monto_descuento) || 0,
       total: Number(venta.total) || 0,
       anulada: Boolean(venta.anulada === 1 || venta.anulada === true),
-      fechaAnulacion: venta.fecha_anulacion || null,
+      fechaAnulacion:venta.fecha_anulacion ? formatearFechaArgentina(venta.fecha_anulacion) : null,
       motivoAnulacion: venta.motivo_anulacion || null,
       tieneDevoluciones: Boolean(venta.tiene_devoluciones === 1 || venta.tiene_devoluciones === true),
       productosNombres: venta.productos_nombres || "",
@@ -580,7 +580,7 @@ export const adaptVentaToFrontend = (venta) => {
       pagos: Array.isArray(venta.pagos) ? venta.pagos.map((pago) => ({
         id: Number(pago.id) || 0,
         monto: Number(pago.monto) || 0,
-        fecha: pago.fecha || "",
+        fecha:formatearFechaArgentina(pago.fecha) || "",
         anulado: Boolean(pago.anulado === 1 || pago.anulado === true),
         tipo_pago_nombre: pago.tipo_pago_nombre || pago.tipo_pago || "N/A",
         notas: pago.notas || "",
