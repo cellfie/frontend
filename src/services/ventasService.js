@@ -4,13 +4,13 @@ const API_URL = "https://api.sistemacellfierm22.site/api"
 const cache = new Map()
 const CACHE_DURATION = 2 * 60 * 1000 // 2 minutos
 
-// MEJORADO: Función para formatear fecha argentina con mejor manejo de zonas horarias
+// CORREGIDO: Función para formatear fecha argentina con suma de 3 horas
 const formatearFechaArgentina = (fechaString) => {
   if (!fechaString) return ""
 
   try {
     let fecha
-    
+
     // Mejor manejo de diferentes formatos de fecha
     if (fechaString.includes("T") || fechaString.includes("+")) {
       fecha = new Date(fechaString)
@@ -28,10 +28,13 @@ const formatearFechaArgentina = (fechaString) => {
 
     if (isNaN(fecha.getTime())) return ""
 
+    // NUEVO: Sumar 3 horas para corregir el desfase
+    fecha.setHours(fecha.getHours() + 3)
+
     return fecha.toLocaleString("es-AR", {
       timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
-      month: "2-digit", 
+      month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
@@ -50,13 +53,14 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
   try {
     // Limpiar filtros vacíos o undefined
     const cleanFilters = Object.fromEntries(
-      Object.entries(filters).filter(([key, value]) => 
-        value !== undefined && 
-        value !== null && 
-        value !== "" && 
-        value !== "todos" && // NUEVO: Excluir "todos" del filtro
-        !(Array.isArray(value) && value.length === 0)
-      )
+      Object.entries(filters).filter(
+        ([key, value]) =>
+          value !== undefined &&
+          value !== null &&
+          value !== "" &&
+          value !== "todos" && // NUEVO: Excluir "todos" del filtro
+          !(Array.isArray(value) && value.length === 0),
+      ),
     )
 
     const queryParams = new URLSearchParams({
@@ -66,7 +70,7 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     })
 
     const cacheKey = `ventas_paginadas_${queryParams.toString()}`
-    
+
     // Verificar cache
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey)
@@ -85,8 +89,8 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -96,9 +100,9 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     }
 
     const data = await response.json()
-    
+
     // VALIDACIÓN: Verificar estructura de respuesta
-    if (!data || typeof data !== 'object') {
+    if (!data || typeof data !== "object") {
       throw new Error("Respuesta inválida del servidor")
     }
 
@@ -106,7 +110,7 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
       throw new Error("Formato de ventas inválido en la respuesta")
     }
 
-    if (!data.pagination || typeof data.pagination !== 'object') {
+    if (!data.pagination || typeof data.pagination !== "object") {
       throw new Error("Información de paginación faltante")
     }
 
@@ -130,18 +134,18 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
 
     // Guardar en cache
     cache.set(cacheKey, { data: result, timestamp: Date.now() })
-    
+
     console.log("Respuesta procesada:", {
       ventasCount: data.ventas.length,
       pagination,
       cacheKey,
-      appliedFilters: data.debug?.appliedFilters || {}
+      appliedFilters: data.debug?.appliedFilters || {},
     })
 
     return result
   } catch (error) {
     console.error("Error en getVentasPaginadas:", error)
-    
+
     // MEJORADO: Proporcionar información más detallada del error
     const errorMessage = error.message || "Error desconocido al obtener ventas"
     const enhancedError = new Error(`Error al obtener ventas paginadas: ${errorMessage}`)
@@ -149,7 +153,7 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
     enhancedError.filters = filters
     enhancedError.page = page
     enhancedError.limit = limit
-    
+
     throw enhancedError
   }
 }
@@ -157,8 +161,8 @@ export const getVentasPaginadas = async (page = 1, limit = 50, filters = {}) => 
 // NUEVA FUNCIÓN: Obtener métodos de pago únicos para el filtro
 export const getMetodosPagoVentas = async () => {
   try {
-    const cacheKey = 'metodos_pago_ventas'
-    
+    const cacheKey = "metodos_pago_ventas"
+
     // Verificar cache
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey)
@@ -176,8 +180,8 @@ export const getMetodosPagoVentas = async () => {
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -187,7 +191,7 @@ export const getMetodosPagoVentas = async () => {
     }
 
     const data = await response.json()
-    
+
     // Validar que sea un array
     if (!Array.isArray(data)) {
       throw new Error("Formato de métodos de pago inválido")
@@ -195,7 +199,7 @@ export const getMetodosPagoVentas = async () => {
 
     // Guardar en cache
     cache.set(cacheKey, { data, timestamp: Date.now() })
-    
+
     console.log("Métodos de pago obtenidos:", data.length)
     return data
   } catch (error) {
@@ -213,15 +217,15 @@ export const searchVentasRapido = async (query, limit = 10) => {
 
     const queryParams = new URLSearchParams({
       q: query.trim(),
-      limit: limit.toString()
+      limit: limit.toString(),
     })
 
     const response = await fetch(`${API_URL}/ventas/search-rapido?${queryParams}`, {
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -247,15 +251,15 @@ export const searchVentasByProducto = async (productoQuery, limit = 20) => {
 
     const queryParams = new URLSearchParams({
       producto_query: productoQuery.trim(),
-      limit: limit.toString()
+      limit: limit.toString(),
     })
 
     const response = await fetch(`${API_URL}/ventas/search-by-producto?${queryParams}`, {
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -285,7 +289,7 @@ export const clearVentasCache = (pattern = null) => {
     // Limpiar todo el cache
     cache.clear()
   }
-  console.log(`Cache limpiado${pattern ? ` (patrón: ${pattern})` : ' (completo)'}`)
+  console.log(`Cache limpiado${pattern ? ` (patrón: ${pattern})` : " (completo)"}`)
 }
 
 // CORREGIDO: Función getVentas usando la paginación mejorada
@@ -308,7 +312,7 @@ export const getVentaById = async (id) => {
     }
 
     const cacheKey = `venta_detalle_${id}`
-    
+
     // Verificar cache
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey)
@@ -323,8 +327,8 @@ export const getVentaById = async (id) => {
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -337,15 +341,15 @@ export const getVentaById = async (id) => {
     }
 
     const data = await response.json()
-    
+
     // Validar estructura de respuesta
-    if (!data || typeof data !== 'object' || !data.id) {
+    if (!data || typeof data !== "object" || !data.id) {
       throw new Error("Datos de venta inválidos")
     }
 
     // Guardar en cache
     cache.set(cacheKey, { data, timestamp: Date.now() })
-    
+
     return data
   } catch (error) {
     console.error("Error en getVentaById:", error)
@@ -364,8 +368,8 @@ export const getDevolucionesByVenta = async (id) => {
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -389,7 +393,7 @@ export const getDevolucionesByVenta = async (id) => {
 export const createVenta = async (ventaData) => {
   try {
     // Validaciones básicas
-    if (!ventaData || typeof ventaData !== 'object') {
+    if (!ventaData || typeof ventaData !== "object") {
       throw new Error("Datos de venta inválidos")
     }
 
@@ -408,9 +412,9 @@ export const createVenta = async (ventaData) => {
     const backendData = {
       cliente_id: ventaData.cliente_id || null,
       punto_venta_id: Number(ventaData.punto_venta_id),
-      pagos: ventaData.pagos.map(pago => ({
+      pagos: ventaData.pagos.map((pago) => ({
         monto: Number(pago.monto),
-        tipo_pago: pago.tipo_pago
+        tipo_pago: pago.tipo_pago,
       })),
       porcentaje_interes: Number(ventaData.porcentaje_interes) || 0,
       porcentaje_descuento: Number(ventaData.porcentaje_descuento) || 0,
@@ -427,7 +431,7 @@ export const createVenta = async (ventaData) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        'Accept': 'application/json',
+        Accept: "application/json",
       },
       body: JSON.stringify(backendData),
       credentials: "include",
@@ -439,11 +443,11 @@ export const createVenta = async (ventaData) => {
     }
 
     const result = await response.json()
-    
+
     // Limpiar cache después de crear venta
-    clearVentasCache('ventas_paginadas')
-    clearVentasCache('metodos_pago_ventas') // NUEVO: Limpiar cache de métodos de pago
-    
+    clearVentasCache("ventas_paginadas")
+    clearVentasCache("metodos_pago_ventas") // NUEVO: Limpiar cache de métodos de pago
+
     return result
   } catch (error) {
     console.error("Error en createVenta:", error)
@@ -466,7 +470,7 @@ export const anularVenta = async (id, motivo) => {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        'Accept': 'application/json',
+        Accept: "application/json",
       },
       body: JSON.stringify({ motivo: motivo.trim() }),
       credentials: "include",
@@ -478,10 +482,10 @@ export const anularVenta = async (id, motivo) => {
     }
 
     const result = await response.json()
-    
+
     // Limpiar cache después de anular venta
     clearVentasCache()
-    
+
     return result
   } catch (error) {
     console.error("Error en anularVenta:", error)
@@ -493,7 +497,7 @@ export const anularVenta = async (id, motivo) => {
 export const getEstadisticasVentas = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams()
-    
+
     if (params.fecha_inicio) {
       queryParams.append("fecha_inicio", params.fecha_inicio)
     }
@@ -509,8 +513,8 @@ export const getEstadisticasVentas = async (params = {}) => {
       method: "GET",
       credentials: "include",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
     })
 
@@ -529,7 +533,7 @@ export const getEstadisticasVentas = async (params = {}) => {
 
 // CORREGIDO: Función de adaptación mejorada para el frontend con métodos de pago
 export const adaptVentaToFrontend = (venta) => {
-  if (!venta || typeof venta !== 'object') {
+  if (!venta || typeof venta !== "object") {
     console.warn("Venta inválida recibida para adaptación:", venta)
     return null
   }
@@ -553,26 +557,28 @@ export const adaptVentaToFrontend = (venta) => {
       tieneDevoluciones: Boolean(venta.tiene_devoluciones === 1 || venta.tiene_devoluciones === true),
       productosNombres: venta.productos_nombres || "",
       cantidadProductos: Number(venta.cantidad_productos) || 0,
-      
+
       // CORREGIDO: Información del cliente
-      cliente: venta.cliente_id ? {
-        id: Number(venta.cliente_id),
-        nombre: venta.cliente_nombre || "Cliente eliminado",
-        telefono: venta.cliente_telefono || null,
-      } : null,
-      
+      cliente: venta.cliente_id
+        ? {
+            id: Number(venta.cliente_id),
+            nombre: venta.cliente_nombre || "Cliente eliminado",
+            telefono: venta.cliente_telefono || null,
+          }
+        : null,
+
       // CORREGIDO: Información del usuario
       usuario: {
         id: Number(venta.usuario_id) || 0,
         nombre: venta.usuario_nombre || "Usuario eliminado",
       },
-      
+
       // CORREGIDO: Información del punto de venta
       puntoVenta: {
         id: Number(venta.punto_venta_id) || 0,
         nombre: venta.punto_venta_nombre || "Punto de venta eliminado",
       },
-      
+
       // CORREGIDO: Información del tipo de pago general (para compatibilidad)
       tipoPago: {
         nombre: venta.tipo_pago_nombre || "N/A",
@@ -581,34 +587,38 @@ export const adaptVentaToFrontend = (venta) => {
       // NUEVO: Información de métodos de pago reales
       metodosPagoReales: venta.metodos_pago_reales || null,
       cantidadMetodosPago: Number(venta.cantidad_metodos_pago) || 0,
-      
+
       // CORREGIDO: Array de pagos individuales
-      pagos: Array.isArray(venta.pagos) ? venta.pagos.map((pago) => ({
-        id: Number(pago.id) || 0,
-        monto: Number(pago.monto) || 0,
-        fecha: pago.fecha || "",
-        anulado: Boolean(pago.anulado === 1 || pago.anulado === true),
-        tipo_pago_nombre: pago.tipo_pago_nombre || pago.tipo_pago || "N/A",
-        notas: pago.notas || "",
-      })) : [],
-      
+      pagos: Array.isArray(venta.pagos)
+        ? venta.pagos.map((pago) => ({
+            id: Number(pago.id) || 0,
+            monto: Number(pago.monto) || 0,
+            fecha: pago.fecha || "",
+            anulado: Boolean(pago.anulado === 1 || pago.anulado === true),
+            tipo_pago_nombre: pago.tipo_pago_nombre || pago.tipo_pago || "N/A",
+            notas: pago.notas || "",
+          }))
+        : [],
+
       // CORREGIDO: Detalles de productos
-      detalles: Array.isArray(venta.detalles) ? venta.detalles.map((detalle) => ({
-        id: Number(detalle.id) || 0,
-        producto: {
-          id: Number(detalle.producto_id) || 0,
-          codigo: detalle.producto_codigo || "N/A",
-          nombre: detalle.producto_nombre || "Producto eliminado",
-        },
-        cantidad: Number(detalle.cantidad) || 0,
-        cantidadDevuelta: Number(detalle.cantidad_devuelta) || 0,
-        precioUnitario: Number(detalle.precio_unitario) || 0,
-        precioConDescuento: Number(detalle.precio_con_descuento) || 0,
-        subtotal: Number(detalle.subtotal) || 0,
-        devuelto: Boolean(detalle.devuelto === 1 || detalle.devuelto === true),
-        es_reemplazo: Boolean(detalle.es_reemplazo === 1 || detalle.es_reemplazo === true),
-      })) : [],
-      
+      detalles: Array.isArray(venta.detalles)
+        ? venta.detalles.map((detalle) => ({
+            id: Number(detalle.id) || 0,
+            producto: {
+              id: Number(detalle.producto_id) || 0,
+              codigo: detalle.producto_codigo || "N/A",
+              nombre: detalle.producto_nombre || "Producto eliminado",
+            },
+            cantidad: Number(detalle.cantidad) || 0,
+            cantidadDevuelta: Number(detalle.cantidad_devuelta) || 0,
+            precioUnitario: Number(detalle.precio_unitario) || 0,
+            precioConDescuento: Number(detalle.precio_con_descuento) || 0,
+            subtotal: Number(detalle.subtotal) || 0,
+            devuelto: Boolean(detalle.devuelto === 1 || detalle.devuelto === true),
+            es_reemplazo: Boolean(detalle.es_reemplazo === 1 || detalle.es_reemplazo === true),
+          }))
+        : [],
+
       notas: venta.notas || "",
     }
   } catch (error) {
@@ -623,14 +633,14 @@ export const getCacheInfo = () => {
     key,
     timestamp: value.timestamp,
     age: Date.now() - value.timestamp,
-    expired: Date.now() - value.timestamp > CACHE_DURATION
+    expired: Date.now() - value.timestamp > CACHE_DURATION,
   }))
 
   return {
     totalEntries: cache.size,
     entries,
     cacheSize: cache.size,
-    cacheDuration: CACHE_DURATION
+    cacheDuration: CACHE_DURATION,
   }
 }
 
@@ -712,7 +722,7 @@ export const validateVentasFilters = (filters) => {
   if (filters.fecha_inicio && filters.fecha_fin) {
     const fechaInicio = new Date(filters.fecha_inicio)
     const fechaFin = new Date(filters.fecha_fin)
-    
+
     if (fechaInicio > fechaFin) {
       errors.push("La fecha de inicio no puede ser mayor que la fecha de fin")
     }
@@ -720,7 +730,7 @@ export const validateVentasFilters = (filters) => {
     // Validar que no sea un rango muy amplio (más de 1 año)
     const diffTime = Math.abs(fechaFin - fechaInicio)
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
+
     if (diffDays > 365) {
       errors.push("El rango de fechas no puede ser mayor a 1 año")
     }
