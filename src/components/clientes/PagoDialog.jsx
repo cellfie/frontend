@@ -1,5 +1,5 @@
 "use client"
-import { DollarSign, CheckCircle, XCircle } from "lucide-react"
+import { DollarSign, CheckCircle, XCircle, TrendingUp, CalendarDays, Calculator } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { useState, useEffect } from "react"
 import { getTiposPago } from "@/services/pagosService"
 import { NumericFormat } from "react-number-format"
@@ -30,6 +31,10 @@ const PagoDialog = ({
   const [tiposPago, setTiposPago] = useState([])
   const [cargandoTipos, setCargandoTipos] = useState(false)
 
+  // Estados para cálculo de tarjeta de crédito
+  const [interesTarjeta, setInteresTarjeta] = useState(0)
+  const [cuotasTarjeta, setCuotasTarjeta] = useState(1)
+
   // Cargar tipos de pago al abrir el diálogo
   useEffect(() => {
     if (open) {
@@ -42,6 +47,10 @@ const PagoDialog = ({
           tipo_pago: "Efectivo", // Valor predeterminado
         }))
       }
+
+      // Resetear valores de tarjeta al abrir
+      setInteresTarjeta(0)
+      setCuotasTarjeta(1)
     }
   }, [open, formPago.tipo_pago, setFormPago])
 
@@ -89,9 +98,40 @@ const PagoDialog = ({
     return montoNumerico <= saldoCliente
   }
 
+  // Verificar si el tipo de pago es tarjeta de crédito
+  const esTarjetaCredito = () => {
+    return formPago.tipo_pago && formPago.tipo_pago.toLowerCase().includes("tarjeta")
+  }
+
+  // Calcular monto con interés
+  const calcularMontoConInteres = () => {
+    const montoNumerico =
+      typeof formPago.monto === "string"
+        ? Number.parseFloat(formPago.monto.replace(/\./g, "").replace(",", ".").replace(/\$ /g, ""))
+        : Number.parseFloat(formPago.monto)
+
+    if (isNaN(montoNumerico) || montoNumerico <= 0) return 0
+
+    return montoNumerico * (1 + interesTarjeta / 100)
+  }
+
+  // Calcular monto por cuota
+  const calcularMontoPorCuota = () => {
+    const montoConInteres = calcularMontoConInteres()
+    return cuotasTarjeta > 0 ? montoConInteres / cuotasTarjeta : 0
+  }
+
+  // Resetear valores de tarjeta cuando cambia el tipo de pago
+  useEffect(() => {
+    if (!esTarjetaCredito()) {
+      setInteresTarjeta(0)
+      setCuotasTarjeta(1)
+    }
+  }, [formPago.tipo_pago])
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-green-600 flex items-center gap-2">
             <DollarSign size={18} />
@@ -187,6 +227,100 @@ const PagoDialog = ({
                 Selecciona el método con el que se realizará el pago a la cuenta corriente
               </p>
             </div>
+
+            {/* Sección de cálculo para tarjeta de crédito */}
+            {esTarjetaCredito() && formPago.monto && validarMonto(formPago.monto) && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calculator className="h-5 w-5 text-orange-600" />
+                  <h3 className="font-medium text-orange-800">Calculadora de Tarjeta de Crédito</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <Label className="text-sm flex items-center gap-1 mb-2">
+                      <TrendingUp size={14} className="text-orange-600" />
+                      Interés (%)
+                    </Label>
+                    <NumericFormat
+                      value={interesTarjeta}
+                      onValueChange={(values) => setInteresTarjeta(Number(values.value) || 0)}
+                      suffix=" %"
+                      decimalScale={2}
+                      decimalSeparator=","
+                      allowNegative={false}
+                      disabled={estadoPago.exito || procesandoPago}
+                      className="w-full px-3 py-2 border rounded-md border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="0,00 %"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm flex items-center gap-1 mb-2">
+                      <CalendarDays size={14} className="text-orange-600" />
+                      Número de cuotas
+                    </Label>
+                    <NumericFormat
+                      value={cuotasTarjeta}
+                      onValueChange={(values) => setCuotasTarjeta(Number(values.value) || 1)}
+                      allowDecimal={false}
+                      allowNegative={false}
+                      disabled={estadoPago.exito || procesandoPago}
+                      className="w-full px-3 py-2 border rounded-md border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="1"
+                      isAllowed={(values) => {
+                        const { floatValue } = values
+                        return floatValue === undefined || floatValue >= 1
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {(interesTarjeta > 0 || cuotasTarjeta > 1) && (
+                  <>
+                    <Separator className="my-3" />
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-orange-800 text-sm">Resumen del financiamiento:</h4>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                        <div className="bg-white p-3 rounded-md border border-orange-200">
+                          <div className="text-gray-600 text-xs">Monto original</div>
+                          <div className="font-medium text-gray-800">
+                            {formatearPrecio(
+                              typeof formPago.monto === "string"
+                                ? Number.parseFloat(
+                                    formPago.monto.replace(/\./g, "").replace(",", ".").replace(/\$ /g, ""),
+                                  )
+                                : Number.parseFloat(formPago.monto),
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-md border border-orange-200">
+                          <div className="text-gray-600 text-xs">Total con interés</div>
+                          <div className="font-medium text-orange-700">
+                            {formatearPrecio(calcularMontoConInteres())}
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-md border border-orange-200">
+                          <div className="text-gray-600 text-xs">{cuotasTarjeta} cuota(s) de</div>
+                          <div className="font-medium text-orange-700">{formatearPrecio(calcularMontoPorCuota())}</div>
+                        </div>
+                      </div>
+
+                      {interesTarjeta > 0 && (
+                        <div className="text-xs text-orange-700 bg-orange-100 p-2 rounded-md">
+                          <strong>Nota:</strong> Este cálculo es solo informativo. El interés mostrado es el que se
+                          aplicaría si el cliente pagara con tarjeta de crédito en {cuotasTarjeta} cuota
+                          {cuotasTarjeta > 1 ? "s" : ""}.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label htmlFor="notas">Notas (opcional)</Label>
