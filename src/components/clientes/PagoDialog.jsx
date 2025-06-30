@@ -131,8 +131,8 @@ const PagoDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-green-600 flex items-center gap-2">
             <DollarSign size={18} />
             Registrar Pago
@@ -140,44 +140,45 @@ const PagoDialog = ({
           <DialogDescription>Registra un pago para reducir el saldo de la cuenta corriente</DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
-          <div className="bg-gray-50 p-3 rounded border mb-4">
-            <div className="text-sm">
-              <div className="flex justify-between mb-1">
-                <span className="text-gray-500">Cliente:</span>
-                <span className="font-medium">{clienteSeleccionado?.nombre}</span>
-              </div>
-              <div className="flex justify-between mb-1">
-                <span className="text-gray-500">Saldo actual:</span>
-                <span className="font-medium text-red-600">
-                  {clienteSeleccionado?.cuentaCorriente && formatearPrecio(clienteSeleccionado.cuentaCorriente.saldo)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Estado del pago */}
-          {estadoPago.exito && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-700 flex items-start gap-2">
-              <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="font-medium">Pago registrado</p>
-                <p className="text-sm">{estadoPago.mensaje}</p>
-              </div>
-            </div>
-          )}
-
-          {estadoPago.error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 flex items-start gap-2">
-              <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="font-medium">Error al registrar pago</p>
-                <p className="text-sm">{estadoPago.mensaje}</p>
-              </div>
-            </div>
-          )}
-
+        {/* Contenido con scroll */}
+        <div className="flex-1 overflow-y-auto py-4 px-1">
           <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded border">
+              <div className="text-sm">
+                <div className="flex justify-between mb-1">
+                  <span className="text-gray-500">Cliente:</span>
+                  <span className="font-medium">{clienteSeleccionado?.nombre}</span>
+                </div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-gray-500">Saldo actual:</span>
+                  <span className="font-medium text-red-600">
+                    {clienteSeleccionado?.cuentaCorriente && formatearPrecio(clienteSeleccionado.cuentaCorriente.saldo)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Estado del pago */}
+            {estadoPago.exito && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md text-green-700 flex items-start gap-2">
+                <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Pago registrado</p>
+                  <p className="text-sm">{estadoPago.mensaje}</p>
+                </div>
+              </div>
+            )}
+
+            {estadoPago.error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 flex items-start gap-2">
+                <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">Error al registrar pago</p>
+                  <p className="text-sm">{estadoPago.mensaje}</p>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="monto">
                 Monto a pagar <span className="text-red-500">*</span>
@@ -335,7 +336,7 @@ const PagoDialog = ({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => setOpen(false)} disabled={procesandoPago}>
             {estadoPago.exito ? "Cerrar" : "Cancelar"}
           </Button>
