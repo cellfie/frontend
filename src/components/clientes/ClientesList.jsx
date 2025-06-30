@@ -21,6 +21,7 @@ import {
   DollarSign,
   AlertCircle,
   Calendar,
+  Settings,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -73,6 +74,7 @@ const ClienteDetalle = ({
   setRangoFechasMovimientos,
   abrirDialogCuentaCorriente,
   abrirDialogPago,
+  abrirDialogAjuste,
   cargarMovimientosPorFecha,
 }) => {
   // Estado para controlar si se muestran todos los movimientos o solo los primeros 3
@@ -156,7 +158,7 @@ const ClienteDetalle = ({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 text-xs"
+                            className="h-7 text-xs bg-transparent"
                             onClick={abrirDialogCuentaCorriente}
                           >
                             <Plus className="h-3 w-3 mr-1" />
@@ -241,6 +243,15 @@ const ClienteDetalle = ({
                               Registrar pago
                             </Button>
                           )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={abrirDialogAjuste}
+                            className="bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
+                          >
+                            <Settings className="h-3.5 w-3.5 mr-1" />
+                            Ajustes de cuenta
+                          </Button>
                         </div>
                       </>
                     ) : (
@@ -413,6 +424,7 @@ const ClientesList = ({
   setRangoFechasMovimientos,
   abrirDialogCuentaCorriente,
   abrirDialogPago,
+  abrirDialogAjuste,
 }) => {
   // Función para cargar movimientos por rango de fechas
   const cargarMovimientosPorFecha = async (cuentaId, rangoFechas) => {
@@ -609,6 +621,7 @@ const ClientesList = ({
                                 setRangoFechasMovimientos={setRangoFechasMovimientos}
                                 abrirDialogCuentaCorriente={abrirDialogCuentaCorriente}
                                 abrirDialogPago={abrirDialogPago}
+                                abrirDialogAjuste={abrirDialogAjuste}
                                 cargarMovimientosPorFecha={cargarMovimientosPorFecha}
                               />
                             </TableCell>

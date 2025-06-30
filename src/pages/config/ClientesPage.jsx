@@ -21,6 +21,7 @@ import {
   getCuentaCorrienteByCliente,
   createOrUpdateCuentaCorriente,
   adaptCuentaCorrienteToFrontend,
+  registrarAjuste,
 } from "@/services/cuentasCorrientesService"
 import { createPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
@@ -29,6 +30,7 @@ import ClientesList from "../../components/clientes/ClientesList"
 import ClienteFormDialog from "../../components/clientes/ClienteFormDialog"
 import CuentaCorrienteDialog from "../../components/clientes/CuentaCorrienteDialog"
 import PagoDialog from "../../components/clientes/PagoDialog"
+import AjusteDialog from "../../components/clientes/AjusteDialog"
 
 const ClientesPage = () => {
   const { currentUser } = useAuth()
@@ -44,6 +46,7 @@ const ClientesPage = () => {
   const [dialogEliminarAbierto, setDialogEliminarAbierto] = useState(false)
   const [dialogPagoAbierto, setDialogPagoAbierto] = useState(false)
   const [dialogCuentaCorrienteAbierto, setDialogCuentaCorrienteAbierto] = useState(false)
+  const [dialogAjusteAbierto, setDialogAjusteAbierto] = useState(false)
   const [modoEdicion, setModoEdicion] = useState(false)
   const [clienteEnEdicion, setClienteEnEdicion] = useState(null) // Nuevo estado para el cliente en edición
   const [formCliente, setFormCliente] = useState({
@@ -69,6 +72,12 @@ const ClientesPage = () => {
   })
   const [procesandoPago, setProcesandoPago] = useState(false)
   const [estadoPago, setEstadoPago] = useState({
+    exito: false,
+    error: false,
+    mensaje: "",
+  })
+  const [procesandoAjuste, setProcesandoAjuste] = useState(false)
+  const [estadoAjuste, setEstadoAjuste] = useState({
     exito: false,
     error: false,
     mensaje: "",
@@ -325,6 +334,16 @@ const ClientesPage = () => {
     setDialogPagoAbierto(true)
   }
 
+  // NUEVA FUNCIÓN: Abrir diálogo para ajustes de cuenta
+  const abrirDialogAjuste = () => {
+    setEstadoAjuste({
+      exito: false,
+      error: false,
+      mensaje: "",
+    })
+    setDialogAjusteAbierto(true)
+  }
+
   // Guardar cliente (crear o actualizar) - CORREGIDO
   const guardarCliente = async () => {
     if (!formCliente.nombre.trim()) {
@@ -531,6 +550,80 @@ const ClientesPage = () => {
     }
   }
 
+  // NUEVA FUNCIÓN: Registrar ajuste de cuenta corriente
+  const registrarAjusteEnCuenta = async (datosAjuste) => {
+    setProcesandoAjuste(true)
+    setEstadoAjuste({ exito: false, error: false, mensaje: "" })
+
+    try {
+      // Registrar el ajuste usando el nuevo servicio
+      const resultadoAjuste = await registrarAjuste(datosAjuste)
+
+      // Recargar la cuenta corriente para obtener el saldo actualizado
+      await cargarCuentaCorriente(clienteSeleccionado.id)
+
+      // Calcular el nuevo saldo según el tipo de ajuste
+      let nuevoSaldo
+      const montoNumerico = Number.parseFloat(datosAjuste.monto)
+      const saldoActual = clienteSeleccionado.cuentaCorriente.saldo
+
+      if (datosAjuste.tipo_ajuste === "pago") {
+        nuevoSaldo = saldoActual - montoNumerico
+      } else {
+        nuevoSaldo = saldoActual + montoNumerico
+      }
+
+      // Actualizar el cliente seleccionado con el nuevo saldo
+      if (clienteSeleccionado && clienteSeleccionado.cuentaCorriente) {
+        setClienteSeleccionado({
+          ...clienteSeleccionado,
+          cuentaCorriente: {
+            ...clienteSeleccionado.cuentaCorriente,
+            saldo: nuevoSaldo,
+          },
+        })
+
+        // Actualizar la lista de clientes
+        setClientes((prevClientes) =>
+          prevClientes.map((c) => {
+            if (c.id === clienteSeleccionado.id && c.cuentaCorriente) {
+              return {
+                ...c,
+                cuentaCorriente: {
+                  ...c.cuentaCorriente,
+                  saldo: nuevoSaldo,
+                },
+              }
+            }
+            return c
+          }),
+        )
+      }
+
+      const tipoTexto = datosAjuste.tipo_ajuste === "pago" ? "Pago" : "Cargo"
+      setEstadoAjuste({
+        exito: true,
+        error: false,
+        mensaje: `${tipoTexto} de ${formatearPrecio(montoNumerico)} registrado correctamente`,
+      })
+
+      // Cerrar el diálogo después de 2 segundos
+      setTimeout(() => {
+        setDialogAjusteAbierto(false)
+        toast.success(`${tipoTexto} registrado correctamente`)
+      }, 2000)
+    } catch (error) {
+      console.error("Error al registrar ajuste:", error)
+      setEstadoAjuste({
+        exito: false,
+        error: true,
+        mensaje: error.message || "Error al registrar ajuste",
+      })
+    } finally {
+      setProcesandoAjuste(false)
+    }
+  }
+
   // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
@@ -676,6 +769,7 @@ const ClientesPage = () => {
           setRangoFechasMovimientos={setRangoFechasMovimientos}
           abrirDialogCuentaCorriente={abrirDialogCuentaCorriente}
           abrirDialogPago={abrirDialogPago}
+          abrirDialogAjuste={abrirDialogAjuste}
         />
       )}
 
@@ -724,6 +818,16 @@ const ClientesPage = () => {
         clienteSeleccionado={clienteSeleccionado}
         procesandoPago={procesandoPago}
         estadoPago={estadoPago}
+        formatearPrecio={formatearPrecio}
+      />
+
+      <AjusteDialog
+        open={dialogAjusteAbierto}
+        setOpen={setDialogAjusteAbierto}
+        clienteSeleccionado={clienteSeleccionado}
+        procesandoAjuste={procesandoAjuste}
+        estadoAjuste={estadoAjuste}
+        onRegistrarAjuste={registrarAjusteEnCuenta}
         formatearPrecio={formatearPrecio}
       />
     </div>

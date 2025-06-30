@@ -1,5 +1,5 @@
 // cuentaCorrienteService.js
-const API_URL = "https://api.sistemacellfierm22.site/api" 
+const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Obtener todas las cuentas corrientes
 export const getCuentasCorrientes = async () => {
@@ -107,6 +107,30 @@ export const registrarPago = async (pagoData) => {
   }
 }
 
+// NUEVA FUNCIÓN: Registrar ajuste de cuenta corriente
+export const registrarAjuste = async (ajusteData) => {
+  try {
+    const response = await fetch(`${API_URL}/cuentas-corrientes/ajuste`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(ajusteData),
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Error al registrar el ajuste")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error en registrarAjuste:", error)
+    throw error
+  }
+}
+
 // Función para obtener los movimientos de una cuenta corriente
 export const getMovimientosCuentaCorriente = async (cuentaId, params = {}) => {
   try {
@@ -199,4 +223,59 @@ export const getTipoReferenciaDescripcion = (tipoReferencia) => {
   }
 
   return tipos[tipoReferencia] || tipoReferencia
+}
+
+// NUEVA FUNCIÓN: Obtener tipos de ajuste disponibles
+export const getTiposAjuste = () => {
+  return [
+    {
+      id: "pago",
+      nombre: "Pago",
+      descripcion: "Registrar un pago que reduce el saldo de la cuenta",
+      icono: "minus",
+      color: "green",
+    },
+    {
+      id: "cargo",
+      nombre: "Cargo",
+      descripcion: "Agregar un cargo que aumenta el saldo de la cuenta",
+      icono: "plus",
+      color: "red",
+    },
+  ]
+}
+
+// NUEVA FUNCIÓN: Validar datos de ajuste antes de enviar
+export const validarDatosAjuste = (ajusteData) => {
+  const errores = []
+
+  // Validar cliente_id
+  if (!ajusteData.cliente_id || !Number.isInteger(Number(ajusteData.cliente_id))) {
+    errores.push("ID de cliente inválido")
+  }
+
+  // Validar monto
+  const monto = Number.parseFloat(ajusteData.monto)
+  if (isNaN(monto) || monto <= 0) {
+    errores.push("El monto debe ser un número mayor a cero")
+  }
+
+  // Validar tipo_ajuste
+  if (!["pago", "cargo"].includes(ajusteData.tipo_ajuste)) {
+    errores.push('El tipo de ajuste debe ser "pago" o "cargo"')
+  }
+
+  // Validar motivo
+  if (!ajusteData.motivo || ajusteData.motivo.trim().length < 5) {
+    errores.push("El motivo debe tener al menos 5 caracteres")
+  }
+
+  if (ajusteData.motivo && ajusteData.motivo.length > 500) {
+    errores.push("El motivo no puede exceder los 500 caracteres")
+  }
+
+  return {
+    esValido: errores.length === 0,
+    errores,
+  }
 }
