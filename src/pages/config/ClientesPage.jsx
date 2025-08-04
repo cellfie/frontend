@@ -23,7 +23,6 @@ import {
   adaptCuentaCorrienteToFrontend,
   registrarAjuste,
 } from "@/services/cuentasCorrientesService"
-import { createPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
 
 import ClientesList from "../../components/clientes/ClientesList"
@@ -48,7 +47,7 @@ const ClientesPage = () => {
   const [dialogCuentaCorrienteAbierto, setDialogCuentaCorrienteAbierto] = useState(false)
   const [dialogAjusteAbierto, setDialogAjusteAbierto] = useState(false)
   const [modoEdicion, setModoEdicion] = useState(false)
-  const [clienteEnEdicion, setClienteEnEdicion] = useState(null) // Nuevo estado para el cliente en edición
+  const [clienteEnEdicion, setClienteEnEdicion] = useState(null)
   const [formCliente, setFormCliente] = useState({
     nombre: "",
     telefono: "",
@@ -467,7 +466,7 @@ const ClientesPage = () => {
     }
   }
 
-  // Registrar pago en cuenta corriente
+  // CORREGIDO: Registrar pago en cuenta corriente usando el servicio de ajustes
   const registrarPagoEnCuenta = async () => {
     // Convertir el monto formateado a un número
     const montoString = formPago.monto.toString().replace(/\./g, "").replace(",", ".").replace(/\$ /g, "")
@@ -482,18 +481,17 @@ const ClientesPage = () => {
     setEstadoPago({ exito: false, error: false, mensaje: "" })
 
     try {
-      // Usar el endpoint de pagos para registrar el pago
-      const pagoData = {
-        monto: montoNumerico,
-        tipo_pago: formPago.tipo_pago,
+      // CORREGIDO: Usar el servicio de ajustes en lugar del servicio de pagos
+      const ajusteData = {
         cliente_id: clienteSeleccionado.id,
-        tipo_referencia: "cuenta_corriente",
-        notas: formPago.notas || "Pago en cuenta corriente",
+        monto: montoNumerico,
+        tipo_ajuste: "pago", // Especificar que es un pago
+        motivo: formPago.notas || `Pago registrado con ${formPago.tipo_pago}`,
         punto_venta_id: 1, // Punto de venta por defecto
       }
 
-      // Registrar el pago usando el servicio de pagos
-      const resultadoPago = await createPago(pagoData)
+      // Registrar el pago usando el servicio de ajustes
+      const resultadoPago = await registrarAjuste(ajusteData)
 
       // Recargar la cuenta corriente para obtener el saldo actualizado
       await cargarCuentaCorriente(clienteSeleccionado.id)
