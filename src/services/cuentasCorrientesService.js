@@ -1,6 +1,38 @@
 // cuentaCorrienteService.js
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
+const formatearFechaArgentina = (fechaString) => {
+  if (!fechaString) return ""
+
+  try {
+    let fecha
+
+    // Mejor manejo de diferentes formatos de fecha
+    if (fechaString.includes("T") || fechaString.includes("+")) {
+      fecha = new Date(fechaString)
+    } else {
+      fecha = new Date(fechaString + " GMT-0300")
+    }
+
+    if (isNaN(fecha.getTime())) return ""
+
+    return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+  } catch (error) {
+    console.error("Error al formatear fecha:", error)
+    return ""
+  }
+}
+
+export { formatearFechaArgentina }
+
 // Obtener todas las cuentas corrientes
 export const getCuentasCorrientes = async () => {
   try {
@@ -166,7 +198,7 @@ export const getMovimientosCuentaCorriente = async (cuentaId, params = {}) => {
       monto: Number(movimiento.monto),
       saldo_anterior: Number(movimiento.saldo_anterior),
       saldo_nuevo: Number(movimiento.saldo_nuevo),
-      fecha: movimiento.fecha,
+      fecha: formatearFechaArgentina(movimiento.fecha),
       tipo: movimiento.tipo,
       notas: movimiento.notas || "",
       tipo_referencia: movimiento.tipo_referencia || "",
