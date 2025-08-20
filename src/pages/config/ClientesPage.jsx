@@ -626,17 +626,33 @@ const ClientesPage = () => {
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear la fecha a partir del string
-    const fecha = new Date(fechaString)
+    try {
+      let fecha
 
-    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
-    return fecha.toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+      // Mejor manejo de diferentes formatos de fecha
+      if (fechaString.includes("T") || fechaString.includes("+")) {
+        fecha = new Date(fechaString)
+      } else {
+        fecha = new Date(fechaString + " GMT-0300")
+      }
+
+      if (isNaN(fecha.getTime())) return ""
+
+      fecha.setHours(fecha.getHours() + 3)
+
+      return fecha.toLocaleString("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    } catch (error) {
+      console.error("Error al formatear fecha:", error)
+      return ""
+    }
   }
 
   // Formatear precio para mostrar
