@@ -622,15 +622,16 @@ const ClientesPage = () => {
     }
   }
 
-  // Formatear fecha para mostrar - SIMPLIFICADO sin conversiones manuales
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
 
-    // Crear la fecha a partir del string
-    const fecha = new Date(fechaString)
+    // Crear la fecha asumiendo que viene en formato MySQL (YYYY-MM-DD HH:mm:ss)
+    // y que está en zona horaria de Argentina
+    const fecha = new Date(fechaString + " GMT-0300")
 
-    // Usar toLocaleString sin especificar zona horaria para usar la del sistema
+    // Formatear usando zona horaria de Argentina
     return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
