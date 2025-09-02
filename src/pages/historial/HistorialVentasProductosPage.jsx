@@ -399,24 +399,28 @@ export default function HistorialVentasProductosPage() {
       setTotalVentasFiltradas(result.total_monto)
       setCantidadVentasFiltradas(result.cantidad_ventas)
 
-      console.log("Total ventas filtradas fetched:", result)
+      console.log("Total ventas filtradas fetched successfully:", {
+        total_monto: result.total_monto,
+        cantidad_ventas: result.cantidad_ventas,
+        filters,
+      })
     } catch (error) {
       console.error("Error al obtener total de ventas filtradas:", error)
+      toast.error("Error al cargar los totales de ventas")
       // En caso de error, mantener los valores actuales o usar 0
       setTotalVentasFiltradas(0)
       setCantidadVentasFiltradas(0)
     }
   }, [buildFilters])
 
-  // CORREGIDO: Cargar ventas con paginación mejorada
   const fetchVentas = useCallback(
     async (page = 1, resetPage = false) => {
       setIsLoading(true)
       setFetchError(null)
 
       try {
-        const filters = buildFilters()
         const actualPage = resetPage ? 1 : page
+        const filters = buildFilters()
 
         console.log("Fetching ventas:", { actualPage, itemsPerPage, filters })
 
@@ -443,7 +447,7 @@ export default function HistorialVentasProductosPage() {
         }
 
         // Adaptar ventas al frontend
-        const ventasAdaptadas = result.ventas.map(adaptVentaToFrontend).filter((venta) => venta !== null) // Filtrar ventas que no se pudieron adaptar
+        const ventasAdaptadas = result.ventas.map(adaptVentaToFrontend).filter((venta) => venta !== null)
 
         // CORREGIDO: Actualizar todos los estados de paginación
         setVentas(ventasAdaptadas)
@@ -466,6 +470,15 @@ export default function HistorialVentasProductosPage() {
           setCurrentPage(1)
           setDetalleVentaAbierto(null)
         }
+
+        console.log("Estados actualizados:", {
+          ventasCount: ventasAdaptadas.length,
+          totalVentasFiltradas: totalResult.total_monto,
+          cantidadVentasFiltradas: totalResult.cantidad_ventas,
+          paginationTotalItems: result.pagination.totalItems,
+          currentPage: result.pagination.currentPage,
+          totalPages: result.pagination.totalPages,
+        })
 
         // NUEVO: Mostrar información útil en consola para debugging
         if (result.debug) {

@@ -799,7 +799,12 @@ export const getTotalVentasFiltradas = async (filters = {}) => {
     // Guardar en cache
     cache.set(cacheKey, { data: result, timestamp: Date.now() })
 
-    console.log("Total de ventas filtradas obtenido:", result)
+    console.log("Total de ventas filtradas obtenido:", {
+      ...result,
+      filters: cleanFilters,
+      cacheKey,
+    })
+
     return result
   } catch (error) {
     console.error("Error en getTotalVentasFiltradas:", error)
