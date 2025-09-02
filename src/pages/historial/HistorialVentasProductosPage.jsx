@@ -1,11 +1,39 @@
 "use client"
 
 import React, { useRef } from "react"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Filter, FileText, MapPin, Trash2, ChevronDown, ChevronUp, RefreshCw, AlertTriangle, ShoppingBag, Package, CheckCircle, XCircle, ArrowLeftRight, Plus, DollarSign, Calendar, Loader2, X, Star, TrendingUp, Eye, EyeOff, CreditCard, Landmark, University, Wallet } from 'lucide-react'
+import {
+  Search,
+  Filter,
+  FileText,
+  MapPin,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  AlertTriangle,
+  ShoppingBag,
+  Package,
+  CheckCircle,
+  XCircle,
+  ArrowLeftRight,
+  Plus,
+  DollarSign,
+  Calendar,
+  Loader2,
+  X,
+  Star,
+  TrendingUp,
+  Eye,
+  EyeOff,
+  CreditCard,
+  Landmark,
+  University,
+  Wallet,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +52,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -42,6 +70,7 @@ import {
   getMetodosPagoVentas, // NUEVO: Importar función para métodos de pago
   buildVentasFilters,
   validateVentasFilters,
+  getTotalVentasFiltradas, // Adding import for total calculation
 } from "@/services/ventasService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getDevolucionesByVenta } from "@/services/devolucionesService"
@@ -95,13 +124,13 @@ const getPaymentIcon = (paymentMethodName) => {
 const hasMultiplePaymentMethods = (venta) => {
   // Verificar si tiene múltiples pagos registrados
   if (venta.pagos && venta.pagos.length > 1) return true
-  
+
   // Verificar si el tipo de pago es "Múltiple"
   if (venta.tipoPago?.nombre === "Múltiple") return true
-  
+
   // Verificar si tiene métodos de pago reales múltiples
-  if (venta.metodosPagoReales && venta.metodosPagoReales.includes(',')) return true
-  
+  if (venta.metodosPagoReales && venta.metodosPagoReales.includes(",")) return true
+
   return false
 }
 
@@ -109,40 +138,44 @@ const hasMultiplePaymentMethods = (venta) => {
 const getVentaPaymentMethods = (venta) => {
   // Si tiene pagos individuales registrados, usar esos
   if (venta.pagos && venta.pagos.length > 0) {
-    return venta.pagos.map(pago => ({
+    return venta.pagos.map((pago) => ({
       nombre: pago.tipo_pago_nombre,
       monto: pago.monto,
-      anulado: pago.anulado
+      anulado: pago.anulado,
     }))
   }
-  
+
   // Si tiene métodos de pago reales del backend
   if (venta.metodosPagoReales) {
-    const metodos = venta.metodosPagoReales.split(', ').filter(m => m.trim())
-    return metodos.map(metodo => ({
+    const metodos = venta.metodosPagoReales.split(", ").filter((m) => m.trim())
+    return metodos.map((metodo) => ({
       nombre: metodo.trim(),
       monto: null, // No tenemos el monto individual
-      anulado: false
+      anulado: false,
     }))
   }
-  
+
   // Fallback al tipo de pago general
   if (venta.tipoPago?.nombre) {
-    return [{
-      nombre: venta.tipoPago.nombre,
-      monto: venta.total,
-      anulado: false
-    }]
+    return [
+      {
+        nombre: venta.tipoPago.nombre,
+        monto: venta.total,
+        anulado: false,
+      },
+    ]
   }
-  
-  return [{
-    nombre: "N/A",
-    monto: venta.total,
-    anulado: false
-  }]
+
+  return [
+    {
+      nombre: "N/A",
+      monto: venta.total,
+      anulado: false,
+    },
+  ]
 }
 
-const HistorialVentas = () => {
+export default function HistorialVentasProductosPage() {
   const { currentUser } = useAuth()
   const isAdmin = currentUser?.role === "admin"
 
@@ -214,17 +247,19 @@ const HistorialVentas = () => {
   const [fetchError, setFetchError] = useState(null)
   const [loadingMetodosPago, setLoadingMetodosPago] = useState(false) // NUEVO: Loading para métodos de pago
 
+  const [totalVentasFiltradas, setTotalVentasFiltradas] = useState(0)
+  const [cantidadVentasFiltradas, setCantidadVentasFiltradas] = useState(0)
+
   // Debounce para la búsqueda
   const debouncedSearchTerm = useDebounce(searchTerm, 500)
   const debouncedBusquedaProducto = useDebounce(busquedaProducto, 300)
 
-  // Calcular el total de ventas filtradas
-  const totalVentasFiltradas = useMemo(() => {
-    return ventas.reduce((sum, venta) => {
-      const ventaTotal = typeof venta.total === "number" ? venta.total : Number.parseFloat(venta.total) || 0
-      return sum + ventaTotal
-    }, 0)
-  }, [ventas])
+  // const totalVentasFiltradas = useMemo(() => {
+  //   return ventas.reduce((sum, venta) => {
+  //     const ventaTotal = typeof venta.total === "number" ? venta.total : Number.parseFloat(venta.total) || 0
+  //     return sum + ventaTotal
+  //   }, 0)
+  // }, [ventas])
 
   // Función para hacer scroll suave al elemento
   const scrollToVenta = useCallback((ventaId) => {
@@ -242,9 +277,12 @@ const HistorialVentas = () => {
 
   // NUEVO: Función para limpiar cache expirado automáticamente
   useEffect(() => {
-    const interval = setInterval(() => {
-      cleanExpiredCache()
-    }, 5 * 60 * 1000) // Cada 5 minutos
+    const interval = setInterval(
+      () => {
+        cleanExpiredCache()
+      },
+      5 * 60 * 1000,
+    ) // Cada 5 minutos
 
     return () => clearInterval(interval)
   }, [])
@@ -254,11 +292,11 @@ const HistorialVentas = () => {
     const cargarDatosIniciales = async () => {
       try {
         setLoadingMetodosPago(true)
-        
+
         // CORREGIDO: Cargar métodos de pago reales desde ventas
         const [puntosData, metodosData] = await Promise.all([
-          getPuntosVenta(), 
-          getMetodosPagoVentas() // NUEVO: Usar la nueva función
+          getPuntosVenta(),
+          getMetodosPagoVentas(), // NUEVO: Usar la nueva función
         ])
 
         setPuntosVenta(puntosData)
@@ -293,7 +331,6 @@ const HistorialVentas = () => {
     cargarDatosIniciales()
   }, [isAdmin])
 
-  
   // MEJORADO: Búsqueda de productos con debounce
   useEffect(() => {
     const buscarProductos = async () => {
@@ -325,8 +362,8 @@ const HistorialVentas = () => {
   const buildFilters = useCallback(() => {
     const filters = {
       search: debouncedSearchTerm?.trim() || undefined,
-      punto_venta_id: selectedPuntoVenta !== "todos" ? 
-        puntosVenta.find(pv => pv.nombre === selectedPuntoVenta)?.id : undefined,
+      punto_venta_id:
+        selectedPuntoVenta !== "todos" ? puntosVenta.find((pv) => pv.nombre === selectedPuntoVenta)?.id : undefined,
       tipo_pago: selectedMetodoPago !== "todos" ? selectedMetodoPago : undefined, // CORREGIDO: Filtro de método de pago
       anuladas: mostrarAnuladas,
       producto_id: productoSeleccionado?.id || undefined,
@@ -352,27 +389,52 @@ const HistorialVentas = () => {
     puntosVenta,
   ])
 
+  const fetchTotalVentasFiltradas = useCallback(async () => {
+    try {
+      const filters = buildFilters()
+      console.log("Fetching total ventas filtradas with filters:", filters)
+
+      const result = await getTotalVentasFiltradas(filters)
+
+      setTotalVentasFiltradas(result.total_monto)
+      setCantidadVentasFiltradas(result.cantidad_ventas)
+
+      console.log("Total ventas filtradas fetched:", result)
+    } catch (error) {
+      console.error("Error al obtener total de ventas filtradas:", error)
+      // En caso de error, mantener los valores actuales o usar 0
+      setTotalVentasFiltradas(0)
+      setCantidadVentasFiltradas(0)
+    }
+  }, [buildFilters])
+
   // CORREGIDO: Cargar ventas con paginación mejorada
   const fetchVentas = useCallback(
     async (page = 1, resetPage = false) => {
       setIsLoading(true)
       setFetchError(null)
-      
+
       try {
         const filters = buildFilters()
         const actualPage = resetPage ? 1 : page
-        
+
         console.log("Fetching ventas:", { actualPage, itemsPerPage, filters })
-        
+
         const startTime = Date.now()
-        const result = await getVentasPaginadas(actualPage, itemsPerPage, filters)
+
+        const [result, totalResult] = await Promise.all([
+          getVentasPaginadas(actualPage, itemsPerPage, filters),
+          getTotalVentasFiltradas(filters),
+        ])
+
         const endTime = Date.now()
-        
+
         console.log("Ventas fetched successfully:", {
           ventasCount: result.ventas.length,
           pagination: result.pagination,
+          totalReal: totalResult,
           fetchTime: endTime - startTime,
-          debug: result.debug
+          debug: result.debug,
         })
 
         // CORREGIDO: Validar que result tenga la estructura esperada
@@ -381,9 +443,7 @@ const HistorialVentas = () => {
         }
 
         // Adaptar ventas al frontend
-        const ventasAdaptadas = result.ventas
-          .map(adaptVentaToFrontend)
-          .filter(venta => venta !== null) // Filtrar ventas que no se pudieron adaptar
+        const ventasAdaptadas = result.ventas.map(adaptVentaToFrontend).filter((venta) => venta !== null) // Filtrar ventas que no se pudieron adaptar
 
         // CORREGIDO: Actualizar todos los estados de paginación
         setVentas(ventasAdaptadas)
@@ -394,6 +454,9 @@ const HistorialVentas = () => {
         setHasPrevPage(result.pagination.hasPrevPage)
         setStartItem(result.pagination.startItem || 1)
         setEndItem(result.pagination.endItem || 0)
+
+        setTotalVentasFiltradas(totalResult.total_monto)
+        setCantidadVentasFiltradas(totalResult.cantidad_ventas)
 
         // NUEVO: Guardar información de debug
         setDebugInfo(result.debug)
@@ -408,12 +471,11 @@ const HistorialVentas = () => {
         if (result.debug) {
           console.log("Debug info:", result.debug)
         }
-
       } catch (error) {
         console.error("Error al cargar ventas:", error)
         setFetchError(error.message)
         toast.error(`Error al cargar ventas: ${error.message}`)
-        
+
         // En caso de error, resetear estados
         setVentas([])
         setTotalPages(1)
@@ -422,6 +484,8 @@ const HistorialVentas = () => {
         setHasPrevPage(false)
         setStartItem(1)
         setEndItem(0)
+        setTotalVentasFiltradas(0)
+        setCantidadVentasFiltradas(0)
       } finally {
         setIsLoading(false)
       }
@@ -443,7 +507,7 @@ const HistorialVentas = () => {
     productoSeleccionado,
     itemsPerPage,
     dateRange,
-    fetchVentas
+    fetchVentas,
   ])
 
   // CORREGIDO: Efecto para cargar ventas cuando cambia la página
@@ -543,9 +607,9 @@ const HistorialVentas = () => {
     limpiarFiltroProducto()
     setCurrentPage(1)
     setDetalleVentaAbierto(null)
-    
+
     // NUEVO: Limpiar cache al limpiar filtros
-    clearVentasCache('ventas_paginadas')
+    clearVentasCache("ventas_paginadas")
   }
 
   // MEJORADO: Abrir detalle de venta con scroll automático y mejor manejo de errores
@@ -567,7 +631,7 @@ const HistorialVentas = () => {
       }
 
       const ventaAdaptada = adaptVentaToFrontend(ventaDetalladaCruda)
-      
+
       if (!ventaAdaptada) {
         throw new Error("Error al procesar los datos de la venta")
       }
@@ -803,9 +867,8 @@ const HistorialVentas = () => {
           {/* NUEVO: Información de debug para administradores */}
           {isAdmin && debugInfo && (
             <div className="text-xs text-gray-400 mt-1">
-              Última actualización: {lastFetchTime?.toLocaleTimeString()} | 
-              Filtros aplicados: {Object.keys(debugInfo.appliedFilters || {}).length} |
-              Cache: {getCacheInfo().totalEntries} entradas
+              Última actualización: {lastFetchTime?.toLocaleTimeString()} | Filtros aplicados:{" "}
+              {Object.keys(debugInfo.appliedFilters || {}).length} | Cache: {getCacheInfo().totalEntries} entradas
             </div>
           )}
         </div>
@@ -819,12 +882,7 @@ const HistorialVentas = () => {
             <span className="font-medium">Error al cargar datos:</span>
           </div>
           <p className="text-sm mt-1">{fetchError}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchVentas(currentPage)}
-            className="mt-2"
-          >
+          <Button variant="outline" size="sm" onClick={() => fetchVentas(currentPage)} className="mt-2">
             <RefreshCw className="h-4 w-4 mr-1" />
             Reintentar
           </Button>
@@ -842,6 +900,7 @@ const HistorialVentas = () => {
                   Total en ARS
                 </span>
                 <span className="text-white text-2xl font-bold">{formatearPrecio(totalVentasFiltradas)}</span>
+                <span className="text-white/70 text-xs">Total de todas las ventas filtradas</span>
               </div>
 
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
@@ -849,8 +908,10 @@ const HistorialVentas = () => {
                   <ShoppingBag size={14} />
                   Cantidad de Ventas
                 </span>
-                <span className="text-white text-2xl font-bold">{totalItems}</span>
-                <span className="text-white/70 text-xs">{!mostrarAnuladas ? "Ventas activas" : "Ventas anuladas"}</span>
+                <span className="text-white text-2xl font-bold">{cantidadVentasFiltradas}</span>
+                <span className="text-white/70 text-xs">
+                  {!mostrarAnuladas ? "Ventas activas filtradas" : "Ventas anuladas filtradas"}
+                </span>
               </div>
 
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
@@ -1205,7 +1266,7 @@ const HistorialVentas = () => {
                         variant="outline"
                         size="icon"
                         onClick={limpiarFiltros}
-                        className="h-10 w-10 flex-shrink-0"
+                        className="h-10 w-10 flex-shrink-0 bg-transparent"
                       >
                         <RefreshCw className="h-4 w-4" />
                       </Button>
@@ -1255,18 +1316,13 @@ const HistorialVentas = () => {
                     }`}
                   >
                     <div className="flex items-center gap-1">
-                      {loadingMetodosPago ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <DollarSign size={14} />
-                      )}
+                      {loadingMetodosPago ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign size={14} />}
                       <span>
-                        {loadingMetodosPago 
-                          ? "Cargando..." 
-                          : selectedMetodoPago === "todos" 
-                            ? "Todos los métodos" 
-                            : selectedMetodoPago
-                        }
+                        {loadingMetodosPago
+                          ? "Cargando..."
+                          : selectedMetodoPago === "todos"
+                            ? "Todos los métodos"
+                            : selectedMetodoPago}
                       </span>
                     </div>
                   </SelectTrigger>
@@ -1474,7 +1530,7 @@ const HistorialVentas = () => {
                             {(() => {
                               const metodosVenta = getVentaPaymentMethods(venta)
                               const esMultiple = hasMultiplePaymentMethods(venta)
-                              
+
                               if (esMultiple) {
                                 return (
                                   <div className="flex flex-wrap gap-1">
@@ -1654,7 +1710,7 @@ const HistorialVentas = () => {
                                                     <span className="text-gray-500 mb-2">Métodos de pago:</span>
                                                     {(() => {
                                                       const metodosVenta = getVentaPaymentMethods(ventaSeleccionada)
-                                                      
+
                                                       if (metodosVenta.length > 0) {
                                                         return (
                                                           <div className="space-y-2">
@@ -1667,9 +1723,7 @@ const HistorialVentas = () => {
                                                                 >
                                                                   <div className="flex items-center gap-2">
                                                                     <IconoMetodo size={16} className="text-gray-600" />
-                                                                    <span className="font-medium">
-                                                                      {metodo.nombre}
-                                                                    </span>
+                                                                    <span className="font-medium">{metodo.nombre}</span>
                                                                     {metodo.anulado && (
                                                                       <Badge variant="destructive" className="text-xs">
                                                                         Anulado
@@ -1684,7 +1738,7 @@ const HistorialVentas = () => {
                                                                 </div>
                                                               )
                                                             })}
-                                                            
+
                                                             {metodosVenta.length > 1 && (
                                                               <div className="pt-2 border-t">
                                                                 <div className="flex justify-between font-medium">
@@ -2113,5 +2167,3 @@ const HistorialVentas = () => {
     </div>
   )
 }
-
-export default HistorialVentas
