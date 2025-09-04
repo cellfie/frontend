@@ -794,6 +794,7 @@ export const getTotalVentasFiltradas = async (filters = {}) => {
     const result = {
       cantidad_ventas: Number(data.cantidad_ventas) || 0,
       total_monto: Number(data.total_monto) || 0,
+      debug: data.debug || null, // Incluir información de debug del backend
     }
 
     // Guardar en cache

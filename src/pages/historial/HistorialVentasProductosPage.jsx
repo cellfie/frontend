@@ -403,7 +403,14 @@ export default function HistorialVentasProductosPage() {
         total_monto: result.total_monto,
         cantidad_ventas: result.cantidad_ventas,
         filters,
+        debug: result.debug, // Mostrar información de debug del backend
       })
+
+      if (filters.tipo_pago && filters.tipo_pago !== "todos") {
+        console.log(`🔍 Filtro activo por método de pago: "${filters.tipo_pago}"`)
+        console.log(`💰 Total calculado para ${filters.tipo_pago}: ${result.total_monto}`)
+        console.log(`📊 Cantidad de ventas con ${filters.tipo_pago}: ${result.cantidad_ventas}`)
+      }
     } catch (error) {
       console.error("Error al obtener total de ventas filtradas:", error)
       toast.error("Error al cargar los totales de ventas")
@@ -439,6 +446,7 @@ export default function HistorialVentasProductosPage() {
           totalReal: totalResult,
           fetchTime: endTime - startTime,
           debug: result.debug,
+          totalDebug: totalResult.debug, // Incluir debug de totales
         })
 
         // CORREGIDO: Validar que result tenga la estructura esperada
@@ -478,11 +486,16 @@ export default function HistorialVentasProductosPage() {
           paginationTotalItems: result.pagination.totalItems,
           currentPage: result.pagination.currentPage,
           totalPages: result.pagination.totalPages,
+          totalDebugInfo: totalResult.debug, // Mostrar debug de totales
         })
 
         // NUEVO: Mostrar información útil en consola para debugging
         if (result.debug) {
           console.log("Debug info:", result.debug)
+        }
+
+        if (totalResult.debug && totalResult.debug.tipo_pago_filtrado !== "todos") {
+          console.log("🎯 Filtro de método de pago aplicado:", totalResult.debug)
         }
       } catch (error) {
         console.error("Error al cargar ventas:", error)
@@ -868,6 +881,8 @@ export default function HistorialVentasProductosPage() {
       </TableRow>
     ))
 
+  const filtroTipoPago = selectedMetodoPago !== "todos" ? selectedMetodoPago : null
+
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
@@ -910,10 +925,14 @@ export default function HistorialVentasProductosPage() {
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
                 <span className="text-white/70 text-sm mb-1 flex items-center gap-1">
                   <DollarSign size={14} />
-                  Total en ARS
+                  {filtroTipoPago && filtroTipoPago !== "todos" ? `Total en ${filtroTipoPago}` : "Total en ARS"}
                 </span>
                 <span className="text-white text-2xl font-bold">{formatearPrecio(totalVentasFiltradas)}</span>
-                <span className="text-white/70 text-xs">Total de todas las ventas filtradas</span>
+                <span className="text-white/70 text-xs">
+                  {filtroTipoPago && filtroTipoPago !== "todos"
+                    ? `Monto total pagado con ${filtroTipoPago}`
+                    : "Total de todas las ventas filtradas"}
+                </span>
               </div>
 
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex flex-col">
@@ -923,7 +942,11 @@ export default function HistorialVentasProductosPage() {
                 </span>
                 <span className="text-white text-2xl font-bold">{cantidadVentasFiltradas}</span>
                 <span className="text-white/70 text-xs">
-                  {!mostrarAnuladas ? "Ventas activas filtradas" : "Ventas anuladas filtradas"}
+                  {filtroTipoPago && filtroTipoPago !== "todos"
+                    ? `Ventas que incluyen ${filtroTipoPago}`
+                    : !mostrarAnuladas
+                      ? "Ventas activas filtradas"
+                      : "Ventas anuladas filtradas"}
                 </span>
               </div>
 
