@@ -740,75 +740,31 @@ export const validateVentasFilters = (filters) => {
   return errors
 }
 
+// NUEVO: Obtener totales filtrados desde el backend
 export const getTotalVentasFiltradas = async (filters = {}) => {
   try {
-    // Limpiar filtros vacíos o undefined
     const cleanFilters = Object.fromEntries(
       Object.entries(filters).filter(
-        ([key, value]) =>
-          value !== undefined &&
-          value !== null &&
-          value !== "" &&
-          value !== "todos" &&
-          !(Array.isArray(value) && value.length === 0),
-      ),
-    )
+        ([, value]) => value !== undefined && value !== null && value !== "" && value !== "todos"
+      )
+    );
 
-    const queryParams = new URLSearchParams(cleanFilters)
-    const cacheKey = `total_ventas_filtradas_${queryParams.toString()}`
-
-    // Verificar cache
-    if (cache.has(cacheKey)) {
-      const cached = cache.get(cacheKey)
-      if (Date.now() - cached.timestamp < CACHE_DURATION) {
-        console.log("Total de ventas obtenido desde cache:", cacheKey)
-        return cached.data
-      } else {
-        cache.delete(cacheKey)
-      }
-    }
-
-    console.log("Obteniendo total de ventas filtradas:", `${API_URL}/ventas/total-filtradas?${queryParams}`)
+    const queryParams = new URLSearchParams(cleanFilters);
 
     const response = await fetch(`${API_URL}/ventas/total-filtradas?${queryParams}`, {
       method: "GET",
       credentials: "include",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    })
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+    });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "Error de conexión" }))
-      throw new Error(errorData.message || `Error HTTP: ${response.status}`)
+      throw new Error("Error al obtener totales filtrados");
     }
 
-    const data = await response.json()
-
-    // Validar estructura de respuesta
-    if (!data || typeof data !== "object") {
-      throw new Error("Respuesta inválida del servidor")
-    }
-
-    const result = {
-      cantidad_ventas: Number(data.cantidad_ventas) || 0,
-      total_monto: Number(data.total_monto) || 0,
-      debug: data.debug || null, // Incluir información de debug del backend
-    }
-
-    // Guardar en cache
-    cache.set(cacheKey, { data: result, timestamp: Date.now() })
-
-    console.log("Total de ventas filtradas obtenido:", {
-      ...result,
-      filters: cleanFilters,
-      cacheKey,
-    })
-
-    return result
+    return await response.json();
   } catch (error) {
-    console.error("Error en getTotalVentasFiltradas:", error)
-    throw error
+    console.error("Error en getTotalVentasFiltradas:", error);
+    throw error;
   }
-}
+};
+
