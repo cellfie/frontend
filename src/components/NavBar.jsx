@@ -13,7 +13,7 @@ import {
   Clock,
   Settings,
   Smartphone,
-  PenToolIcon as Tool,
+  PenTool as Tool,
   BarChart3,
   ShoppingBag,
   AlertTriangle,
@@ -316,15 +316,10 @@ export const NavBar = () => {
             <DesktopSubMenuItem title="Repuestos" to="/stock/repuestos" icon={Tool} />
           </DesktopMenuItem>
 
-          <DesktopMenuItem title="Historial" icon={Clock}>
+          <DesktopMenuItem title="Historial" icon={Clock} hidden={!isAdmin}>
             <DesktopSubMenuItem title="Ventas Productos" to="/historial/ventas-productos" icon={BarChart3} />
-            <DesktopSubMenuItem
-              title="Ventas Equipos"
-              to="/historial/ventas-equipos"
-              icon={BarChart3}
-              hidden={!isAdmin}
-            />
-            <DesktopSubMenuItem title="Devoluciones" to="/historial/devoluciones" icon={RefreshCw} hidden={!isAdmin} />
+            <DesktopSubMenuItem title="Ventas Equipos" to="/historial/ventas-equipos" icon={BarChart3} />
+            <DesktopSubMenuItem title="Devoluciones" to="/historial/devoluciones" icon={RefreshCw} />
             <DesktopSubMenuItem title="Pérdidas" to="/historial/perdidas" icon={AlertTriangle} />
           </DesktopMenuItem>
 
@@ -402,21 +397,11 @@ export const NavBar = () => {
                   </div>
                 </MobileNavItem>
 
-                <MobileNavItem title="Historial" icon={Clock}>
+                <MobileNavItem title="Historial" icon={Clock} hidden={!isAdmin}>
                   <div className="flex flex-col gap-1 py-1">
                     <MobileNavButton to="/historial/ventas-productos" icon={BarChart3} title="Ventas productos" />
-                    <MobileNavButton
-                      to="/historial/ventas-equipos"
-                      icon={BarChart3}
-                      title="Ventas Equipos"
-                      hidden={!isAdmin}
-                    />
-                    <MobileNavButton
-                      to="/historial/devoluciones"
-                      icon={RefreshCw}
-                      title="Devoluciones"
-                      hidden={!isAdmin}
-                    />
+                    <MobileNavButton to="/historial/ventas-equipos" icon={BarChart3} title="Ventas Equipos" />
+                    <MobileNavButton to="/historial/devoluciones" icon={RefreshCw} title="Devoluciones" />
                     <MobileNavButton to="/historial/perdidas" icon={AlertTriangle} title="Pérdidas" />
                   </div>
                 </MobileNavItem>
