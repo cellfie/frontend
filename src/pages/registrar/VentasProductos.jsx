@@ -128,8 +128,16 @@ const VentasProductos = () => {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
         if (puntos.length > 0) {
-          const trancas = puntos.find((p) => p.nombre.toLowerCase() === "trancas")
-          setPuntoVentaSeleccionado(trancas ? trancas.id.toString() : puntos[0].id.toString())
+          let puntoDefecto
+          if (currentUser?.id === 7) {
+            // Para FABIAN (ID 7), seleccionar "Tala" por defecto
+            puntoDefecto = puntos.find((p) => p.nombre.toLowerCase() === "tala")
+          } else {
+            // Para otros usuarios, mantener "Trancas" como defecto
+            puntoDefecto = puntos.find((p) => p.nombre.toLowerCase() === "trancas")
+          }
+
+          setPuntoVentaSeleccionado(puntoDefecto ? puntoDefecto.id.toString() : puntos[0].id.toString())
         }
 
         const cats = await getCategorias()
@@ -147,7 +155,7 @@ const VentasProductos = () => {
     }
 
     cargarDatosIniciales()
-  }, [])
+  }, [currentUser])
 
   // Limpiar carrito cuando cambia el punto de venta
   useEffect(() => {
@@ -599,7 +607,7 @@ const VentasProductos = () => {
 
                     <Button
                       variant="outline"
-                      className="mt-2 w-full"
+                      className="mt-2 w-full bg-transparent"
                       onClick={() => {
                         setDialogNuevoClienteAbierto(true)
                         setNuevoCliente({ nombre: "", telefono: "", dni: "" })
@@ -925,7 +933,7 @@ const VentasProductos = () => {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7 rounded-full"
+                                className="h-7 w-7 rounded-full bg-transparent"
                                 onClick={() => cambiarCantidad(prod.id, prod.cantidad - 1)}
                                 disabled={prod.cantidad <= 1}
                               >
@@ -935,7 +943,7 @@ const VentasProductos = () => {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7 rounded-full"
+                                className="h-7 w-7 rounded-full bg-transparent"
                                 onClick={() => cambiarCantidad(prod.id, prod.cantidad + 1)}
                               >
                                 <Plus size={14} />
