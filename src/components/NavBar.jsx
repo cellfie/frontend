@@ -320,12 +320,12 @@ export const NavBar = () => {
             <DesktopSubMenuItem title="Ventas Productos" to="/historial/ventas-productos" icon={BarChart3} />
             <DesktopSubMenuItem title="Ventas Equipos" to="/historial/ventas-equipos" icon={BarChart3} />
             <DesktopSubMenuItem title="Devoluciones" to="/historial/devoluciones" icon={RefreshCw} />
-            <DesktopSubMenuItem title="Pérdidas" to="/historial/perdidas" icon={AlertTriangle} />
           </DesktopMenuItem>
 
           <DesktopMenuItem title="Configuraciones" icon={Settings}>
             <DesktopSubMenuItem title="Clientes" to="/configuraciones/clientes" icon={Users} />
             <DesktopSubMenuItem title="Categorías" to="/configuraciones/categorias" icon={Tag} hidden={!isAdmin} />
+            <DesktopSubMenuItem title="Pérdidas" to="/historial/perdidas" icon={AlertTriangle} />
           </DesktopMenuItem>
         </div>
 
@@ -402,7 +402,6 @@ export const NavBar = () => {
                     <MobileNavButton to="/historial/ventas-productos" icon={BarChart3} title="Ventas productos" />
                     <MobileNavButton to="/historial/ventas-equipos" icon={BarChart3} title="Ventas Equipos" />
                     <MobileNavButton to="/historial/devoluciones" icon={RefreshCw} title="Devoluciones" />
-                    <MobileNavButton to="/historial/perdidas" icon={AlertTriangle} title="Pérdidas" />
                   </div>
                 </MobileNavItem>
 
@@ -410,6 +409,7 @@ export const NavBar = () => {
                   <div className="flex flex-col gap-1 py-1">
                     <MobileNavButton to="/configuraciones/clientes" icon={Users} title="Clientes" />
                     <MobileNavButton to="/configuraciones/categorias" icon={Tag} title="Categorías" hidden={!isAdmin} />
+                    <MobileNavButton to="/historial/perdidas" icon={AlertTriangle} title="Pérdidas" />
                   </div>
                 </MobileNavItem>
 
