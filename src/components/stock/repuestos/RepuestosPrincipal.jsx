@@ -155,6 +155,7 @@ export const RepuestosPrincipal = () => {
         modelo: updatedRepuesto.modelo,
         description: updatedRepuesto.description,
         stock: Number(updatedRepuesto.stock),
+        price: updatedRepuesto.price, // Campo agregado para enviar el precio
         // No incluimos punto_venta_id aquí, se mantendrá el original en el backend
       })
 
