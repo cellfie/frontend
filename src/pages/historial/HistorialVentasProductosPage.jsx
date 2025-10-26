@@ -930,7 +930,7 @@ export default function HistorialVentasProductosPage() {
                 <span className="text-white text-2xl font-bold">{formatearPrecio(totalVentasFiltradas)}</span>
                 <span className="text-white/70 text-xs">
                   {filtroTipoPago && filtroTipoPago !== "todos"
-                    ? `Monto total pagado con ${filtroTipoPago}`
+                    ? "Monto total pagado con " + filtroTipoPago
                     : "Total de todas las ventas filtradas"}
                 </span>
               </div>
@@ -943,7 +943,7 @@ export default function HistorialVentasProductosPage() {
                 <span className="text-white text-2xl font-bold">{cantidadVentasFiltradas}</span>
                 <span className="text-white/70 text-xs">
                   {filtroTipoPago && filtroTipoPago !== "todos"
-                    ? `Ventas que incluyen ${filtroTipoPago}`
+                    ? "Ventas que incluyen " + filtroTipoPago
                     : !mostrarAnuladas
                       ? "Ventas activas filtradas"
                       : "Ventas anuladas filtradas"}
@@ -1003,7 +1003,7 @@ export default function HistorialVentasProductosPage() {
             animate={{ opacity: 1, height: "auto", marginBottom: 24 }}
             exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            style={{ overflow: "hidden" }}
+            style={{ overflow: "visible" }}
           >
             <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 via-white to-orange-50">
               <CardHeader className="bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-t-lg">
@@ -1079,7 +1079,7 @@ export default function HistorialVentasProductosPage() {
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -10, scale: 0.95 }}
                           transition={{ duration: 0.2, ease: "easeOut" }}
-                          className="absolute z-50 mt-2 w-full bg-white border-2 border-orange-200 rounded-xl shadow-2xl overflow-hidden"
+                          className="absolute z-[100] mt-2 w-full bg-white border-2 border-orange-200 rounded-xl shadow-2xl overflow-hidden"
                         >
                           <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2">
                             <div className="flex items-center justify-between text-white">
@@ -1091,7 +1091,7 @@ export default function HistorialVentasProductosPage() {
                             </div>
                           </div>
 
-                          <div className="max-h-80 overflow-y-auto">
+                          <div className="max-h-96 overflow-y-auto">
                             {productos.map((producto, index) => (
                               <motion.div
                                 key={producto.id}
@@ -1189,7 +1189,7 @@ export default function HistorialVentasProductosPage() {
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className="absolute z-50 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-lg p-6 text-center"
+                          className="absolute z-[100] mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-lg p-6 text-center"
                         >
                           <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                           <h3 className="text-lg font-medium text-gray-600 mb-1">No se encontraron productos</h3>
