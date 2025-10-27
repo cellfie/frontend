@@ -1,5 +1,7 @@
 "use client"
 
+import { TooltipContent } from "@/components/ui/tooltip"
+
 import React, { useRef } from "react"
 import { useState, useEffect, useCallback } from "react"
 import { toast, ToastContainer } from "react-toastify"
@@ -55,7 +57,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PaginationControls } from "@/lib/PaginationControls"
 
@@ -1927,54 +1929,7 @@ export default function HistorialVentasProductosPage() {
                                                           </TableRow>
                                                         ))}
 
-                                                      {ventaSeleccionada.productosReemplazo &&
-                                                        ventaSeleccionada.productosReemplazo.length > 0 && (
-                                                          <>
-                                                            <TableRow>
-                                                              <TableCell colSpan={4} className="bg-gray-100 py-1">
-                                                                <div className="text-xs font-medium text-gray-600 flex items-center">
-                                                                  <ArrowLeftRight className="h-3 w-3 mr-1" />
-                                                                  Productos de reemplazo
-                                                                </div>
-                                                              </TableCell>
-                                                            </TableRow>
-
-                                                            {ventaSeleccionada.productosReemplazo.map(
-                                                              (producto, index) => (
-                                                                <TableRow
-                                                                  key={`reemplazo-${index}`}
-                                                                  className="bg-green-50"
-                                                                >
-                                                                  <TableCell>
-                                                                    <div>
-                                                                      <div className="font-medium">
-                                                                        {producto.nombre}
-                                                                      </div>
-                                                                      <div className="text-xs text-gray-500">
-                                                                        Código: {producto.codigo}
-                                                                      </div>
-                                                                      <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
-                                                                        <Plus className="h-3 w-3 mr-1" />
-                                                                        Producto de reemplazo
-                                                                      </Badge>
-                                                                    </div>
-                                                                  </TableCell>
-                                                                  <TableCell className="text-right">
-                                                                    {formatearPrecio(producto.precio)}
-                                                                  </TableCell>
-                                                                  <TableCell className="text-center">
-                                                                    {producto.cantidad}
-                                                                  </TableCell>
-                                                                  <TableCell className="text-right font-medium">
-                                                                    {formatearPrecio(
-                                                                      producto.precio * producto.cantidad,
-                                                                    )}
-                                                                  </TableCell>
-                                                                </TableRow>
-                                                              ),
-                                                            )}
-                                                          </>
-                                                        )}
+                                                      {/* Los productos de reemplazo ya se muestran en la lista principal con el badge verde */}
                                                     </TableBody>
                                                   </Table>
                                                 </div>
