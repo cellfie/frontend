@@ -147,15 +147,21 @@ const HistorialPerdidasPage = () => {
       setCargandoBusqueda(true)
       try {
         if (nuevaPerdida.tipo === "producto") {
-          // Usar la nueva función de búsqueda rápida
           const productos = await searchProductosRapido(busquedaDebounced)
 
-          // Filtrar por punto de venta si es necesario
-          // Nota: Si searchProductosRapido no filtra por punto de venta,
-          // podrías necesitar una función específica o filtrar aquí
-          setResultadosBusqueda(productos.slice(0, 10)) // Limitar a 10 resultados
+          // Filtrar solo los productos que tienen inventario en el punto de venta seleccionado
+          const productosFiltrados = productos.filter((producto) => {
+            if (!producto.inventario || !Array.isArray(producto.inventario)) {
+              return false
+            }
+            return producto.inventario.some(
+              (inv) => inv.punto_venta_id === Number.parseInt(nuevaPerdida.punto_venta_id) && inv.stock > 0,
+            )
+          })
+
+          setResultadosBusqueda(productosFiltrados.slice(0, 10)) // Limitar a 10 resultados
         } else if (nuevaPerdida.tipo === "repuesto") {
-          // Para repuestos, usar la función existente
+          // Para repuestos, usar la función existente que ya filtra por punto de venta
           const repuestosPuntoVenta = await getRepuestosByPuntoVenta(nuevaPerdida.punto_venta_id)
 
           const filtrados = repuestosPuntoVenta
@@ -537,7 +543,12 @@ const HistorialPerdidasPage = () => {
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="outline" size="icon" onClick={limpiarFiltros} className="h-10 w-10 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={limpiarFiltros}
+                      className="h-10 w-10 flex-shrink-0 bg-transparent"
+                    >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
@@ -652,21 +663,27 @@ const HistorialPerdidasPage = () => {
         </CardContent>
       </Card>
 
-      {/* Diálogo de nueva pérdida mejorado */}
       <Dialog open={dialogNuevaPerdidaAbierto} onOpenChange={setDialogNuevaPerdidaAbierto}>
-        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
-          <DialogHeader className="px-4 pt-4 pb-2">
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
-              Registrar Nueva Pérdida
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-orange-50 to-white">
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-orange-600" />
+              </div>
+              <div>
+                <div className="text-gray-900">Registrar Nueva Pérdida</div>
+                <DialogDescription className="text-sm text-gray-500 mt-1">
+                  Complete los datos para registrar una pérdida de inventario
+                </DialogDescription>
+              </div>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="px-4 py-2 space-y-3 max-h-[70vh] overflow-y-auto">
+          <div className="px-6 py-6 space-y-6 overflow-y-auto flex-1">
             {/* Punto de venta y tipo */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="puntoVenta" className="text-xs font-medium">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="puntoVenta" className="text-sm font-semibold text-gray-700">
                   Punto de Venta <span className="text-red-500">*</span>
                 </Label>
                 <Select
@@ -681,8 +698,8 @@ const HistorialPerdidasPage = () => {
                     setItemSeleccionado(null)
                   }}
                 >
-                  <SelectTrigger id="puntoVenta" className="h-8 mt-1 text-sm">
-                    <SelectValue placeholder="Seleccionar" />
+                  <SelectTrigger id="puntoVenta" className="h-11">
+                    <SelectValue placeholder="Seleccionar punto de venta" />
                   </SelectTrigger>
                   <SelectContent>
                     {puntosVenta.map((punto) => (
@@ -695,81 +712,90 @@ const HistorialPerdidasPage = () => {
               </div>
 
               {nuevaPerdida.punto_venta_id ? (
-                <div>
-                  <Label className="text-xs font-medium">
-                    Tipo <span className="text-red-500">*</span>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Tipo de Ítem <span className="text-red-500">*</span>
                   </Label>
-                  <div className="flex rounded-md overflow-hidden border mt-1">
+                  <div className="flex rounded-lg overflow-hidden border-2 border-gray-200">
                     <Button
                       type="button"
                       variant={nuevaPerdida.tipo === "producto" ? "default" : "outline"}
-                      className={`flex-1 h-8 text-xs rounded-none border-0 ${
-                        nuevaPerdida.tipo === "producto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
+                      className={`flex-1 h-11 rounded-none border-0 ${
+                        nuevaPerdida.tipo === "producto"
+                          ? "bg-orange-600 hover:bg-orange-700 text-white"
+                          : "hover:bg-gray-50 text-gray-700"
                       }`}
                       onClick={() => cambiarTipoPerdida("producto")}
                     >
-                      <Package className="h-3 w-3 mr-1" /> Producto
+                      <Package className="h-4 w-4 mr-2" /> Producto
                     </Button>
                     <Button
                       type="button"
                       variant={nuevaPerdida.tipo === "repuesto" ? "default" : "outline"}
-                      className={`flex-1 h-8 text-xs rounded-none border-0 ${
-                        nuevaPerdida.tipo === "repuesto" ? "bg-blue-600 hover:bg-blue-700" : "hover:bg-gray-100"
+                      className={`flex-1 h-11 rounded-none border-0 ${
+                        nuevaPerdida.tipo === "repuesto"
+                          ? "bg-orange-600 hover:bg-orange-700 text-white"
+                          : "hover:bg-gray-50 text-gray-700"
                       }`}
                       onClick={() => cambiarTipoPerdida("repuesto")}
                     >
-                      <Wrench className="h-3 w-3 mr-1" /> Repuesto
+                      <Wrench className="h-4 w-4 mr-2" /> Repuesto
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="opacity-50">
-                  <Label className="text-xs font-medium">
-                    Tipo <span className="text-red-500">*</span>
+                <div className="space-y-2 opacity-50">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Tipo de Ítem <span className="text-red-500">*</span>
                   </Label>
-                  <div className="flex rounded-md overflow-hidden border mt-1 bg-gray-100">
+                  <div className="flex rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
                     <Button
                       type="button"
                       variant="outline"
-                      className="flex-1 h-8 text-xs rounded-none border-0 cursor-not-allowed"
+                      className="flex-1 h-11 rounded-none border-0 cursor-not-allowed bg-transparent"
                       disabled
                     >
-                      <Package className="h-3 w-3 mr-1" /> Producto
+                      <Package className="h-4 w-4 mr-2" /> Producto
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
-                      className="flex-1 h-8 text-xs rounded-none border-0 cursor-not-allowed"
+                      className="flex-1 h-11 rounded-none border-0 cursor-not-allowed bg-transparent"
                       disabled
                     >
-                      <Wrench className="h-3 w-3 mr-1" /> Repuesto
+                      <Wrench className="h-4 w-4 mr-2" /> Repuesto
                     </Button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">Primero seleccione un punto de venta</p>
                 </div>
               )}
             </div>
 
             {/* Búsqueda mejorada de productos/repuestos */}
             {nuevaPerdida.punto_venta_id && (
-              <div>
-                <Label className="text-xs font-medium">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">
                   {nuevaPerdida.tipo === "producto" ? "Producto" : "Repuesto"} <span className="text-red-500">*</span>
                 </Label>
 
                 {itemSeleccionado ? (
-                  <div className="flex items-center justify-between p-1.5 border rounded-md bg-gray-50 mt-1 text-sm">
-                    <div className="flex items-center gap-1.5 truncate">
+                  <div className="flex items-center justify-between p-4 border-2 border-green-200 rounded-lg bg-green-50">
+                    <div className="flex items-center gap-3 truncate">
                       {nuevaPerdida.tipo === "producto" ? (
-                        <Package className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Package className="h-5 w-5 text-green-600 flex-shrink-0" />
+                        </div>
                       ) : (
-                        <Wrench className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Wrench className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                        </div>
                       )}
                       <div className="truncate">
-                        <div className="font-medium truncate">{itemSeleccionado.nombre}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="font-semibold text-gray-900 truncate">{itemSeleccionado.nombre}</div>
+                        <div className="text-sm text-gray-600">
                           Código: {itemSeleccionado.codigo}
                           {itemSeleccionado.stock !== undefined && (
-                            <span className="ml-2">Stock: {itemSeleccionado.stock}</span>
+                            <span className="ml-3 text-gray-500">Stock disponible: {itemSeleccionado.stock}</span>
                           )}
                         </div>
                       </div>
@@ -785,52 +811,62 @@ const HistorialPerdidasPage = () => {
                           repuesto_id: "",
                         })
                       }}
-                      className="h-6 px-2 text-xs text-gray-500 hover:text-red-600"
+                      className="text-gray-500 hover:text-red-600 hover:bg-red-50"
                     >
                       Cambiar
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-1 mt-1">
+                  <div className="space-y-3">
                     <div className="relative">
-                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground h-3.5 w-3.5" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                       <Input
-                        placeholder={`Buscar ${nuevaPerdida.tipo === "producto" ? "producto" : "repuesto"}... (mín. 2 caracteres)`}
-                        className="pl-7 h-8 text-sm"
+                        placeholder={`Buscar ${nuevaPerdida.tipo === "producto" ? "producto" : "repuesto"}... (mínimo 2 caracteres)`}
+                        className="pl-10 h-11 text-base"
                         value={busquedaItem}
                         onChange={(e) => setBusquedaItem(e.target.value)}
                       />
                     </div>
 
                     {/* Resultados de búsqueda mejorados */}
-                    <div className="border rounded-md max-h-[150px] overflow-y-auto text-sm">
+                    <div className="border-2 border-gray-200 rounded-lg max-h-[250px] overflow-y-auto bg-white">
                       {cargandoBusqueda ? (
-                        <div className="flex justify-center items-center p-3">
-                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                          <span className="ml-2 text-gray-500">Buscando...</span>
+                        <div className="flex justify-center items-center p-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
+                          <span className="ml-3 text-gray-600">Buscando...</span>
                         </div>
                       ) : resultadosBusqueda.length > 0 ? (
-                        <div className="divide-y">
+                        <div className="divide-y divide-gray-100">
                           {resultadosBusqueda.map((item) => (
                             <div
                               key={item.id}
-                              className="p-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                              className="p-4 hover:bg-orange-50 cursor-pointer flex items-center justify-between transition-colors"
                               onClick={() => seleccionarItem(item)}
                             >
-                              <div className="truncate mr-2">
-                                <div className="font-medium truncate">{item.nombre}</div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  Código: {item.codigo}
-                                  {nuevaPerdida.tipo === "repuesto" && item.marca && item.modelo && (
-                                    <span>
-                                      {" "}
-                                      | {item.marca} {item.modelo}
-                                    </span>
-                                  )}
+                              <div className="flex items-center gap-3 truncate mr-4">
+                                {nuevaPerdida.tipo === "producto" ? (
+                                  <div className="p-2 bg-green-100 rounded-lg">
+                                    <Package className="h-4 w-4 text-green-600 flex-shrink-0" />
+                                  </div>
+                                ) : (
+                                  <div className="p-2 bg-blue-100 rounded-lg">
+                                    <Wrench className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                  </div>
+                                )}
+                                <div className="truncate">
+                                  <div className="font-medium text-gray-900 truncate">{item.nombre}</div>
+                                  <div className="text-sm text-gray-500 truncate">
+                                    Código: {item.codigo}
+                                    {nuevaPerdida.tipo === "repuesto" && item.marca && item.modelo && (
+                                      <span className="ml-2">
+                                        | {item.marca} {item.modelo}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               {item.stock !== undefined && (
-                                <Badge variant="outline" className="text-xs py-0 h-5 flex-shrink-0">
+                                <Badge variant="outline" className="flex-shrink-0">
                                   Stock: {item.stock}
                                 </Badge>
                               )}
@@ -838,12 +874,18 @@ const HistorialPerdidasPage = () => {
                           ))}
                         </div>
                       ) : busquedaItem.length >= 2 ? (
-                        <div className="p-3 text-center text-gray-500 text-xs">
-                          No se encontraron {nuevaPerdida.tipo === "producto" ? "productos" : "repuestos"}
+                        <div className="p-8 text-center text-gray-500">
+                          <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                          <p className="font-medium">No se encontraron resultados</p>
+                          <p className="text-sm mt-1">
+                            No hay {nuevaPerdida.tipo === "producto" ? "productos" : "repuestos"} que coincidan con tu
+                            búsqueda
+                          </p>
                         </div>
                       ) : (
-                        <div className="p-3 text-center text-gray-400 text-xs">
-                          Ingrese al menos 2 caracteres para buscar
+                        <div className="p-8 text-center text-gray-400">
+                          <Search className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                          <p className="text-sm">Ingrese al menos 2 caracteres para buscar</p>
                         </div>
                       )}
                     </div>
@@ -853,29 +895,29 @@ const HistorialPerdidasPage = () => {
             )}
 
             {/* Cantidad y motivo */}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Label htmlFor="cantidad" className="text-xs font-medium">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="cantidad" className="text-sm font-semibold text-gray-700">
                   Cantidad <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="cantidad"
                   type="number"
                   min="1"
-                  className="h-8 mt-1 text-sm"
+                  className="h-11 text-base"
                   value={nuevaPerdida.cantidad}
                   onChange={(e) => setNuevaPerdida({ ...nuevaPerdida, cantidad: Number.parseInt(e.target.value) || 1 })}
                 />
               </div>
 
-              <div className="col-span-2">
-                <Label htmlFor="motivo" className="text-xs font-medium">
-                  Motivo <span className="text-red-500">*</span>
+              <div className="md:col-span-2 space-y-2">
+                <Label htmlFor="motivo" className="text-sm font-semibold text-gray-700">
+                  Motivo de la Pérdida <span className="text-red-500">*</span>
                 </Label>
                 <Textarea
                   id="motivo"
-                  placeholder="Ingrese el motivo"
-                  className="h-8 min-h-[2rem] mt-1 text-sm resize-none py-1.5"
+                  placeholder="Describa el motivo de la pérdida (ej: producto dañado, vencido, etc.)"
+                  className="min-h-[88px] text-base resize-none"
                   value={nuevaPerdida.motivo}
                   onChange={(e) => setNuevaPerdida({ ...nuevaPerdida, motivo: e.target.value })}
                 />
@@ -883,36 +925,40 @@ const HistorialPerdidasPage = () => {
             </div>
           </div>
 
-          <DialogFooter className="px-4 py-3 border-t bg-gray-50">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDialogNuevaPerdidaAbierto(false)}
-              className="h-8 text-xs"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={crearNuevaPerdida}
-              className="bg-orange-600 hover:bg-orange-700 h-8 text-xs"
-              disabled={
-                procesandoCreacion ||
-                !nuevaPerdida.punto_venta_id ||
-                (nuevaPerdida.tipo === "producto" && !nuevaPerdida.producto_id) ||
-                (nuevaPerdida.tipo === "repuesto" && !nuevaPerdida.repuesto_id) ||
-                nuevaPerdida.cantidad < 1 ||
-                !nuevaPerdida.motivo.trim()
-              }
-            >
-              {procesandoCreacion ? (
-                <>
-                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                  Procesando...
-                </>
-              ) : (
-                "Registrar Pérdida"
-              )}
-            </Button>
+          <DialogFooter className="px-6 py-4 border-t bg-gray-50">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => setDialogNuevaPerdidaAbierto(false)}
+                className="h-11 px-6 order-2 sm:order-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={crearNuevaPerdida}
+                className="bg-orange-600 hover:bg-orange-700 h-11 px-6 order-1 sm:order-2"
+                disabled={
+                  procesandoCreacion ||
+                  !nuevaPerdida.punto_venta_id ||
+                  (nuevaPerdida.tipo === "producto" && !nuevaPerdida.producto_id) ||
+                  (nuevaPerdida.tipo === "repuesto" && !nuevaPerdida.repuesto_id) ||
+                  nuevaPerdida.cantidad < 1 ||
+                  !nuevaPerdida.motivo.trim()
+                }
+              >
+                {procesandoCreacion ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="mr-2 h-5 w-5" />
+                    Registrar Pérdida
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
