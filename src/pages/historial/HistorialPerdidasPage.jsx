@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/text"
+import { Textarea } from "@/components/ui/textarea"
 
 import { getPerdidas, createPerdidaManual, deletePerdida } from "@/services/perdidasService"
 import { searchProductosRapido } from "@/services/productosService"
