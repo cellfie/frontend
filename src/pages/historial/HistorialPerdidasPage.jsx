@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Textarea } from "@/components/ui/text"
 
 import { getPerdidas, createPerdidaManual, deletePerdida } from "@/services/perdidasService"
 import { searchProductosRapido } from "@/services/productosService"
@@ -139,7 +139,7 @@ const HistorialPerdidasPage = () => {
   // Búsqueda mejorada de productos/repuestos
   useEffect(() => {
     const buscarItems = async () => {
-      if (!nuevaPerdida.punto_venta_id || busquedaDebounced.length < 2) {
+      if (busquedaDebounced.length < 2) {
         setResultadosBusqueda([])
         return
       }
@@ -147,11 +147,16 @@ const HistorialPerdidasPage = () => {
       setCargandoBusqueda(true)
       try {
         if (nuevaPerdida.tipo === "producto") {
-          // El backend validará el stock al crear la pérdida
+          // Buscar productos sin filtrar por punto de venta
           const productos = await searchProductosRapido(busquedaDebounced)
-          setResultadosBusqueda(productos.slice(0, 10)) // Limitar a 10 resultados
+          setResultadosBusqueda(productos.slice(0, 10))
         } else if (nuevaPerdida.tipo === "repuesto") {
-          // Para repuestos, usar la función existente que ya filtra por punto de venta
+          // Para repuestos, necesitamos punto de venta seleccionado
+          if (!nuevaPerdida.punto_venta_id) {
+            setResultadosBusqueda([])
+            return
+          }
+
           const repuestosPuntoVenta = await getRepuestosByPuntoVenta(nuevaPerdida.punto_venta_id)
 
           const filtrados = repuestosPuntoVenta
@@ -188,8 +193,9 @@ const HistorialPerdidasPage = () => {
       ...prev,
       producto_id: "",
       repuesto_id: "",
+      ...(prev.tipo === "repuesto" ? { punto_venta_id: "" } : {}),
     }))
-  }, [nuevaPerdida.tipo, nuevaPerdida.punto_venta_id])
+  }, [nuevaPerdida.tipo])
 
   // Cargar pérdidas cuando cambian los filtros
   const cargarPerdidas = async () => {
@@ -310,6 +316,7 @@ const HistorialPerdidasPage = () => {
         ...nuevaPerdida,
         producto_id: item.id.toString(),
         repuesto_id: "",
+        punto_venta_id: item.punto_venta_id.toString(),
       })
     } else {
       setNuevaPerdida({
@@ -330,6 +337,7 @@ const HistorialPerdidasPage = () => {
       tipo,
       producto_id: "",
       repuesto_id: "",
+      ...(tipo === "repuesto" ? { punto_venta_id: "" } : {}),
     })
     setBusquedaItem("")
     setResultadosBusqueda([])
@@ -670,99 +678,73 @@ const HistorialPerdidasPage = () => {
           </DialogHeader>
 
           <div className="px-6 py-6 space-y-6 overflow-y-auto flex-1">
-            {/* Punto de venta y tipo */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="puntoVenta" className="text-sm font-semibold text-gray-700">
-                  Punto de Venta <span className="text-red-500">*</span>
+                <Label className="text-sm font-semibold text-gray-700">
+                  Tipo de Ítem <span className="text-red-500">*</span>
                 </Label>
-                <Select
-                  value={nuevaPerdida.punto_venta_id}
-                  onValueChange={(value) => {
-                    setNuevaPerdida({
-                      ...nuevaPerdida,
-                      punto_venta_id: value,
-                      producto_id: "",
-                      repuesto_id: "",
-                    })
-                    setItemSeleccionado(null)
-                  }}
-                >
-                  <SelectTrigger id="puntoVenta" className="h-11">
-                    <SelectValue placeholder="Seleccionar punto de venta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {puntosVenta.map((punto) => (
-                      <SelectItem key={punto.id} value={punto.id.toString()}>
-                        {punto.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex rounded-lg overflow-hidden border-2 border-gray-200">
+                  <Button
+                    type="button"
+                    variant={nuevaPerdida.tipo === "producto" ? "default" : "outline"}
+                    className={`flex-1 h-11 rounded-none border-0 ${
+                      nuevaPerdida.tipo === "producto"
+                        ? "bg-orange-600 hover:bg-orange-700 text-white"
+                        : "hover:bg-gray-50 text-gray-700"
+                    }`}
+                    onClick={() => cambiarTipoPerdida("producto")}
+                  >
+                    <Package className="h-4 w-4 mr-2" /> Producto
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={nuevaPerdida.tipo === "repuesto" ? "default" : "outline"}
+                    className={`flex-1 h-11 rounded-none border-0 ${
+                      nuevaPerdida.tipo === "repuesto"
+                        ? "bg-orange-600 hover:bg-orange-700 text-white"
+                        : "hover:bg-gray-50 text-gray-700"
+                    }`}
+                    onClick={() => cambiarTipoPerdida("repuesto")}
+                  >
+                    <Wrench className="h-4 w-4 mr-2" /> Repuesto
+                  </Button>
+                </div>
               </div>
 
-              {nuevaPerdida.punto_venta_id ? (
+              {nuevaPerdida.tipo === "repuesto" && (
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">
-                    Tipo de Ítem <span className="text-red-500">*</span>
+                  <Label htmlFor="puntoVenta" className="text-sm font-semibold text-gray-700">
+                    Punto de Venta <span className="text-red-500">*</span>
                   </Label>
-                  <div className="flex rounded-lg overflow-hidden border-2 border-gray-200">
-                    <Button
-                      type="button"
-                      variant={nuevaPerdida.tipo === "producto" ? "default" : "outline"}
-                      className={`flex-1 h-11 rounded-none border-0 ${
-                        nuevaPerdida.tipo === "producto"
-                          ? "bg-orange-600 hover:bg-orange-700 text-white"
-                          : "hover:bg-gray-50 text-gray-700"
-                      }`}
-                      onClick={() => cambiarTipoPerdida("producto")}
-                    >
-                      <Package className="h-4 w-4 mr-2" /> Producto
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={nuevaPerdida.tipo === "repuesto" ? "default" : "outline"}
-                      className={`flex-1 h-11 rounded-none border-0 ${
-                        nuevaPerdida.tipo === "repuesto"
-                          ? "bg-orange-600 hover:bg-orange-700 text-white"
-                          : "hover:bg-gray-50 text-gray-700"
-                      }`}
-                      onClick={() => cambiarTipoPerdida("repuesto")}
-                    >
-                      <Wrench className="h-4 w-4 mr-2" /> Repuesto
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2 opacity-50">
-                  <Label className="text-sm font-semibold text-gray-700">
-                    Tipo de Ítem <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="flex rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 h-11 rounded-none border-0 cursor-not-allowed bg-transparent"
-                      disabled
-                    >
-                      <Package className="h-4 w-4 mr-2" /> Producto
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1 h-11 rounded-none border-0 cursor-not-allowed bg-transparent"
-                      disabled
-                    >
-                      <Wrench className="h-4 w-4 mr-2" /> Repuesto
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Primero seleccione un punto de venta</p>
+                  <Select
+                    value={nuevaPerdida.punto_venta_id}
+                    onValueChange={(value) => {
+                      setNuevaPerdida({
+                        ...nuevaPerdida,
+                        punto_venta_id: value,
+                        repuesto_id: "",
+                      })
+                      setItemSeleccionado(null)
+                    }}
+                  >
+                    <SelectTrigger id="puntoVenta" className="h-11">
+                      <SelectValue placeholder="Seleccionar punto de venta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {puntosVenta.map((punto) => (
+                        <SelectItem key={punto.id} value={punto.id.toString()}>
+                          {punto.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
 
             {/* Búsqueda mejorada de productos/repuestos */}
-            {nuevaPerdida.punto_venta_id && (
+            {(nuevaPerdida.tipo === "producto" ||
+              (nuevaPerdida.tipo === "repuesto" && nuevaPerdida.punto_venta_id)) && (
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-gray-700">
                   {nuevaPerdida.tipo === "producto" ? "Producto" : "Repuesto"} <span className="text-red-500">*</span>
@@ -784,6 +766,13 @@ const HistorialPerdidasPage = () => {
                         <div className="font-semibold text-gray-900 truncate">{itemSeleccionado.nombre}</div>
                         <div className="text-sm text-gray-600">
                           Código: {itemSeleccionado.codigo}
+                          {nuevaPerdida.tipo === "producto" && itemSeleccionado.punto_venta && (
+                            <span className="ml-3">
+                              <Badge variant="outline" className="text-xs">
+                                {itemSeleccionado.punto_venta}
+                              </Badge>
+                            </span>
+                          )}
                           {itemSeleccionado.stock !== undefined && (
                             <span className="ml-3 text-gray-500">Stock disponible: {itemSeleccionado.stock}</span>
                           )}
@@ -799,6 +788,7 @@ const HistorialPerdidasPage = () => {
                           ...nuevaPerdida,
                           producto_id: "",
                           repuesto_id: "",
+                          ...(nuevaPerdida.tipo === "producto" ? { punto_venta_id: "" } : {}),
                         })
                       }}
                       className="text-gray-500 hover:text-red-600 hover:bg-red-50"
@@ -855,11 +845,18 @@ const HistorialPerdidasPage = () => {
                                   </div>
                                 </div>
                               </div>
-                              {item.stock !== undefined && (
-                                <Badge variant="outline" className="flex-shrink-0">
-                                  Stock: {item.stock}
-                                </Badge>
-                              )}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {nuevaPerdida.tipo === "producto" && item.punto_venta && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {item.punto_venta}
+                                  </Badge>
+                                )}
+                                {item.stock !== undefined && (
+                                  <Badge variant="outline" className="flex-shrink-0">
+                                    Stock: {item.stock}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -881,6 +878,18 @@ const HistorialPerdidasPage = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {nuevaPerdida.tipo === "repuesto" && !nuevaPerdida.punto_venta_id && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 flex items-start gap-2">
+                <Info className="h-5 w-5 mt-0.5 flex-shrink-0 text-blue-600" />
+                <div>
+                  <p className="font-medium">Seleccione un punto de venta</p>
+                  <p className="text-sm mt-1">
+                    Para buscar repuestos, primero debe seleccionar el punto de venta donde se encuentra el repuesto.
+                  </p>
+                </div>
               </div>
             )}
 
