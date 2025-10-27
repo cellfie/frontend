@@ -147,19 +147,9 @@ const HistorialPerdidasPage = () => {
       setCargandoBusqueda(true)
       try {
         if (nuevaPerdida.tipo === "producto") {
+          // El backend validará el stock al crear la pérdida
           const productos = await searchProductosRapido(busquedaDebounced)
-
-          // Filtrar solo los productos que tienen inventario en el punto de venta seleccionado
-          const productosFiltrados = productos.filter((producto) => {
-            if (!producto.inventario || !Array.isArray(producto.inventario)) {
-              return false
-            }
-            return producto.inventario.some(
-              (inv) => inv.punto_venta_id === Number.parseInt(nuevaPerdida.punto_venta_id) && inv.stock > 0,
-            )
-          })
-
-          setResultadosBusqueda(productosFiltrados.slice(0, 10)) // Limitar a 10 resultados
+          setResultadosBusqueda(productos.slice(0, 10)) // Limitar a 10 resultados
         } else if (nuevaPerdida.tipo === "repuesto") {
           // Para repuestos, usar la función existente que ya filtra por punto de venta
           const repuestosPuntoVenta = await getRepuestosByPuntoVenta(nuevaPerdida.punto_venta_id)
