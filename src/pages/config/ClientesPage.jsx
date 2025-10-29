@@ -557,21 +557,14 @@ const ClientesPage = () => {
       // Registrar el ajuste usando el nuevo servicio
       const resultadoAjuste = await registrarAjuste(datosAjuste)
 
-      // Recargar la cuenta corriente para obtener el saldo actualizado
-      await cargarCuentaCorriente(clienteSeleccionado.id)
+      const cuentaActualizada = await getCuentaCorrienteByCliente(clienteSeleccionado.id)
+      const nuevoSaldo = Number.parseFloat(cuentaActualizada.saldo)
 
-      // Calcular el nuevo saldo según el tipo de ajuste
-      let nuevoSaldo
-      const montoNumerico = Number.parseFloat(datosAjuste.monto)
-      const saldoActual = clienteSeleccionado.cuentaCorriente.saldo
+      // Actualizar el estado de la cuenta corriente
+      setCuentaCorriente(adaptCuentaCorrienteToFrontend(cuentaActualizada))
+      setMovimientosCuenta(cuentaActualizada.movimientos || [])
 
-      if (datosAjuste.tipo_ajuste === "pago") {
-        nuevoSaldo = saldoActual - montoNumerico
-      } else {
-        nuevoSaldo = saldoActual + montoNumerico
-      }
-
-      // Actualizar el cliente seleccionado con el nuevo saldo
+      // Actualizar el cliente seleccionado con el nuevo saldo del backend
       if (clienteSeleccionado && clienteSeleccionado.cuentaCorriente) {
         setClienteSeleccionado({
           ...clienteSeleccionado,
@@ -598,6 +591,7 @@ const ClientesPage = () => {
         )
       }
 
+      const montoNumerico = Number.parseFloat(datosAjuste.monto)
       const tipoTexto = datosAjuste.tipo_ajuste === "pago" ? "Pago" : "Cargo"
       setEstadoAjuste({
         exito: true,
@@ -714,12 +708,29 @@ const ClientesPage = () => {
         </CardHeader>
         <CardContent className="p-4">
           {isAdmin ? (
-            <ClientesList.Filtros
-              busqueda={busqueda}
-              setBusqueda={setBusqueda}
-              mostrarSoloConCuenta={mostrarSoloConCuenta}
-              setMostrarSoloConCuenta={setMostrarSoloConCuenta}
-            />
+            <div className="flex flex-col sm:flex-row gap-3 items-center">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Buscar por nombre, teléfono o DNI..."
+                  className="pl-9"
+                  value={busqueda}
+                  onChange={handleBusqueda}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="mostrarSoloConCuenta"
+                  checked={mostrarSoloConCuenta}
+                  onChange={(e) => setMostrarSoloConCuenta(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="mostrarSoloConCuenta" className="text-sm text-gray-700">
+                  Solo con cuenta corriente
+                </label>
+              </div>
+            </div>
           ) : (
             <form onSubmit={handleSubmitBusqueda} className="flex flex-col sm:flex-row gap-3 items-center">
               <div className="relative flex-1 min-w-[200px]">
