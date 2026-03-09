@@ -24,6 +24,8 @@ import HistorialVentasEquiposPage from "./pages/historial/HistorialVentasEquipos
 import CategoriasPage from "./pages/config/CategoriasPage"
 import ProveedoresPage from "./pages/config/ProveedoresPage"
 import AccesoDenegadoPage from "./pages/AccesoDenegadoPage"
+import ComprasProductos from "./pages/registrar/ComprasProductos"
+import HistorialComprasProductosPage from "./pages/historial/HistorialComprasProductosPage"
 
 function App() {
   return (
@@ -52,11 +54,19 @@ function App() {
             {/* Página de inicio */}
             <Route index element={<Home />} />
 
-            {/* Rutas anidadas para registrar (accesibles para todos) */}
+            {/* Rutas anidadas para registrar (accesibles para todos, algunas solo admin) */}
             <Route path="registrar">
               <Route path="ventas-productos" element={<VentasProductos />} />
               <Route path="ventas-equipos" element={<VentasEquipos />} />
               <Route path="reparacion" element={<ReparacionesPage />} />
+              <Route
+                path="compras-productos"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <ComprasProductos />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             {/* Rutas de stock (solo para administradores) */}
@@ -90,6 +100,14 @@ function App() {
             {/* Rutas de historial (algunas solo para administradores) */}
             <Route path="historial">
               <Route path="ventas-productos" element={<HistorialVentasProductosPage />} />
+              <Route
+                path="compras-productos"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <HistorialComprasProductosPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="ventas-equipos"
                 element={
