@@ -108,7 +108,16 @@ const ComprasProductos = () => {
         const puntos = await getPuntosVenta()
         setPuntosVenta(puntos)
         if (puntos.length > 0) {
-          setPuntoVentaSeleccionado(puntos[0].id.toString())
+          let puntoDefecto
+          if (currentUser?.id === 7) {
+            // Para FABIAN (ID 7), seleccionar "Tala" por defecto
+            puntoDefecto = puntos.find((p) => p.nombre.toLowerCase() === "tala")
+          } else {
+            // Para otros usuarios, seleccionar "Trancas" por defecto si existe
+            puntoDefecto = puntos.find((p) => p.nombre.toLowerCase() === "trancas")
+          }
+
+          setPuntoVentaSeleccionado(puntoDefecto ? puntoDefecto.id.toString() : puntos[0].id.toString())
         }
 
         const cats = await getCategorias()
