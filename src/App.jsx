@@ -22,6 +22,7 @@ import HistorialPerdidasPage from "./pages/historial/HistorialPerdidasPage"
 import ClientesPage from "./pages/config/ClientesPage"
 import HistorialVentasEquiposPage from "./pages/historial/HistorialVentasEquiposPage"
 import CategoriasPage from "./pages/config/CategoriasPage"
+import ProveedoresPage from "./pages/config/ProveedoresPage"
 import AccesoDenegadoPage from "./pages/AccesoDenegadoPage"
 
 function App() {
@@ -119,6 +120,14 @@ function App() {
                 }
               />
               <Route path="clientes" element={<ClientesPage />} />
+              <Route
+                path="proveedores"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <ProveedoresPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
 
             <Route path="reparaciones-pendientes" element={<ReparacionesPendientes />} />

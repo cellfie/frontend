@@ -181,7 +181,7 @@ const MobileNavItem = ({ title, to, icon: Icon, children, hidden = false }) => {
 }
 
 // Componente para el botón móvil con control de visibilidad
-const MobileNavButton = ({ to, icon: Icon, title, hidden = false, onClick }) => {
+const MobileNavButton = ({ to, icon, title, hidden = false, onClick }) => {
   // Si el elemento está oculto, no renderizarlo
   if (hidden) return null
 
@@ -193,7 +193,7 @@ const MobileNavButton = ({ to, icon: Icon, title, hidden = false, onClick }) => 
         onClick={onClick}
       >
         <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4" />
+          {icon && <icon.type {...icon.props} />}
           <span>{title}</span>
         </div>
       </Button>
@@ -206,8 +206,8 @@ const MobileNavButton = ({ to, icon: Icon, title, hidden = false, onClick }) => 
       className="justify-start h-9 text-gray-200 hover:bg-transparent hover:text-orange-600"
       asChild
     >
-      <Link to={to} className="flex items-center gap-2">
-        <Icon className="h-4 w-4" />
+          <Link to={to} className="flex items-center gap-2">
+          {icon && <icon.type {...icon.props} />}
         <span>{title}</span>
       </Link>
     </Button>
@@ -219,7 +219,6 @@ export const NavBar = () => {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { currentUser } = useAuth()
-  const location = useLocation()
 
   // Determinar si el usuario es administrador
   const isAdmin = currentUser?.role === "admin"
@@ -324,6 +323,7 @@ export const NavBar = () => {
 
           <DesktopMenuItem title="Configuraciones" icon={Settings}>
             <DesktopSubMenuItem title="Clientes" to="/configuraciones/clientes" icon={Users} />
+            <DesktopSubMenuItem title="Proveedores" to="/configuraciones/proveedores" icon={Users} hidden={!isAdmin} />
             <DesktopSubMenuItem title="Categorías" to="/configuraciones/categorias" icon={Tag} hidden={!isAdmin} />
             <DesktopSubMenuItem title="Pérdidas" to="/historial/perdidas" icon={AlertTriangle} />
           </DesktopMenuItem>
@@ -408,6 +408,12 @@ export const NavBar = () => {
                 <MobileNavItem title="Configuraciones" icon={Settings}>
                   <div className="flex flex-col gap-1 py-1">
                     <MobileNavButton to="/configuraciones/clientes" icon={Users} title="Clientes" />
+                    <MobileNavButton
+                      to="/configuraciones/proveedores"
+                      icon={Users}
+                      title="Proveedores"
+                      hidden={!isAdmin}
+                    />
                     <MobileNavButton to="/configuraciones/categorias" icon={Tag} title="Categorías" hidden={!isAdmin} />
                     <MobileNavButton to="/historial/perdidas" icon={AlertTriangle} title="Pérdidas" />
                   </div>
