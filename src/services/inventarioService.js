@@ -66,4 +66,41 @@ export const updateInventario = async (inventarioData) => {
   }
 }
 
+// Obtener movimientos de inventario (paginados)
+export const getMovimientosInventario = async (page = 1, limit = 20, filters = {}) => {
+  try {
+    const cleanFilters = Object.fromEntries(
+      Object.entries(filters).filter(
+        ([, value]) => value !== undefined && value !== null && value !== "" && value !== "todos",
+      ),
+    )
+
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...cleanFilters,
+    })
+
+    const response = await fetch(`${API_URL}/inventario/movimientos?${queryParams.toString()}`, {
+      method: "GET",
+      credentials: "include",
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Error al obtener movimientos de inventario" }))
+      throw new Error(errorData.message || "Error al obtener movimientos de inventario")
+    }
+
+    const data = await response.json()
+
+    if (!data || !Array.isArray(data.movimientos)) {
+      throw new Error("Respuesta inválida del servidor de movimientos de inventario")
+    }
+
+    return data
+  } catch (error) {
+    console.error("Error en getMovimientosInventario:", error)
+    throw error
+  }
+}
 

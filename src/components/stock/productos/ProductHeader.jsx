@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Plus, Package, MapPin, Calendar } from "lucide-react"
+import { Search, Plus, Package, MapPin, Calendar, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +24,7 @@ export const ProductHeader = ({
   onClearFilters,
   dateRange,
   setDateRange,
+  onOpenMovimientos,
 }) => {
   const [categorias, setCategorias] = useState([])
 
@@ -68,7 +69,7 @@ export const ProductHeader = ({
 
       <div className="p-4">
         <div className="flex flex-col gap-3">
-          {/* Primera fila: Búsqueda y botón agregar */}
+          {/* Primera fila: Búsqueda y botones de acciones */}
           <div className="flex flex-col md:flex-row gap-3 items-center">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -89,11 +90,26 @@ export const ProductHeader = ({
               )}
             </div>
 
-            <Button onClick={onAddClick} size="sm" className="whitespace-nowrap bg-orange-600 hover:bg-orange-700">
-              <Plus className="mr-1 h-4 w-4" />
-              <span className="hidden sm:inline">Agregar</span>
-              <span className="sm:hidden">Nuevo</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={onAddClick} size="sm" className="whitespace-nowrap bg-orange-600 hover:bg-orange-700">
+                <Plus className="mr-1 h-4 w-4" />
+                <span className="hidden sm:inline">Agregar</span>
+                <span className="sm:hidden">Nuevo</span>
+              </Button>
+              {onOpenMovimientos && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="whitespace-nowrap"
+                  onClick={onOpenMovimientos}
+                >
+                  <History className="mr-1 h-4 w-4" />
+                  <span className="hidden sm:inline">Historial stock</span>
+                  <span className="sm:hidden">Historial</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Segunda fila: Filtros */}

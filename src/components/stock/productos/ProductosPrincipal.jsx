@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css"
 import { AnimatePresence } from "framer-motion"
 import { ProductHeader } from "./ProductHeader"
 import { ProductTable } from "./ProductTable"
+import { StockMovementsModal } from "./StockMovementsModal"
 import { AddProductModal } from "./AddProductModal"
 import { DiscountModal } from "./DiscountModal"
 import { PaginationControls } from "@/lib/PaginationControls"
@@ -58,6 +59,7 @@ export const ProductosPrincipal = () => {
   const [editingProduct, setEditingProduct] = useState(null)
   const [discountProduct, setDiscountProduct] = useState(null)
   const [showDetails, setShowDetails] = useState(null)
+  const [showMovementsModal, setShowMovementsModal] = useState(false)
 
   // Estados de filtros
   const [searchTerm, setSearchTerm] = useState("")
@@ -396,6 +398,7 @@ export const ProductosPrincipal = () => {
         onClearFilters={clearFilters}
         dateRange={dateRange}
         setDateRange={setDateRange}
+        onOpenMovimientos={() => setShowMovementsModal(true)}
       />
 
       <ProductTable
@@ -458,6 +461,12 @@ export const ProductosPrincipal = () => {
         pauseOnHover
         theme="light"
         limit={3}
+      />
+
+      <StockMovementsModal
+        open={showMovementsModal}
+        onClose={() => setShowMovementsModal(false)}
+        puntoVentaId={selectedPuntoVentaId}
       />
     </div>
   )
