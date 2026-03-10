@@ -78,6 +78,7 @@ export const registrarMovimientoCaja = async (movimientoData) => {
       concepto: movimientoData.concepto,
       monto: Number(movimientoData.monto),
       metodo_pago: movimientoData.metodo_pago || "",
+      origen: movimientoData.origen || "general",
     }),
     credentials: "include",
   })

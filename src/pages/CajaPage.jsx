@@ -3,19 +3,7 @@
 import { useEffect, useState } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import {
-  Wallet,
-  MapPin,
-  UserCircle,
-  Clock,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  ChevronDown,
-  ChevronUp,
-  Plus,
-  MinusCircle,
-  History,
-} from "lucide-react"
+import { Wallet, MapPin, UserCircle, Clock, ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronUp, Plus, MinusCircle, History } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import {
@@ -38,6 +27,7 @@ import {
 } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { PaginationControls } from "@/lib/PaginationControls"
+import { getTiposPago } from "@/services/pagosService"
 
 const formatearMonedaARS = (valor) => {
   const numero = Number(valor) || 0
@@ -83,6 +73,8 @@ const CajaPage = () => {
   const [montoMovimiento, setMontoMovimiento] = useState("")
   const [metodoMovimiento, setMetodoMovimiento] = useState("Efectivo")
   const [registrandoMovimiento, setRegistrandoMovimiento] = useState(false)
+  const [origenMovimiento, setOrigenMovimiento] = useState("ventas_productos")
+  const [tabCaja, setTabCaja] = useState("ventas_productos")
 
   const [mostrarDetallesResumen, setMostrarDetallesResumen] = useState(true)
 
@@ -108,6 +100,7 @@ const CajaPage = () => {
 
   const [dialogAperturaAbierto, setDialogAperturaAbierto] = useState(false)
   const [dialogCierreAbierto, setDialogCierreAbierto] = useState(false)
+  const [tiposPago, setTiposPago] = useState([])
 
   // Cargar puntos de venta y setear por defecto Trancas (igual que en ventas)
   useEffect(() => {
@@ -131,6 +124,22 @@ const CajaPage = () => {
     }
     cargarPV()
   }, [currentUser])
+
+  // Cargar tipos de pago (para usar mismos métodos que el resto del sistema)
+  useEffect(() => {
+    const cargarTiposPago = async () => {
+      try {
+        const tipos = await getTiposPago()
+        setTiposPago(tipos)
+        if (tipos.length > 0) {
+          setMetodoMovimiento(tipos[0].nombre)
+        }
+      } catch (error) {
+        console.error("Error al cargar tipos de pago:", error)
+      }
+    }
+    cargarTiposPago()
+  }, [])
 
   const cargarCajaActual = async () => {
     if (!puntoVentaSeleccionado) return
@@ -236,11 +245,12 @@ const CajaPage = () => {
         concepto: conceptoMovimiento.trim(),
         monto,
         metodo_pago: metodoMovimiento || "Efectivo",
+        origen: origenMovimiento || "general",
       })
       toast.success("Movimiento registrado correctamente")
       setConceptoMovimiento("")
       setMontoMovimiento("")
-      setMetodoMovimiento("Efectivo")
+      setMetodoMovimiento(tiposPago[0]?.nombre || "Efectivo")
       await cargarCajaActual()
     } catch (error) {
       console.error("Error al registrar movimiento de caja:", error)
@@ -308,7 +318,14 @@ const CajaPage = () => {
   const totalIngresosCaja = resumenTotales?.movimientos?.ingresos || 0
   const totalEgresosCaja = resumenTotales?.movimientos?.egresos || 0
 
-  const totalVentas = (resumenTotales?.ventas || []).reduce((sum, v) => sum + Number(v.total || 0), 0)
+  const totalVentasProductos = (resumenTotales?.ventas_productos || []).reduce(
+    (sum, v) => sum + Number(v.total || 0),
+    0,
+  )
+  const totalVentasEquipos = (resumenTotales?.ventas_equipos || []).reduce(
+    (sum, v) => sum + Number(v.total || 0),
+    0,
+  )
   const totalCompras = (resumenTotales?.compras || []).reduce((sum, v) => sum + Number(v.total || 0), 0)
   const totalReparaciones = (resumenTotales?.reparaciones || []).reduce((sum, v) => sum + Number(v.total || 0), 0)
 
@@ -535,68 +552,313 @@ const CajaPage = () => {
           </CardContent>
         </Card>
 
-        {/* Movimientos manuales */}
+        {/* Caja por tipo de ingreso (tabs) */}
         <Card className="border-0 shadow-md">
           <CardHeader className="bg-[#131321] pb-3">
             <CardTitle className="text-orange-600 flex items-center gap-2">
               <ArrowDownCircle className="h-5 w-5" />
-              Movimientos manuales
+              Cajas por tipo de ingreso
             </CardTitle>
             <CardDescription className="text-gray-300">
-              Registra ingresos y egresos de caja (ej: retiros, depósitos, ajustes).
+              Administra ingresos y egresos manuales separados por ventas de productos, ventas de equipos y reparaciones.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-4 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
-                <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ingreso">Ingreso</SelectItem>
-                    <SelectItem value="egreso">Egreso</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">Monto</label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={montoMovimiento}
-                  onChange={(e) => setMontoMovimiento(e.target.value)}
-                  placeholder="Monto"
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Método de pago</label>
-              <Input
-                value={metodoMovimiento}
-                onChange={(e) => setMetodoMovimiento(e.target.value)}
-                placeholder="Efectivo, Transferencia, etc."
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Concepto</label>
-              <Textarea
-                rows={2}
-                value={conceptoMovimiento}
-                onChange={(e) => setConceptoMovimiento(e.target.value)}
-                placeholder="Ej: Retiro para gastos, Ingreso desde banco, etc."
-              />
-            </div>
-            <div className="pt-2 flex justify-end">
-              <Button
-                onClick={handleRegistrarMovimiento}
-                disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
-                className={tipoMovimiento === "ingreso" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
-              >
-                {registrandoMovimiento ? "Guardando..." : tipoMovimiento === "ingreso" ? "Registrar ingreso" : "Registrar egreso"}
-              </Button>
-            </div>
+          <CardContent className="p-4 space-y-4">
+            <Tabs
+              value={tabCaja}
+              onValueChange={(val) => {
+                setTabCaja(val)
+                setOrigenMovimiento(val)
+              }}
+            >
+              <TabsList className="grid grid-cols-3 mb-3">
+                <TabsTrigger value="ventas_productos">Ventas productos</TabsTrigger>
+                <TabsTrigger value="ventas_equipos">Ventas equipos</TabsTrigger>
+                <TabsTrigger value="reparaciones">Reparaciones</TabsTrigger>
+              </TabsList>
+
+              {/* TAB VENTAS PRODUCTOS */}
+              <TabsContent value="ventas_productos" className="space-y-4">
+                <div className="rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+                  <p className="font-semibold">Resumen por método de pago (ventas de productos)</p>
+                  {(resumenTotales?.ventas_productos || []).length === 0 ? (
+                    <p>No hay pagos registrados de ventas de productos en esta sesión.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {resumenTotales.ventas_productos.map((v) => (
+                        <div key={v.tipo_pago} className="flex justify-between gap-4">
+                          <span>{v.tipo_pago}</span>
+                          <span className="font-semibold">{formatearMonedaARS(v.total)}</span>
+                        </div>
+                      ))}
+                      <Separator className="my-1" />
+                      <div className="flex justify-between gap-4 text-[11px]">
+                        <span className="font-medium">Total ventas productos</span>
+                        <span className="font-semibold text-orange-700">
+                          {formatearMonedaARS(totalVentasProductos)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
+                      <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ingreso">Ingreso</SelectItem>
+                          <SelectItem value="egreso">Egreso</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Monto</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={montoMovimiento}
+                        onChange={(e) => setMontoMovimiento(e.target.value)}
+                        placeholder="Monto"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">Método de pago</label>
+                    <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Seleccionar método" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tiposPago.map((tp) => (
+                          <SelectItem key={tp.id} value={tp.nombre}>
+                            {tp.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">Concepto</label>
+                    <Textarea
+                      rows={2}
+                      value={conceptoMovimiento}
+                      onChange={(e) => setConceptoMovimiento(e.target.value)}
+                      placeholder="Ej: Ajuste por venta de productos, retiro, etc."
+                    />
+                  </div>
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      onClick={handleRegistrarMovimiento}
+                      disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
+                      className={
+                        tipoMovimiento === "ingreso"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : "bg-red-600 hover:bg-red-700"
+                      }
+                    >
+                      {registrandoMovimiento
+                        ? "Guardando..."
+                        : tipoMovimiento === "ingreso"
+                          ? "Registrar ingreso"
+                          : "Registrar egreso"}
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* TAB VENTAS EQUIPOS */}
+              <TabsContent value="ventas_equipos" className="space-y-4">
+                <div className="rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+                  <p className="font-semibold">Resumen por método de pago (ventas de equipos)</p>
+                  {(resumenTotales?.ventas_equipos || []).length === 0 ? (
+                    <p>No hay pagos registrados de ventas de equipos en esta sesión.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {resumenTotales.ventas_equipos.map((v) => (
+                        <div key={v.tipo_pago} className="flex justify-between gap-4">
+                          <span>{v.tipo_pago}</span>
+                          <span className="font-semibold">{formatearMonedaARS(v.total)}</span>
+                        </div>
+                      ))}
+                      <Separator className="my-1" />
+                      <div className="flex justify-between gap-4 text-[11px]">
+                        <span className="font-medium">Total ventas equipos</span>
+                        <span className="font-semibold text-orange-700">
+                          {formatearMonedaARS(totalVentasEquipos)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
+                      <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ingreso">Ingreso</SelectItem>
+                          <SelectItem value="egreso">Egreso</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Monto</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={montoMovimiento}
+                        onChange={(e) => setMontoMovimiento(e.target.value)}
+                        placeholder="Monto"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">Método de pago</label>
+                    <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Seleccionar método" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tiposPago.map((tp) => (
+                          <SelectItem key={tp.id} value={tp.nombre}>
+                            {tp.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">Concepto</label>
+                    <Textarea
+                      rows={2}
+                      value={conceptoMovimiento}
+                      onChange={(e) => setConceptoMovimiento(e.target.value)}
+                      placeholder="Ej: Ajuste por venta de equipos, retiro, etc."
+                    />
+                  </div>
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      onClick={handleRegistrarMovimiento}
+                      disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
+                      className={
+                        tipoMovimiento === "ingreso"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : "bg-red-600 hover:bg-red-700"
+                      }
+                    >
+                      {registrandoMovimiento
+                        ? "Guardando..."
+                        : tipoMovimiento === "ingreso"
+                          ? "Registrar ingreso"
+                          : "Registrar egreso"}
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* TAB REPARACIONES */}
+              <TabsContent value="reparaciones" className="space-y-4">
+                <div className="rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+                  <p className="font-semibold">Resumen por método de pago (reparaciones)</p>
+                  {(resumenTotales?.reparaciones || []).length === 0 ? (
+                    <p>No hay pagos registrados de reparaciones en esta sesión.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {resumenTotales.reparaciones.map((v) => (
+                        <div key={v.tipo_pago} className="flex justify-between gap-4">
+                          <span>{v.tipo_pago}</span>
+                          <span className="font-semibold">{formatearMonedaARS(v.total)}</span>
+                        </div>
+                      ))}
+                      <Separator className="my-1" />
+                      <div className="flex justify-between gap-4 text-[11px]">
+                        <span className="font-medium">Total reparaciones</span>
+                        <span className="font-semibold text-orange-700">
+                          {formatearMonedaARS(totalReparaciones)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
+                      <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ingreso">Ingreso</SelectItem>
+                          <SelectItem value="egreso">Egreso</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Monto</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={montoMovimiento}
+                        onChange={(e) => setMontoMovimiento(e.target.value)}
+                        placeholder="Monto"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">Método de pago</label>
+                    <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Seleccionar método" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tiposPago.map((tp) => (
+                          <SelectItem key={tp.id} value={tp.nombre}>
+                            {tp.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-700">Concepto</label>
+                    <Textarea
+                      rows={2}
+                      value={conceptoMovimiento}
+                      onChange={(e) => setConceptoMovimiento(e.target.value)}
+                      placeholder="Ej: Ajuste de caja por reparaciones, retiro, etc."
+                    />
+                  </div>
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      onClick={handleRegistrarMovimiento}
+                      disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
+                      className={
+                        tipoMovimiento === "ingreso"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : "bg-red-600 hover:bg-red-700"
+                      }
+                    >
+                      {registrandoMovimiento
+                        ? "Guardando..."
+                        : tipoMovimiento === "ingreso"
+                          ? "Registrar ingreso"
+                          : "Registrar egreso"}
+                  </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
