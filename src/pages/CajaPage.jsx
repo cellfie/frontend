@@ -72,6 +72,9 @@ const parsearInputMoneda = (str) => {
   return Number.isNaN(n) ? 0 : n
 }
 
+// Cantidad de movimientos a cargar por página en tabs con ventas + manuales (para ver todos los que explican los ingresos)
+const LIMITE_MOVIMIENTOS_COMPLETOS = 100
+
 const formatearFechaHora = (fechaString) => {
   if (!fechaString) return ""
   const fecha = new Date(fechaString)
@@ -345,12 +348,9 @@ const CajaPage = () => {
         setMovimientos(data.movimientos)
         setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
       } else {
-        const data = await getMovimientosCompletosCaja(
-          cajaActual.id,
-          tabCaja,
-          page,
-          movimientosPagination.itemsPerPage,
-        )
+        const limit =
+          tabCaja !== "general" ? LIMITE_MOVIMIENTOS_COMPLETOS : movimientosPagination.itemsPerPage
+        const data = await getMovimientosCompletosCaja(cajaActual.id, tabCaja, page, limit)
         setMovimientos(data.movimientos)
         setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
       }
@@ -829,12 +829,19 @@ const CajaPage = () => {
                   </div>
                 )}
 
-                {/* Tabla/lista de movimientos */}
+                {/* Tabla/lista de movimientos (ventas + manuales que explican los ingresos del tab) */}
                 <div className="border rounded-md bg-white">
-                  <div className="px-4 py-2 border-b bg-gray-50 text-sm font-medium text-gray-700">
-                    Movimientos de {tab === "general" ? "toda la caja" : tab.replace("_", " ")}
+                  <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      Movimientos de {tab === "general" ? "toda la caja" : tab.replace("_", " ")}
+                    </span>
+                    {movimientosPagination.totalItems > 0 && (
+                      <span className="text-xs text-gray-500">
+                        Total: {movimientosPagination.totalItems} movimiento{movimientosPagination.totalItems !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
-                  <ScrollArea className="h-[260px]">
+                  <ScrollArea className="h-[360px]">
                     <div className="divide-y">
                       {loadingMovimientos ? (
                         <div className="py-8 text-center text-gray-500 text-sm">
@@ -892,23 +899,25 @@ const CajaPage = () => {
                       )}
                     </div>
                   </ScrollArea>
-                  <div className="px-4 py-2 border-t flex items-center justify-between text-xs text-gray-500">
-                    <span>
-                      Mostrando {movimientos.length} de {movimientosPagination.totalItems} movimientos
-                    </span>
-                    {movimientosPagination.totalPages > 1 && (
-                      <PaginationControls
-                        currentPage={movimientosPagination.currentPage}
-                        totalPages={movimientosPagination.totalPages}
-                        totalItems={movimientosPagination.totalItems}
-                        itemsPerPage={movimientosPagination.itemsPerPage}
-                        onPageChange={(page) => cargarMovimientos(page)}
-                        onItemsPerPageChange={() => {}}
-                        isLoading={loadingMovimientos}
-                        hidePageSizeSelector
-                      />
-                    )}
-                  </div>
+            <div className="px-4 py-2 border-t flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+              <span>
+                {movimientosPagination.totalItems === 0
+                  ? "Sin movimientos"
+                  : `Mostrando ${movimientosPagination.startItem || 1} a ${movimientosPagination.endItem || movimientos.length} de ${movimientosPagination.totalItems} movimientos`}
+              </span>
+              {movimientosPagination.totalPages > 1 && (
+                <PaginationControls
+                  currentPage={movimientosPagination.currentPage}
+                  totalPages={movimientosPagination.totalPages}
+                  totalItems={movimientosPagination.totalItems}
+                  itemsPerPage={movimientosPagination.itemsPerPage}
+                  onPageChange={(page) => cargarMovimientos(page)}
+                  onItemsPerPageChange={() => {}}
+                  isLoading={loadingMovimientos}
+                  hidePageSizeSelector
+                />
+              )}
+            </div>
                 </div>
               </TabsContent>
             ))}
