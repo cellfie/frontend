@@ -125,7 +125,13 @@ export const getSesionesCaja = async (page = 1, limit = 20, filters = {}) => {
 }
 
 // Historial de movimientos de caja para una sesión
-export const getMovimientosCaja = async (cajaSesionId, page = 1, limit = 20, tipo = "todos") => {
+export const getMovimientosCaja = async (
+  cajaSesionId,
+  page = 1,
+  limit = 20,
+  tipo = "todos",
+  origen = "todos",
+) => {
   const params = new URLSearchParams({
     caja_sesion_id: cajaSesionId.toString(),
     page: page.toString(),
@@ -134,6 +140,10 @@ export const getMovimientosCaja = async (cajaSesionId, page = 1, limit = 20, tip
 
   if (tipo && tipo !== "todos") {
     params.append("tipo", tipo)
+  }
+
+  if (origen && origen !== "todos") {
+    params.append("origen", origen)
   }
 
   const response = await fetch(`${API_URL}/caja/movimientos?${params.toString()}`, {

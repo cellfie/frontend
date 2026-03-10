@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import { Wallet, MapPin, UserCircle, Clock, ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronUp, Plus, MinusCircle, History } from "lucide-react"
+import {
+  Wallet,
+  MapPin,
+  UserCircle,
+  Clock,
+  Plus,
+  MinusCircle,
+  History,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,9 +33,9 @@ import {
   getSesionesCaja,
   getMovimientosCaja,
 } from "@/services/cajaService"
+import { getTiposPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
 import { PaginationControls } from "@/lib/PaginationControls"
-import { getTiposPago } from "@/services/pagosService"
 
 const formatearMonedaARS = (valor) => {
   const numero = Number(valor) || 0
@@ -75,8 +83,7 @@ const CajaPage = () => {
   const [registrandoMovimiento, setRegistrandoMovimiento] = useState(false)
   const [origenMovimiento, setOrigenMovimiento] = useState("ventas_productos")
   const [tabCaja, setTabCaja] = useState("ventas_productos")
-
-  const [mostrarDetallesResumen, setMostrarDetallesResumen] = useState(true)
+  const [mostrarFormularioMovimiento, setMostrarFormularioMovimiento] = useState(false)
 
   const [dialogHistorialAbierto, setDialogHistorialAbierto] = useState(false)
   const [sesiones, setSesiones] = useState([])
@@ -95,7 +102,6 @@ const CajaPage = () => {
     totalItems: 0,
     itemsPerPage: 20,
   })
-  const [tipoFiltroMov, setTipoFiltroMov] = useState("todos")
   const [loadingMovimientos, setLoadingMovimientos] = useState(false)
 
   const [dialogAperturaAbierto, setDialogAperturaAbierto] = useState(false)
@@ -191,6 +197,7 @@ const CajaPage = () => {
       setResumenTotales(null)
       setMontoApertura("")
       setNotasApertura("")
+      await cargarCajaActual()
     } catch (error) {
       console.error("Error al abrir caja:", error)
       toast.error(error.message || "Error al abrir caja")
@@ -251,7 +258,9 @@ const CajaPage = () => {
       setConceptoMovimiento("")
       setMontoMovimiento("")
       setMetodoMovimiento(tiposPago[0]?.nombre || "Efectivo")
+      setMostrarFormularioMovimiento(false)
       await cargarCajaActual()
+      await cargarMovimientos(1)
     } catch (error) {
       console.error("Error al registrar movimiento de caja:", error)
       toast.error(error.message || "Error al registrar movimiento de caja")
@@ -276,11 +285,17 @@ const CajaPage = () => {
     }
   }
 
-  const cargarMovimientos = async (page = 1, tipo = tipoFiltroMov) => {
+  const cargarMovimientos = async (page = 1) => {
     if (!cajaActual) return
     setLoadingMovimientos(true)
     try {
-      const data = await getMovimientosCaja(cajaActual.id, page, movimientosPagination.itemsPerPage, tipo)
+      const data = await getMovimientosCaja(
+        cajaActual.id,
+        page,
+        movimientosPagination.itemsPerPage,
+        "todos",
+        tabCaja === "general" ? "todos" : tabCaja,
+      )
       setMovimientos(data.movimientos)
       setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
     } catch (error) {
@@ -305,12 +320,7 @@ const CajaPage = () => {
       setMovimientos([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cajaActual])
-
-  const handleChangeTipoMovFiltro = (nuevoTipo) => {
-    setTipoFiltroMov(nuevoTipo)
-    cargarMovimientos(1, nuevoTipo)
-  }
+  }, [cajaActual, tabCaja])
 
   const puntoVentaNombre =
     puntosVenta.find((p) => p.id.toString() === puntoVentaSeleccionado)?.nombre || "Seleccionar"
@@ -318,20 +328,128 @@ const CajaPage = () => {
   const totalIngresosCaja = resumenTotales?.movimientos?.ingresos || 0
   const totalEgresosCaja = resumenTotales?.movimientos?.egresos || 0
 
-  const totalVentasProductos = (resumenTotales?.ventas_productos || []).reduce(
-    (sum, v) => sum + Number(v.total || 0),
-    0,
-  )
-  const totalVentasEquipos = (resumenTotales?.ventas_equipos || []).reduce(
-    (sum, v) => sum + Number(v.total || 0),
-    0,
-  )
-  const totalCompras = (resumenTotales?.compras || []).reduce((sum, v) => sum + Number(v.total || 0), 0)
-  const totalReparaciones = (resumenTotales?.reparaciones || []).reduce((sum, v) => sum + Number(v.total || 0), 0)
+  const movimientosPorOrigen = resumenTotales?.movimientos_por_origen || {}
 
-  const saldoCajaTeorico =
-    (Number(cajaActual?.monto_apertura || 0) || 0) + totalIngresosCaja - totalEgresosCaja
+  const getTotalesTab = (tab) => {
+    if (tab === "general") {
+      return {
+        ingresos: totalIngresosCaja,
+        egresos: totalEgresosCaja,
+      }
+    }
+    const data = movimientosPorOrigen[tab] || { ingresos: 0, egresos: 0 }
+    return {
+      ingresos: data.ingresos || 0,
+      egresos: data.egresos || 0,
+    }
+  }
 
+  const totalesTabActual = getTotalesTab(tabCaja)
+  const balanceTabActual =
+    (Number(cajaActual?.monto_apertura || 0) || 0) + totalesTabActual.ingresos - totalesTabActual.egresos
+
+  // Vista minimalista cuando la caja está cerrada o no existe
+  if (!cajaActual || cajaActual.estado !== "abierta") {
+    return (
+      <div className="container mx-auto p-4 min-h-screen bg-gray-100 flex items-center justify-center">
+        <ToastContainer position="bottom-right" autoClose={3000} />
+        <Card className="max-w-md w-full shadow-lg border-0">
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl font-bold flex items-center justify-center gap-2 text-gray-900">
+              <Wallet className="h-6 w-6 text-orange-600" />
+              Caja cerrada
+            </CardTitle>
+            <CardDescription className="text-gray-600 mt-1">
+              No hay ninguna sesión de caja abierta. Debes abrir la caja para comenzar a registrar movimientos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-700 text-center">Punto de venta</label>
+              <Select
+                value={puntoVentaSeleccionado}
+                onValueChange={setPuntoVentaSeleccionado}
+                disabled={loadingCaja || puntosVenta.length === 0}
+              >
+                <SelectTrigger className="w-full h-9 bg-white shadow-sm">
+                  <SelectValue placeholder="Seleccionar punto de venta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {puntosVenta.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      {p.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-center">
+              <Button
+                onClick={() => setDialogAperturaAbierto(true)}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={!puntoVentaSeleccionado || loadingCaja}
+              >
+                Abrir caja
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Diálogo para monto de apertura */}
+        <Dialog open={dialogAperturaAbierto} onOpenChange={setDialogAperturaAbierto}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-orange-600 flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Abrir caja
+              </DialogTitle>
+              <DialogDescription>
+                Estás abriendo una nueva sesión de caja para el punto de venta <strong>{puntoVentaNombre}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Monto de apertura</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={montoApertura}
+                  onChange={(e) => setMontoApertura(e.target.value)}
+                  placeholder="Monto inicial en caja"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Notas (opcional)</label>
+                <Textarea
+                  rows={3}
+                  value={notasApertura}
+                  onChange={(e) => setNotasApertura(e.target.value)}
+                  placeholder="Comentarios sobre la apertura de caja"
+                />
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDialogAperturaAbierto(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={async () => {
+                  await handleAbrirCaja()
+                  setDialogAperturaAbierto(false)
+                }}
+                disabled={!puntoVentaSeleccionado}
+              >
+                Confirmar apertura
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }
+
+  // Vista con caja abierta
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" autoClose={3000} />
@@ -371,14 +489,13 @@ const CajaPage = () => {
         </div>
       </div>
 
-      {/* Panel principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Estado de caja */}
-        <Card className="border-0 shadow-md lg:col-span-2">
-          <CardHeader className="bg-[#131321] pb-3">
+      {/* Tabs principales y contenido */}
+      <Card className="border-0 shadow-md mb-6">
+        <CardHeader className="bg-[#131321] pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
             <CardTitle className="text-orange-600 flex items-center gap-2">
               <Wallet className="h-5 w-5" />
-              Estado de caja
+              Resumen de caja
             </CardTitle>
             <CardDescription className="text-gray-300">
               Punto de venta:{" "}
@@ -387,592 +504,279 @@ const CajaPage = () => {
                 {puntoVentaNombre}
               </span>
             </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            {loadingCaja ? (
-              <p className="text-gray-500 text-sm">Cargando estado de caja...</p>
-            ) : cajaActual && cajaActual.estado === "abierta" ? (
-              <>
-                <div className="flex flex-col sm:flex-row justify-between gap-3">
-                  <div className="space-y-1">
-                    <Badge className="bg-green-100 text-green-800 border-green-300">Caja abierta</Badge>
-                    <div className="flex items-center gap-2 text-sm text-gray-700 mt-1">
-                      <UserCircle className="h-4 w-4 text-gray-500" />
-                      <span>
-                        Abierta por{" "}
-                        <span className="font-semibold">{cajaActual.usuario_apertura_nombre || "Usuario"}</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Clock className="h-4 w-4 text-gray-500" />
-                      <span>Apertura: {formatearFechaHora(cajaActual.fecha_apertura)}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1 text-sm text-gray-700">
-                    <div className="flex justify-between gap-4">
-                      <span>Monto apertura:</span>
-                      <span className="font-semibold">
-                        {formatearMonedaARS(cajaActual.monto_apertura || 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Ingresos manuales:</span>
-                      <span className="font-semibold text-green-700">
-                        {formatearMonedaARS(totalIngresosCaja)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Egresos manuales:</span>
-                      <span className="font-semibold text-red-700">
-                        {formatearMonedaARS(totalEgresosCaja)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Saldo teórico:</span>
-                      <span className="font-semibold text-orange-700">
-                        {formatearMonedaARS(saldoCajaTeorico)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Resumen de ingresos/egresos por origen */}
-                <div className="mt-4 border rounded-lg bg-gray-50">
-                  <button
-                    type="button"
-                    className="w-full flex justify-between items-center px-3 py-2 text-sm text-gray-700"
-                    onClick={() => setMostrarDetallesResumen((prev) => !prev)}
-                  >
-                    <span className="flex items-center gap-1">
-                      <ArrowDownCircle className="h-4 w-4 text-orange-500" />
-                      Resumen de movimientos vinculados a la caja (lectura)
-                    </span>
-                    {mostrarDetallesResumen ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </button>
-                  {mostrarDetallesResumen && (
-                    <div className="px-4 pb-3 space-y-2 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span>Ventas (pagos registrados):</span>
-                        <span className="font-semibold">{formatearMonedaARS(totalVentas)}</span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span>Reparaciones (pagos registrados):</span>
-                        <span className="font-semibold">{formatearMonedaARS(totalReparaciones)}</span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span>Compras (pagos registrados):</span>
-                        <span className="font-semibold">{formatearMonedaARS(totalCompras)}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Estos totales son de lectura (no se suman directamente al saldo de caja, que se maneja con
-                        movimientos manuales). Sirven para conciliar la caja con ventas, compras y reparaciones.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : cajaActual && cajaActual.estado === "cerrada" ? (
-              <div className="space-y-2 text-sm text-gray-700">
-                <Badge className="bg-gray-200 text-gray-800 border-gray-300">Caja cerrada</Badge>
-                <div className="flex items-center gap-2">
-                  <UserCircle className="h-4 w-4 text-gray-500" />
-                  <span>
-                    Abierta por{" "}
-                    <span className="font-semibold">{cajaActual.usuario_apertura_nombre || "Usuario"}</span> y cerrada
-                    por{" "}
-                    <span className="font-semibold">{cajaActual.usuario_cierre_nombre || "Usuario"}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-gray-500" />
-                  <span>
-                    Apertura: {formatearFechaHora(cajaActual.fecha_apertura)} | Cierre:{" "}
-                    {formatearFechaHora(cajaActual.fecha_cierre)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>Monto apertura:</span>
-                  <span className="font-semibold">
-                    {formatearMonedaARS(cajaActual.monto_apertura || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>Monto cierre:</span>
-                  <span className="font-semibold">
-                    {formatearMonedaARS(cajaActual.monto_cierre || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span>Diferencia:</span>
-                  <span
-                    className={`font-semibold ${
-                      Number(cajaActual.diferencia || 0) === 0
-                        ? "text-green-700"
-                        : Number(cajaActual.diferencia || 0) > 0
-                          ? "text-blue-700"
-                          : "text-red-700"
-                    }`}
-                  >
-                    {formatearMonedaARS(cajaActual.diferencia || 0)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3 text-sm text-gray-700">
-                <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Caja sin abrir</Badge>
-                <p className="text-gray-600">
-                  No hay ninguna sesión de caja abierta para este punto de venta. Pulsa el botón de abajo para abrir
-                  caja y comenzar a registrar movimientos.
-                </p>
-                <Button
-                  onClick={() => setDialogAperturaAbierto(true)}
-                  className="bg-green-600 hover:bg-green-700"
-                  disabled={!puntoVentaSeleccionado}
-                >
-                  Abrir caja
-                </Button>
-              </div>
-            )}
-
-            {cajaActual && cajaActual.estado === "abierta" && (
-              <div className="pt-3 flex justify-end">
-                <Button
-                  onClick={() => setDialogCierreAbierto(true)}
-                  className="bg-red-600 hover:bg-red-700"
-                  disabled={!isAdmin && currentUser?.role !== "empleado"}
-                >
-                  Cerrar caja
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Caja por tipo de ingreso (tabs) */}
-        <Card className="border-0 shadow-md">
-          <CardHeader className="bg-[#131321] pb-3">
-            <CardTitle className="text-orange-600 flex items-center gap-2">
-              <ArrowDownCircle className="h-5 w-5" />
-              Cajas por tipo de ingreso
-            </CardTitle>
-            <CardDescription className="text-gray-300">
-              Administra ingresos y egresos manuales separados por ventas de productos, ventas de equipos y reparaciones.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            <Tabs
-              value={tabCaja}
-              onValueChange={(val) => {
-                setTabCaja(val)
-                setOrigenMovimiento(val)
-              }}
-            >
-              <TabsList className="grid grid-cols-3 mb-3">
-                <TabsTrigger value="ventas_productos">Ventas productos</TabsTrigger>
-                <TabsTrigger value="ventas_equipos">Ventas equipos</TabsTrigger>
-                <TabsTrigger value="reparaciones">Reparaciones</TabsTrigger>
-              </TabsList>
-
-              {/* TAB VENTAS PRODUCTOS */}
-              <TabsContent value="ventas_productos" className="space-y-4">
-                <div className="rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
-                  <p className="font-semibold">Resumen por método de pago (ventas de productos)</p>
-                  {(resumenTotales?.ventas_productos || []).length === 0 ? (
-                    <p>No hay pagos registrados de ventas de productos en esta sesión.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {resumenTotales.ventas_productos.map((v) => (
-                        <div key={v.tipo_pago} className="flex justify-between gap-4">
-                          <span>{v.tipo_pago}</span>
-                          <span className="font-semibold">{formatearMonedaARS(v.total)}</span>
-                        </div>
-                      ))}
-                      <Separator className="my-1" />
-                      <div className="flex justify-between gap-4 text-[11px]">
-                        <span className="font-medium">Total ventas productos</span>
-                        <span className="font-semibold text-orange-700">
-                          {formatearMonedaARS(totalVentasProductos)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
-                      <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ingreso">Ingreso</SelectItem>
-                          <SelectItem value="egreso">Egreso</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Monto</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={montoMovimiento}
-                        onChange={(e) => setMontoMovimiento(e.target.value)}
-                        placeholder="Monto"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-700">Método de pago</label>
-                    <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Seleccionar método" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tiposPago.map((tp) => (
-                          <SelectItem key={tp.id} value={tp.nombre}>
-                            {tp.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-700">Concepto</label>
-                    <Textarea
-                      rows={2}
-                      value={conceptoMovimiento}
-                      onChange={(e) => setConceptoMovimiento(e.target.value)}
-                      placeholder="Ej: Ajuste por venta de productos, retiro, etc."
-                    />
-                  </div>
-                  <div className="pt-2 flex justify-end">
-                    <Button
-                      onClick={handleRegistrarMovimiento}
-                      disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
-                      className={
-                        tipoMovimiento === "ingreso"
-                          ? "bg-green-600 hover:bg-green-700"
-                          : "bg-red-600 hover:bg-red-700"
-                      }
-                    >
-                      {registrandoMovimiento
-                        ? "Guardando..."
-                        : tipoMovimiento === "ingreso"
-                          ? "Registrar ingreso"
-                          : "Registrar egreso"}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* TAB VENTAS EQUIPOS */}
-              <TabsContent value="ventas_equipos" className="space-y-4">
-                <div className="rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
-                  <p className="font-semibold">Resumen por método de pago (ventas de equipos)</p>
-                  {(resumenTotales?.ventas_equipos || []).length === 0 ? (
-                    <p>No hay pagos registrados de ventas de equipos en esta sesión.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {resumenTotales.ventas_equipos.map((v) => (
-                        <div key={v.tipo_pago} className="flex justify-between gap-4">
-                          <span>{v.tipo_pago}</span>
-                          <span className="font-semibold">{formatearMonedaARS(v.total)}</span>
-                        </div>
-                      ))}
-                      <Separator className="my-1" />
-                      <div className="flex justify-between gap-4 text-[11px]">
-                        <span className="font-medium">Total ventas equipos</span>
-                        <span className="font-semibold text-orange-700">
-                          {formatearMonedaARS(totalVentasEquipos)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
-                      <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ingreso">Ingreso</SelectItem>
-                          <SelectItem value="egreso">Egreso</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Monto</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={montoMovimiento}
-                        onChange={(e) => setMontoMovimiento(e.target.value)}
-                        placeholder="Monto"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-700">Método de pago</label>
-                    <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Seleccionar método" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tiposPago.map((tp) => (
-                          <SelectItem key={tp.id} value={tp.nombre}>
-                            {tp.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-700">Concepto</label>
-                    <Textarea
-                      rows={2}
-                      value={conceptoMovimiento}
-                      onChange={(e) => setConceptoMovimiento(e.target.value)}
-                      placeholder="Ej: Ajuste por venta de equipos, retiro, etc."
-                    />
-                  </div>
-                  <div className="pt-2 flex justify-end">
-                    <Button
-                      onClick={handleRegistrarMovimiento}
-                      disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
-                      className={
-                        tipoMovimiento === "ingreso"
-                          ? "bg-green-600 hover:bg-green-700"
-                          : "bg-red-600 hover:bg-red-700"
-                      }
-                    >
-                      {registrandoMovimiento
-                        ? "Guardando..."
-                        : tipoMovimiento === "ingreso"
-                          ? "Registrar ingreso"
-                          : "Registrar egreso"}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* TAB REPARACIONES */}
-              <TabsContent value="reparaciones" className="space-y-4">
-                <div className="rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
-                  <p className="font-semibold">Resumen por método de pago (reparaciones)</p>
-                  {(resumenTotales?.reparaciones || []).length === 0 ? (
-                    <p>No hay pagos registrados de reparaciones en esta sesión.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {resumenTotales.reparaciones.map((v) => (
-                        <div key={v.tipo_pago} className="flex justify-between gap-4">
-                          <span>{v.tipo_pago}</span>
-                          <span className="font-semibold">{formatearMonedaARS(v.total)}</span>
-                        </div>
-                      ))}
-                      <Separator className="my-1" />
-                      <div className="flex justify-between gap-4 text-[11px]">
-                        <span className="font-medium">Total reparaciones</span>
-                        <span className="font-semibold text-orange-700">
-                          {formatearMonedaARS(totalReparaciones)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
-                      <Select value={tipoMovimiento} onValueChange={setTipoMovimiento}>
-                        <SelectTrigger className="h-9">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ingreso">Ingreso</SelectItem>
-                          <SelectItem value="egreso">Egreso</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Monto</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={montoMovimiento}
-                        onChange={(e) => setMontoMovimiento(e.target.value)}
-                        placeholder="Monto"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-700">Método de pago</label>
-                    <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Seleccionar método" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tiposPago.map((tp) => (
-                          <SelectItem key={tp.id} value={tp.nombre}>
-                            {tp.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-700">Concepto</label>
-                    <Textarea
-                      rows={2}
-                      value={conceptoMovimiento}
-                      onChange={(e) => setConceptoMovimiento(e.target.value)}
-                      placeholder="Ej: Ajuste de caja por reparaciones, retiro, etc."
-                    />
-                  </div>
-                  <div className="pt-2 flex justify-end">
-                    <Button
-                      onClick={handleRegistrarMovimiento}
-                      disabled={registrandoMovimiento || !cajaActual || cajaActual.estado !== "abierta"}
-                      className={
-                        tipoMovimiento === "ingreso"
-                          ? "bg-green-600 hover:bg-green-700"
-                          : "bg-red-600 hover:bg-red-700"
-                      }
-                    >
-                      {registrandoMovimiento
-                        ? "Guardando..."
-                        : tipoMovimiento === "ingreso"
-                          ? "Registrar ingreso"
-                          : "Registrar egreso"}
-                  </Button>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Movimientos de la sesión actual */}
-      <div className="mt-6">
-        <Card className="border-0 shadow-md">
-          <CardHeader className="bg-[#131321] pb-3">
-            <CardTitle className="text-orange-600 flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Movimientos de la sesión actual
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-50">
-              <div className="flex items-center gap-2 text-xs text-gray-600">
-                <span>Filtrar por tipo:</span>
-                <Button
-                  variant={tipoFiltroMov === "todos" ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleChangeTipoMovFiltro("todos")}
-                >
-                  Todos
-                </Button>
-                <Button
-                  variant={tipoFiltroMov === "ingreso" ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleChangeTipoMovFiltro("ingreso")}
-                >
-                  <ArrowDownCircle className="h-3 w-3 mr-1" />
-                  Ingresos
-                </Button>
-                <Button
-                  variant={tipoFiltroMov === "egreso" ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleChangeTipoMovFiltro("egreso")}
-                >
-                  <ArrowUpCircle className="h-3 w-3 mr-1" />
-                  Egresos
-                </Button>
-              </div>
-            </div>
-            <ScrollArea className="h-[260px]">
-              <div className="divide-y">
-                {loadingMovimientos ? (
-                  <div className="py-8 text-center text-gray-500 text-sm">Cargando movimientos...</div>
-                ) : movimientos.length === 0 ? (
-                  <div className="py-8 text-center text-gray-500 text-sm">
-                    No hay movimientos para esta sesión de caja.
-                  </div>
-                ) : (
-                  movimientos.map((mov) => {
-                    const esIngreso = mov.tipo === "ingreso"
-                    return (
-                      <div key={mov.id} className="flex items-center justify-between py-2 px-4 text-sm">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                              esIngreso ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-                            }`}
-                          >
-                            {esIngreso ? (
-                              <Plus className="h-4 w-4" />
-                            ) : (
-                              <MinusCircle className="h-4 w-4" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{mov.concepto}</div>
-                            <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
-                              <span>{formatearFechaHora(mov.fecha)}</span>
-                              {mov.metodo_pago && <span>Método: {mov.metodo_pago}</span>}
-                              {mov.usuario_nombre && <span>Usuario: {mov.usuario_nombre}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right min-w-[110px]">
-                          <div
-                            className={`font-semibold ${
-                              esIngreso ? "text-green-700" : "text-red-700"
-                            }`}
-                          >
-                            {esIngreso ? "+" : "-"} {formatearMonedaARS(mov.monto)}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </ScrollArea>
-            <div className="px-4 py-2 border-t flex items-center justify-between text-xs text-gray-500">
+          </div>
+          <div className="flex items-center gap-3 text-sm text-gray-200">
+            <Badge className="bg-green-100 text-green-800 border-green-300 flex items-center gap-1">
+              Caja abierta
+            </Badge>
+            <div className="flex items-center gap-2">
+              <UserCircle className="h-4 w-4 text-gray-400" />
               <span>
-                Mostrando {movimientos.length} de {movimientosPagination.totalItems} movimientos
+                {cajaActual.usuario_apertura_nombre || "Usuario"} ·{" "}
+                {formatearFechaHora(cajaActual.fecha_apertura)}
               </span>
-              {movimientosPagination.totalPages > 1 && (
-                <PaginationControls
-                  currentPage={movimientosPagination.currentPage}
-                  totalPages={movimientosPagination.totalPages}
-                  totalItems={movimientosPagination.totalItems}
-                  itemsPerPage={movimientosPagination.itemsPerPage}
-                  onPageChange={(page) => cargarMovimientos(page)}
-                  onItemsPerPageChange={() => {}}
-                  isLoading={loadingMovimientos}
-                  hidePageSizeSelector
-                />
-              )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Button
+              size="sm"
+              className="bg-red-600 hover:bg-red-700 ml-2"
+              onClick={() => setDialogCierreAbierto(true)}
+            >
+              Cerrar caja
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 space-y-4">
+          <Tabs
+            value={tabCaja}
+            onValueChange={(val) => {
+              setTabCaja(val)
+              setOrigenMovimiento(val === "general" ? "general" : val)
+              setMostrarFormularioMovimiento(false)
+            }}
+          >
+            <TabsList className="grid grid-cols-4 mb-4 w-full">
+              <TabsTrigger value="ventas_productos">Ventas productos</TabsTrigger>
+              <TabsTrigger value="ventas_equipos">Ventas equipos</TabsTrigger>
+              <TabsTrigger value="reparaciones">Reparaciones</TabsTrigger>
+              <TabsTrigger value="general">General</TabsTrigger>
+            </TabsList>
+
+            {["ventas_productos", "ventas_equipos", "reparaciones", "general"].map((tab) => (
+              <TabsContent key={tab} value={tab} className="space-y-4">
+                {/* Tarjetas de resumen */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <Card className="border border-gray-200 shadow-sm">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-gray-500">Monto inicial</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {formatearMonedaARS(cajaActual.monto_apertura || 0)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border border-gray-200 shadow-sm">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-gray-500">Ingresos</p>
+                      <p className="text-lg font-semibold text-green-700">
+                        {formatearMonedaARS(
+                          tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos,
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border border-gray-200 shadow-sm">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-gray-500">Egresos</p>
+                      <p className="text-lg font-semibold text-red-700">
+                        {formatearMonedaARS(
+                          tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos,
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border border-gray-200 shadow-sm">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-gray-500">Balance total</p>
+                      <p className="text-lg font-semibold text-orange-700">
+                        {formatearMonedaARS(
+                          (Number(cajaActual.monto_apertura || 0) || 0) +
+                            (tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos) -
+                            (tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos),
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Botones para registrar ingreso/egreso */}
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 flex items-center gap-1"
+                    onClick={() => {
+                      setTabCaja(tab)
+                      setOrigenMovimiento(tab === "general" ? "general" : tab)
+                      setTipoMovimiento("ingreso")
+                      setMostrarFormularioMovimiento(true)
+                    }}
+                    disabled={loadingMovimientos}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Registrar ingreso
+                  </Button>
+                  <Button
+                    className="bg-red-600 hover:bg-red-700 flex items-center gap-1"
+                    onClick={() => {
+                      setTabCaja(tab)
+                      setOrigenMovimiento(tab === "general" ? "general" : tab)
+                      setTipoMovimiento("egreso")
+                      setMostrarFormularioMovimiento(true)
+                    }}
+                    disabled={loadingMovimientos}
+                  >
+                    <MinusCircle className="h-4 w-4" />
+                    Registrar egreso
+                  </Button>
+                </div>
+
+                {/* Formulario de movimiento (solo en el tab activo) */}
+                {tab === tabCaja && mostrarFormularioMovimiento && (
+                  <div className="border rounded-md bg-gray-50 p-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
+                        <Input value={tipoMovimiento === "ingreso" ? "Ingreso" : "Egreso"} disabled />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-gray-700">Monto</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={montoMovimiento}
+                          onChange={(e) => setMontoMovimiento(e.target.value)}
+                          placeholder="Monto"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-gray-700">Método de pago</label>
+                        <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Seleccionar método" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tiposPago.map((tp) => (
+                              <SelectItem key={tp.id} value={tp.nombre}>
+                                {tp.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-700">Concepto</label>
+                      <Textarea
+                        rows={2}
+                        value={conceptoMovimiento}
+                        onChange={(e) => setConceptoMovimiento(e.target.value)}
+                        placeholder="Ej: Ajuste, retiro, depósito, etc."
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setMostrarFormularioMovimiento(false)
+                          setConceptoMovimiento("")
+                          setMontoMovimiento("")
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleRegistrarMovimiento}
+                        disabled={registrandoMovimiento}
+                        className={
+                          tipoMovimiento === "ingreso"
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "bg-red-600 hover:bg-red-700"
+                        }
+                      >
+                        {registrandoMovimiento
+                          ? "Guardando..."
+                          : tipoMovimiento === "ingreso"
+                          ? "Guardar ingreso"
+                          : "Guardar egreso"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabla/lista de movimientos */}
+                <div className="border rounded-md bg-white">
+                  <div className="px-4 py-2 border-b bg-gray-50 text-sm font-medium text-gray-700">
+                    Movimientos de {tab === "general" ? "toda la caja" : tab.replace("_", " ")}
+                  </div>
+                  <ScrollArea className="h-[260px]">
+                    <div className="divide-y">
+                      {loadingMovimientos ? (
+                        <div className="py-8 text-center text-gray-500 text-sm">
+                          Cargando movimientos...
+                        </div>
+                      ) : movimientos.length === 0 ? (
+                        <div className="py-8 text-center text-gray-500 text-sm">
+                          No hay movimientos registrados para este filtro.
+                        </div>
+                      ) : (
+                        movimientos.map((mov) => {
+                          const esIngreso = mov.tipo === "ingreso"
+                          return (
+                            <div
+                              key={mov.id}
+                              className="flex items-center justify-between py-2 px-4 text-sm"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                                    esIngreso ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                                  }`}
+                                >
+                                  {esIngreso ? (
+                                    <Plus className="h-4 w-4" />
+                                  ) : (
+                                    <MinusCircle className="h-4 w-4" />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="font-medium text-gray-900">{mov.concepto}</div>
+                                  <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
+                                    <span>{formatearFechaHora(mov.fecha)}</span>
+                                    {mov.metodo_pago && <span>Método: {mov.metodo_pago}</span>}
+                                    {mov.usuario_nombre && <span>Usuario: {mov.usuario_nombre}</span>}
+                                    {mov.origen && mov.origen !== "general" && (
+                                      <span>Origen: {mov.origen.replace("_", " ")}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right min-w-[110px]">
+                                <div
+                                  className={`font-semibold ${
+                                    esIngreso ? "text-green-700" : "text-red-700"
+                                  }`}
+                                >
+                                  {esIngreso ? "+" : "-"} {formatearMonedaARS(mov.monto)}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                  <div className="px-4 py-2 border-t flex items-center justify-between text-xs text-gray-500">
+                    <span>
+                      Mostrando {movimientos.length} de {movimientosPagination.totalItems} movimientos
+                    </span>
+                    {movimientosPagination.totalPages > 1 && (
+                      <PaginationControls
+                        currentPage={movimientosPagination.currentPage}
+                        totalPages={movimientosPagination.totalPages}
+                        totalItems={movimientosPagination.totalItems}
+                        itemsPerPage={movimientosPagination.itemsPerPage}
+                        onPageChange={(page) => cargarMovimientos(page)}
+                        onItemsPerPageChange={() => {}}
+                        isLoading={loadingMovimientos}
+                        hidePageSizeSelector
+                      />
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </CardContent>
+      </Card>
 
       {/* Diálogo de historial de sesiones */}
       <Dialog open={dialogHistorialAbierto} onOpenChange={setDialogHistorialAbierto}>
@@ -1012,8 +816,7 @@ const CajaPage = () => {
                           <span className="font-medium">{s.punto_venta_nombre}</span>
                         </div>
                         <div className="text-xs text-gray-500">
-                          Apertura: {formatearFechaHora(s.fecha_apertura)} por{" "}
-                          {s.usuario_apertura_nombre}
+                          Apertura: {formatearFechaHora(s.fecha_apertura)} por {s.usuario_apertura_nombre}
                         </div>
                         {s.fecha_cierre && (
                           <div className="text-xs text-gray-500">
@@ -1044,8 +847,8 @@ const CajaPage = () => {
                                 Number(s.diferencia || 0) === 0
                                   ? "text-green-700"
                                   : Number(s.diferencia || 0) > 0
-                                    ? "text-blue-700"
-                                    : "text-red-700"
+                                  ? "text-blue-700"
+                                  : "text-red-700"
                               }`}
                             >
                               {formatearMonedaARS(s.diferencia || 0)}
@@ -1076,57 +879,6 @@ const CajaPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de apertura de caja */}
-      <Dialog open={dialogAperturaAbierto} onOpenChange={setDialogAperturaAbierto}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-orange-600 flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
-              Abrir caja
-            </DialogTitle>
-            <DialogDescription>
-              Estás abriendo una nueva sesión de caja para el punto de venta <strong>{puntoVentaNombre}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Monto de apertura</label>
-              <Input
-                type="number"
-                min="0"
-                value={montoApertura}
-                onChange={(e) => setMontoApertura(e.target.value)}
-                placeholder="Monto inicial en caja"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Notas (opcional)</label>
-              <Textarea
-                rows={3}
-                value={notasApertura}
-                onChange={(e) => setNotasApertura(e.target.value)}
-                placeholder="Comentarios sobre la apertura de caja"
-              />
-            </div>
-          </div>
-          <div className="pt-2 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDialogAperturaAbierto(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              onClick={async () => {
-                await handleAbrirCaja()
-                setDialogAperturaAbierto(false)
-              }}
-              disabled={!puntoVentaSeleccionado}
-            >
-              Confirmar apertura
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Diálogo de cierre de caja */}
       <Dialog open={dialogCierreAbierto} onOpenChange={setDialogCierreAbierto}>
         <DialogContent className="max-w-md">
@@ -1144,12 +896,6 @@ const CajaPage = () => {
               <span>Monto apertura:</span>
               <span className="font-semibold">
                 {formatearMonedaARS(cajaActual?.monto_apertura || 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>Saldo teórico actual (apertura + movs):</span>
-              <span className="font-semibold text-orange-700">
-                {formatearMonedaARS(saldoCajaTeorico)}
               </span>
             </div>
             <Separator />
@@ -1195,4 +941,3 @@ const CajaPage = () => {
 }
 
 export default CajaPage
-
