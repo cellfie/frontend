@@ -46,6 +46,32 @@ const formatearMonedaARS = (valor) => {
   }).format(numero)
 }
 
+// Métodos de pago usados en el sistema (orden fijo para desglose)
+const METODOS_PAGO_NOMBRES = [
+  "Efectivo",
+  "Transferencia",
+  "Tarjeta de crédito",
+  "Cuenta corriente",
+]
+
+// Formatea un número para mostrar en input (opcional, ej. "15.000,50")
+const formatearNumeroInputARS = (valor) => {
+  const n = Number(valor)
+  if (Number.isNaN(n)) return ""
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n)
+}
+
+// Parsea valor de input (acepta 15000, 15000,50, 15.000,50)
+const parsearInputMoneda = (str) => {
+  if (str === "" || str == null) return 0
+  const limpio = String(str).trim().replace(/\./g, "").replace(",", ".")
+  const n = Number.parseFloat(limpio)
+  return Number.isNaN(n) ? 0 : n
+}
+
 const formatearFechaHora = (fechaString) => {
   if (!fechaString) return ""
   const fecha = new Date(fechaString)
@@ -75,7 +101,13 @@ const CajaPage = () => {
   const [notasApertura, setNotasApertura] = useState("")
 
   const [montoCierre, setMontoCierre] = useState("")
+  const [montoCierreEfectivo, setMontoCierreEfectivo] = useState("")
+  const [montoCierreTransferencia, setMontoCierreTransferencia] = useState("")
+  const [montoCierreTarjeta, setMontoCierreTarjeta] = useState("")
   const [notasCierre, setNotasCierre] = useState("")
+
+  const [desgloseIngresosAbierto, setDesgloseIngresosAbierto] = useState(false)
+  const [desgloseTabActual, setDesgloseTabActual] = useState("ventas_productos")
 
   const [tipoMovimiento, setTipoMovimiento] = useState("ingreso")
   const [conceptoMovimiento, setConceptoMovimiento] = useState("")
@@ -211,17 +243,20 @@ const CajaPage = () => {
     }
   }
 
-  const handleCerrarCaja = async () => {
+  const handleCerrarCaja = async (montoTotal) => {
     if (!cajaActual) {
       toast.error("No hay caja abierta para cerrar")
       return
     }
+    const monto =
+      typeof montoTotal === "number" && !Number.isNaN(montoTotal)
+        ? montoTotal
+        : Number(montoCierre || 0)
+    if (monto < 0) {
+      toast.error("El monto de cierre debe ser mayor o igual a 0")
+      return
+    }
     try {
-      const monto = Number(montoCierre || 0)
-      if (isNaN(monto) || monto < 0) {
-        toast.error("El monto de cierre debe ser un número válido mayor o igual a 0")
-        return
-      }
       const result = await cerrarCaja(cajaActual.id, {
         monto_cierre: monto,
         notas_cierre: notasCierre,
@@ -230,6 +265,9 @@ const CajaPage = () => {
       setCajaActualState(result.sesion)
       await cargarCajaActual()
       setMontoCierre("")
+      setMontoCierreEfectivo("")
+      setMontoCierreTransferencia("")
+      setMontoCierreTarjeta("")
       setNotasCierre("")
     } catch (error) {
       console.error("Error al cerrar caja:", error)
@@ -384,6 +422,46 @@ const CajaPage = () => {
   }
 
   const totalesTabActual = getTotalesTab(tabCaja)
+
+  // Desglose de ingresos por método de pago para el modal (al hacer clic en la tarjeta Ingresos)
+  const getDesgloseIngresos = (tab) => {
+    const manual = movimientosPorOrigen[tab] || { ingresos: 0, egresos: 0 }
+    const manualIngresos = manual.ingresos || 0
+
+    let porMetodo = {}
+    if (tab === "ventas_productos" && Array.isArray(resumenTotales?.ventas_productos)) {
+      resumenTotales.ventas_productos.forEach((v) => {
+        const nombre = v.tipo_pago || "Otro"
+        porMetodo[nombre] = (porMetodo[nombre] || 0) + Number(v.total || 0)
+      })
+    } else if (tab === "ventas_equipos" && Array.isArray(resumenTotales?.ventas_equipos)) {
+      resumenTotales.ventas_equipos.forEach((v) => {
+        const nombre = v.tipo_pago || "Otro"
+        porMetodo[nombre] = (porMetodo[nombre] || 0) + Number(v.total || 0)
+      })
+    } else if (tab === "reparaciones" && Array.isArray(resumenTotales?.reparaciones)) {
+      resumenTotales.reparaciones.forEach((v) => {
+        const nombre = v.tipo_pago || "Otro"
+        porMetodo[nombre] = (porMetodo[nombre] || 0) + Number(v.total || 0)
+      })
+    }
+
+    const filas = METODOS_PAGO_NOMBRES.map((metodo) => ({
+      metodo,
+      monto: porMetodo[metodo] || 0,
+    }))
+    if (manualIngresos > 0) {
+      filas.push({ metodo: "Movimientos manuales", monto: manualIngresos })
+    }
+    return filas
+  }
+
+  const saldoEsperadoCierre =
+    (Number(cajaActual?.monto_apertura || 0) || 0) + totalIngresosCaja - totalEgresosCaja
+  const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
+  const totalIngresadoCierre =
+    num(montoCierreEfectivo) + num(montoCierreTransferencia) + num(montoCierreTarjeta)
+  const diferenciaCierre = totalIngresadoCierre - saldoEsperadoCierre
 
   // Loader mientras se determina el estado de caja (evita flash "caja cerrada")
   if (estadoCaja === "cargando") {
@@ -603,9 +681,18 @@ const CajaPage = () => {
                       </p>
                     </CardContent>
                   </Card>
-                  <Card className="border border-gray-200 shadow-sm">
+                  <Card
+                    className="border border-gray-200 shadow-sm cursor-pointer hover:bg-green-50/50 hover:border-green-300 transition-colors"
+                    onClick={() => {
+                      setDesgloseTabActual(tab)
+                      setDesgloseIngresosAbierto(true)
+                    }}
+                  >
                     <CardContent className="p-3">
-                      <p className="text-xs text-gray-500">Ingresos</p>
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        Ingresos
+                        <span className="text-[10px] text-gray-400">(clic para desglose)</span>
+                      </p>
                       <p className="text-lg font-semibold text-green-700">
                         {formatearMonedaARS(
                           tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos,
@@ -930,8 +1017,61 @@ const CajaPage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Diálogo desglose de ingresos por método de pago */}
+      <Dialog open={desgloseIngresosAbierto} onOpenChange={setDesgloseIngresosAbierto}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-orange-600 flex items-center gap-2">
+              Desglose de ingresos
+            </DialogTitle>
+            <DialogDescription>
+              {desgloseTabActual === "general"
+                ? "General"
+                : desgloseTabActual.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {getDesgloseIngresos(desgloseTabActual).length === 0 ? (
+              <p className="text-sm text-gray-500">No hay ingresos desglosados en este período.</p>
+            ) : (
+              <>
+                {getDesgloseIngresos(desgloseTabActual).map((fila) => (
+                  <div
+                    key={fila.metodo}
+                    className="flex justify-between items-center text-sm py-1 border-b border-gray-100 last:border-0"
+                  >
+                    <span className="text-gray-700">{fila.metodo}</span>
+                    <span className="font-semibold text-green-700">
+                      {formatearMonedaARS(fila.monto)}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-2 font-semibold text-gray-900">
+                  <span>Total ingresos</span>
+                  <span className="text-green-700">
+                    {formatearMonedaARS(
+                      getDesgloseIngresos(desgloseTabActual).reduce((s, f) => s + f.monto, 0),
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Diálogo de cierre de caja */}
-      <Dialog open={dialogCierreAbierto} onOpenChange={setDialogCierreAbierto}>
+      <Dialog
+        open={dialogCierreAbierto}
+        onOpenChange={(open) => {
+          setDialogCierreAbierto(open)
+          if (open) {
+            setMontoCierreEfectivo("")
+            setMontoCierreTransferencia("")
+            setMontoCierreTarjeta("")
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-orange-600 flex items-center gap-2">
@@ -939,31 +1079,114 @@ const CajaPage = () => {
               Cerrar caja
             </DialogTitle>
             <DialogDescription>
-              Estás cerrando la sesión de caja actual para <strong>{puntoVentaNombre}</strong>.
+              Cierre de sesión para <strong>{puntoVentaNombre}</strong>. Indique el monto contado por método de pago.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between gap-4">
-              <span>Monto apertura:</span>
-              <span className="font-semibold">
-                {formatearMonedaARS(cajaActual?.monto_apertura || 0)}
-              </span>
+          <div className="space-y-4 text-sm">
+            <div className="rounded-lg bg-gray-50 p-3 text-center">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Monto esperado</p>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">
+                {formatearMonedaARS(saldoEsperadoCierre)}
+              </p>
             </div>
             <Separator />
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Monto contado al cierre</label>
-              <Input
-                type="number"
-                min="0"
-                value={montoCierre}
-                onChange={(e) => setMontoCierre(e.target.value)}
-                placeholder="Monto contado en caja"
-              />
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Efectivo</label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={
+                    montoCierreEfectivo === "" || montoCierreEfectivo === undefined
+                      ? ""
+                      : formatearNumeroInputARS(Number(montoCierreEfectivo))
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === "") {
+                      setMontoCierreEfectivo("")
+                      return
+                    }
+                    const n = parsearInputMoneda(v)
+                    setMontoCierreEfectivo(Number.isNaN(n) ? "" : n)
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Transferencia</label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={
+                    montoCierreTransferencia === "" || montoCierreTransferencia === undefined
+                      ? ""
+                      : formatearNumeroInputARS(Number(montoCierreTransferencia))
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === "") {
+                      setMontoCierreTransferencia("")
+                      return
+                    }
+                    const n = parsearInputMoneda(v)
+                    setMontoCierreTransferencia(Number.isNaN(n) ? "" : n)
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Tarjeta de crédito</label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={
+                    montoCierreTarjeta === "" || montoCierreTarjeta === undefined
+                      ? ""
+                      : formatearNumeroInputARS(Number(montoCierreTarjeta))
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === "") {
+                      setMontoCierreTarjeta("")
+                      return
+                    }
+                    const n = parsearInputMoneda(v)
+                    setMontoCierreTarjeta(Number.isNaN(n) ? "" : n)
+                  }}
+                />
+              </div>
+            </div>
+            <div className="rounded-lg border p-3 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Total ingresado</span>
+                <span className="font-semibold">{formatearMonedaARS(totalIngresadoCierre)}</span>
+              </div>
+              <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
+                <span className="text-gray-600">Diferencia</span>
+                <span
+                  className={`font-semibold ${
+                    diferenciaCierre === 0
+                      ? "text-green-700"
+                      : diferenciaCierre > 0
+                        ? "text-blue-700"
+                        : "text-red-700"
+                  }`}
+                >
+                  {formatearMonedaARS(diferenciaCierre)}
+                  {diferenciaCierre === 0
+                    ? " (Cuadra)"
+                    : diferenciaCierre > 0
+                      ? " (Sobrante)"
+                      : " (Faltante)"}
+                </span>
+              </div>
             </div>
             <div className="space-y-1">
               <label className="block text-xs font-medium text-gray-700">Notas de cierre (opcional)</label>
               <Textarea
-                rows={3}
+                rows={2}
                 value={notasCierre}
                 onChange={(e) => setNotasCierre(e.target.value)}
                 placeholder="Comentarios sobre el cierre de caja"
@@ -977,8 +1200,12 @@ const CajaPage = () => {
             <Button
               className="bg-red-600 hover:bg-red-700"
               onClick={async () => {
-                await handleCerrarCaja()
+                const total = totalIngresadoCierre
+                await handleCerrarCaja(total)
                 setDialogCierreAbierto(false)
+                setMontoCierreEfectivo("")
+                setMontoCierreTransferencia("")
+                setMontoCierreTarjeta("")
               }}
               disabled={!cajaActual || cajaActual.estado !== "abierta"}
             >
