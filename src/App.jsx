@@ -26,6 +26,7 @@ import ProveedoresPage from "./pages/config/ProveedoresPage"
 import AccesoDenegadoPage from "./pages/AccesoDenegadoPage"
 import ComprasProductos from "./pages/registrar/ComprasProductos"
 import HistorialComprasProductosPage from "./pages/historial/HistorialComprasProductosPage"
+import CajaPage from "./pages/CajaPage"
 
 function App() {
   return (
@@ -105,6 +106,14 @@ function App() {
                 element={
                   <ProtectedRoute requiredRole="admin">
                     <HistorialComprasProductosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="caja"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <CajaPage />
                   </ProtectedRoute>
                 }
               />
