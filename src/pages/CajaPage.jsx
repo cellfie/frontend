@@ -106,6 +106,9 @@ const CajaPage = () => {
   const [tipoFiltroMov, setTipoFiltroMov] = useState("todos")
   const [loadingMovimientos, setLoadingMovimientos] = useState(false)
 
+  const [dialogAperturaAbierto, setDialogAperturaAbierto] = useState(false)
+  const [dialogCierreAbierto, setDialogCierreAbierto] = useState(false)
+
   // Cargar puntos de venta y setear por defecto Trancas (igual que en ventas)
   useEffect(() => {
     const cargarPV = async () => {
@@ -502,74 +505,31 @@ const CajaPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2 text-sm text-gray-700">
+              <div className="space-y-3 text-sm text-gray-700">
                 <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Caja sin abrir</Badge>
                 <p className="text-gray-600">
-                  No hay ninguna sesión de caja abierta para este punto de venta. Completa el monto de apertura y abre
-                  una nueva sesión.
+                  No hay ninguna sesión de caja abierta para este punto de venta. Pulsa el botón de abajo para abrir
+                  caja y comenzar a registrar movimientos.
                 </p>
+                <Button
+                  onClick={() => setDialogAperturaAbierto(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={!puntoVentaSeleccionado}
+                >
+                  Abrir caja
+                </Button>
               </div>
             )}
 
-            {/* Formulario apertura/cierre */}
-            <Separator className="my-3" />
-            {cajaActual && cajaActual.estado === "abierta" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Monto cierre</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={montoCierre}
-                    onChange={(e) => setMontoCierre(e.target.value)}
-                    placeholder="Monto contado al cierre"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Notas de cierre (opcional)</label>
-                  <Textarea
-                    rows={2}
-                    value={notasCierre}
-                    onChange={(e) => setNotasCierre(e.target.value)}
-                    placeholder="Comentarios sobre el cierre de caja"
-                  />
-                </div>
-                <div className="md:col-span-2 flex justify-end">
-                  <Button
-                    onClick={handleCerrarCaja}
-                    className="bg-red-600 hover:bg-red-700"
-                    disabled={!isAdmin && currentUser?.role !== "empleado"}
-                  >
-                    Cerrar caja
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Monto apertura</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={montoApertura}
-                    onChange={(e) => setMontoApertura(e.target.value)}
-                    placeholder="Monto inicial en caja"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Notas de apertura (opcional)</label>
-                  <Textarea
-                    rows={2}
-                    value={notasApertura}
-                    onChange={(e) => setNotasApertura(e.target.value)}
-                    placeholder="Comentarios sobre la apertura de caja"
-                  />
-                </div>
-                <div className="md:col-span-2 flex justify-end">
-                  <Button onClick={handleAbrirCaja} className="bg-green-600 hover:bg-green-700" disabled={!puntoVentaSeleccionado}>
-                    Abrir caja
-                  </Button>
-                </div>
+            {cajaActual && cajaActual.estado === "abierta" && (
+              <div className="pt-3 flex justify-end">
+                <Button
+                  onClick={() => setDialogCierreAbierto(true)}
+                  className="bg-red-600 hover:bg-red-700"
+                  disabled={!isAdmin && currentUser?.role !== "empleado"}
+                >
+                  Cerrar caja
+                </Button>
               </div>
             )}
           </CardContent>
@@ -850,6 +810,121 @@ const CajaPage = () => {
                 hidePageSizeSelector
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de apertura de caja */}
+      <Dialog open={dialogAperturaAbierto} onOpenChange={setDialogAperturaAbierto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-orange-600 flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Abrir caja
+            </DialogTitle>
+            <DialogDescription>
+              Estás abriendo una nueva sesión de caja para el punto de venta <strong>{puntoVentaNombre}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Monto de apertura</label>
+              <Input
+                type="number"
+                min="0"
+                value={montoApertura}
+                onChange={(e) => setMontoApertura(e.target.value)}
+                placeholder="Monto inicial en caja"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Notas (opcional)</label>
+              <Textarea
+                rows={3}
+                value={notasApertura}
+                onChange={(e) => setNotasApertura(e.target.value)}
+                placeholder="Comentarios sobre la apertura de caja"
+              />
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDialogAperturaAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={async () => {
+                await handleAbrirCaja()
+                setDialogAperturaAbierto(false)
+              }}
+              disabled={!puntoVentaSeleccionado}
+            >
+              Confirmar apertura
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de cierre de caja */}
+      <Dialog open={dialogCierreAbierto} onOpenChange={setDialogCierreAbierto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-orange-600 flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Cerrar caja
+            </DialogTitle>
+            <DialogDescription>
+              Estás cerrando la sesión de caja actual para <strong>{puntoVentaNombre}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <span>Monto apertura:</span>
+              <span className="font-semibold">
+                {formatearMonedaARS(cajaActual?.monto_apertura || 0)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>Saldo teórico actual (apertura + movs):</span>
+              <span className="font-semibold text-orange-700">
+                {formatearMonedaARS(saldoCajaTeorico)}
+              </span>
+            </div>
+            <Separator />
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Monto contado al cierre</label>
+              <Input
+                type="number"
+                min="0"
+                value={montoCierre}
+                onChange={(e) => setMontoCierre(e.target.value)}
+                placeholder="Monto contado en caja"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Notas de cierre (opcional)</label>
+              <Textarea
+                rows={3}
+                value={notasCierre}
+                onChange={(e) => setNotasCierre(e.target.value)}
+                placeholder="Comentarios sobre el cierre de caja"
+              />
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDialogCierreAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                await handleCerrarCaja()
+                setDialogCierreAbierto(false)
+              }}
+              disabled={!cajaActual || cajaActual.estado !== "abierta"}
+            >
+              Confirmar cierre
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
