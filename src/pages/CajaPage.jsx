@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import {
-  CashRegister,
+  Wallet,
   MapPin,
   UserCircle,
   Clock,
@@ -320,7 +320,7 @@ const CajaPage = () => {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <CashRegister className="h-6 w-6 text-orange-600" />
+            <Wallet className="h-6 w-6 text-orange-600" />
             Caja
           </h1>
           <p className="text-gray-500">
@@ -357,7 +357,7 @@ const CajaPage = () => {
         <Card className="border-0 shadow-md lg:col-span-2">
           <CardHeader className="bg-[#131321] pb-3">
             <CardTitle className="text-orange-600 flex items-center gap-2">
-              <CashRegister className="h-5 w-5" />
+              <Wallet className="h-5 w-5" />
               Estado de caja
             </CardTitle>
             <CardDescription className="text-gray-300">
