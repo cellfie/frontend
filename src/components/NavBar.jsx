@@ -327,7 +327,6 @@ export const NavBar = () => {
             <DesktopSubMenuItem title="Compras Productos" to="/historial/compras-productos" icon={BarChart3} />
             <DesktopSubMenuItem title="Ventas Equipos" to="/historial/ventas-equipos" icon={BarChart3} />
             <DesktopSubMenuItem title="Devoluciones" to="/historial/devoluciones" icon={RefreshCw} />
-            <DesktopSubMenuItem title="Caja" to="/historial/caja" icon={BarChart3} />
           </DesktopMenuItem>
 
           <DesktopMenuItem title="Configuraciones" icon={Settings}>
@@ -423,7 +422,6 @@ export const NavBar = () => {
                     />
                     <MobileNavButton to="/historial/ventas-equipos" icon={BarChart3} title="Ventas Equipos" />
                     <MobileNavButton to="/historial/devoluciones" icon={RefreshCw} title="Devoluciones" />
-                    <MobileNavButton to="/historial/caja" icon={BarChart3} title="Caja" />
                   </div>
                 </MobileNavItem>
 

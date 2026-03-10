@@ -32,6 +32,7 @@ import {
   registrarMovimientoCaja,
   getSesionesCaja,
   getMovimientosCaja,
+  getMovimientosCompletosCaja,
 } from "@/services/cajaService"
 import { getTiposPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
@@ -61,7 +62,6 @@ const formatearFechaHora = (fechaString) => {
 
 const CajaPage = () => {
   const { currentUser } = useAuth()
-  const isAdmin = currentUser?.role === "admin"
 
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
@@ -69,6 +69,7 @@ const CajaPage = () => {
   const [cajaActual, setCajaActualState] = useState(null)
   const [resumenTotales, setResumenTotales] = useState(null)
   const [loadingCaja, setLoadingCaja] = useState(false)
+  const [estadoCaja, setEstadoCaja] = useState("cargando")
 
   const [montoApertura, setMontoApertura] = useState("")
   const [notasApertura, setNotasApertura] = useState("")
@@ -122,6 +123,8 @@ const CajaPage = () => {
             puntoDefecto = puntos.find((p) => p.nombre.toLowerCase() === "trancas")
           }
           setPuntoVentaSeleccionado(puntoDefecto ? puntoDefecto.id.toString() : puntos[0].id.toString())
+        } else {
+          setEstadoCaja("cerrada")
         }
       } catch (error) {
         console.error("Error al cargar puntos de venta:", error)
@@ -150,20 +153,24 @@ const CajaPage = () => {
   const cargarCajaActual = async () => {
     if (!puntoVentaSeleccionado) return
     setLoadingCaja(true)
+    setEstadoCaja("cargando")
     try {
       const data = await getCajaActual(Number(puntoVentaSeleccionado))
       if (!data) {
         setCajaActualState(null)
         setResumenTotales(null)
+        setEstadoCaja("cerrada")
       } else {
         setCajaActualState(data.sesion)
         setResumenTotales(data.totales)
+        setEstadoCaja(data.sesion?.estado === "abierta" ? "abierta" : "cerrada")
       }
     } catch (error) {
       console.error("Error al obtener caja actual:", error)
       toast.error(error.message || "Error al obtener caja actual")
       setCajaActualState(null)
       setResumenTotales(null)
+      setEstadoCaja("cerrada")
     } finally {
       setLoadingCaja(false)
     }
@@ -289,15 +296,26 @@ const CajaPage = () => {
     if (!cajaActual) return
     setLoadingMovimientos(true)
     try {
-      const data = await getMovimientosCaja(
-        cajaActual.id,
-        page,
-        movimientosPagination.itemsPerPage,
-        "todos",
-        tabCaja === "general" ? "todos" : tabCaja,
-      )
-      setMovimientos(data.movimientos)
-      setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
+      if (tabCaja === "general") {
+        const data = await getMovimientosCaja(
+          cajaActual.id,
+          page,
+          movimientosPagination.itemsPerPage,
+          "todos",
+          "general",
+        )
+        setMovimientos(data.movimientos)
+        setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
+      } else {
+        const data = await getMovimientosCompletosCaja(
+          cajaActual.id,
+          tabCaja,
+          page,
+          movimientosPagination.itemsPerPage,
+        )
+        setMovimientos(data.movimientos)
+        setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
+      }
     } catch (error) {
       console.error("Error al obtener movimientos de caja:", error)
       toast.error(error.message || "Error al obtener movimientos de caja")
@@ -328,6 +346,19 @@ const CajaPage = () => {
   const totalIngresosCaja = resumenTotales?.movimientos?.ingresos || 0
   const totalEgresosCaja = resumenTotales?.movimientos?.egresos || 0
 
+  const totalVentasProductos = (resumenTotales?.ventas_productos || []).reduce(
+    (s, v) => s + Number(v.total || 0),
+    0,
+  )
+  const totalVentasEquipos = (resumenTotales?.ventas_equipos || []).reduce(
+    (s, v) => s + Number(v.total || 0),
+    0,
+  )
+  const totalReparaciones = (resumenTotales?.reparaciones || []).reduce(
+    (s, v) => s + Number(v.total || 0),
+    0,
+  )
+
   const movimientosPorOrigen = resumenTotales?.movimientos_por_origen || {}
 
   const getTotalesTab = (tab) => {
@@ -337,19 +368,38 @@ const CajaPage = () => {
         egresos: totalEgresosCaja,
       }
     }
-    const data = movimientosPorOrigen[tab] || { ingresos: 0, egresos: 0 }
+    const manual = movimientosPorOrigen[tab] || { ingresos: 0, egresos: 0 }
+    const ventas =
+      tab === "ventas_productos"
+        ? totalVentasProductos
+        : tab === "ventas_equipos"
+          ? totalVentasEquipos
+          : tab === "reparaciones"
+            ? totalReparaciones
+            : 0
     return {
-      ingresos: data.ingresos || 0,
-      egresos: data.egresos || 0,
+      ingresos: ventas + (manual.ingresos || 0),
+      egresos: manual.egresos || 0,
     }
   }
 
   const totalesTabActual = getTotalesTab(tabCaja)
-  const balanceTabActual =
-    (Number(cajaActual?.monto_apertura || 0) || 0) + totalesTabActual.ingresos - totalesTabActual.egresos
+
+  // Loader mientras se determina el estado de caja (evita flash "caja cerrada")
+  if (estadoCaja === "cargando") {
+    return (
+      <div className="container mx-auto p-4 min-h-screen bg-gray-100 flex items-center justify-center">
+        <ToastContainer position="bottom-right" autoClose={3000} />
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+          <p className="text-gray-600 font-medium">Cargando caja...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Vista minimalista cuando la caja está cerrada o no existe
-  if (!cajaActual || cajaActual.estado !== "abierta") {
+  if (estadoCaja === "cerrada" || !cajaActual || cajaActual.estado !== "abierta") {
     return (
       <div className="container mx-auto p-4 min-h-screen bg-gray-100 flex items-center justify-center">
         <ToastContainer position="bottom-right" autoClose={3000} />
@@ -709,10 +759,11 @@ const CajaPage = () => {
                         </div>
                       ) : (
                         movimientos.map((mov) => {
-                          const esIngreso = mov.tipo === "ingreso"
+                          const esIngreso = mov.tipo === "ingreso" || mov.tipo === "venta"
+                          const metodoPago = mov.tipo_pago || mov.metodo_pago
                           return (
                             <div
-                              key={mov.id}
+                              key={`${mov.tipo}-${mov.id}`}
                               className="flex items-center justify-between py-2 px-4 text-sm"
                             >
                               <div className="flex items-center gap-3">
@@ -731,10 +782,10 @@ const CajaPage = () => {
                                   <div className="font-medium text-gray-900">{mov.concepto}</div>
                                   <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
                                     <span>{formatearFechaHora(mov.fecha)}</span>
-                                    {mov.metodo_pago && <span>Método: {mov.metodo_pago}</span>}
+                                    {metodoPago && <span>Método: {metodoPago}</span>}
                                     {mov.usuario_nombre && <span>Usuario: {mov.usuario_nombre}</span>}
-                                    {mov.origen && mov.origen !== "general" && (
-                                      <span>Origen: {mov.origen.replace("_", " ")}</span>
+                                    {mov.tipo === "venta" && (
+                                      <span className="bg-blue-100 text-blue-800 px-1 rounded text-[10px]">Venta</span>
                                     )}
                                   </div>
                                 </div>

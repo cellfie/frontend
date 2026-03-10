@@ -165,3 +165,29 @@ export const getMovimientosCaja = async (
   return data
 }
 
+// Movimientos completos por tab (ventas + manuales unificados)
+export const getMovimientosCompletosCaja = async (
+  cajaSesionId,
+  origen = "ventas_productos",
+  page = 1,
+  limit = 50,
+) => {
+  const params = new URLSearchParams({
+    origen,
+    page: page.toString(),
+    limit: limit.toString(),
+  })
+  const response = await fetch(
+    `${API_URL}/caja/sesion/${cajaSesionId}/movimientos-completos?${params.toString()}`,
+    { method: "GET", credentials: "include" },
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Error al obtener movimientos" }))
+    throw new Error(errorData.message || "Error al obtener movimientos")
+  }
+  const data = await response.json()
+  if (!data || !Array.isArray(data.movimientos)) {
+    throw new Error("Respuesta inválida del servidor de movimientos")
+  }
+  return data
+}
