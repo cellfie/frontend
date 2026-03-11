@@ -46,7 +46,9 @@ import { getCategorias } from "@/services/categoriasService"
 import { getProveedores } from "@/services/proveedoresService"
 import { getTiposPago } from "@/services/pagosService"
 import { createCompra } from "@/services/comprasService"
+import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
+import { Link } from "react-router-dom"
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value)
@@ -99,8 +101,27 @@ const ComprasProductos = () => {
 
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false)
   const [procesandoCompra, setProcesandoCompra] = useState(false)
+  const [cajaAbierta, setCajaAbierta] = useState(null)
 
   const debouncedSearchTerm = useDebounce(busqueda, 300)
+
+  useEffect(() => {
+    if (!puntoVentaSeleccionado) {
+      setCajaAbierta(null)
+      return
+    }
+    let cancelled = false
+    getCajaActual(puntoVentaSeleccionado)
+      .then((data) => {
+        if (!cancelled) setCajaAbierta(!!data)
+      })
+      .catch(() => {
+        if (!cancelled) setCajaAbierta(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [puntoVentaSeleccionado])
 
   useEffect(() => {
     const cargarDatosIniciales = async () => {
@@ -367,6 +388,19 @@ const ComprasProductos = () => {
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} />
+
+      {puntoVentaSeleccionado && cajaAbierta === false && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-amber-800 font-medium">
+            La caja está cerrada para este punto de venta. Debe abrir la caja para poder registrar compras.
+          </p>
+          <Link to="/caja">
+            <Button variant="outline" size="sm" className="border-amber-600 text-amber-700 hover:bg-amber-100">
+              Ir a Caja
+            </Button>
+          </Link>
+        </div>
+      )}
 
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -752,7 +786,7 @@ const ComprasProductos = () => {
                     }
                     setDialogFinalizarAbierto(true)
                   }}
-                  disabled={!itemsCompra.length}
+                  disabled={!itemsCompra.length || cajaAbierta === false}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
                   <Receipt size={16} className="mr-1" /> Finalizar Compra
@@ -905,7 +939,7 @@ const ComprasProductos = () => {
                   <Button
                     onClick={finalizarCompra}
                     className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={procesandoCompra}
+                    disabled={procesandoCompra || cajaAbierta === false}
                   >
                     {procesandoCompra ? (
                       <>

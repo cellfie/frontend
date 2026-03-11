@@ -58,8 +58,10 @@ import { searchClientes, createCliente } from "@/services/clientesService"
 import { getTiposPago } from "@/services/pagosService"
 import { createVentaEquipo } from "@/services/ventasEquiposService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
+import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { DollarContext } from "@/context/DollarContext"
+import { Link } from "react-router-dom"
 
 // Importar componente de precios canjes
 import PreciosCanjes from "@/components/PreciosCanje"
@@ -212,6 +214,26 @@ const VentasEquipos = () => {
   const [pagos, setPagos] = useState([])
   const [tipoPagoSeleccionadoActual, setTipoPagoSeleccionadoActual] = useState("")
   const [montoPagoActual, setMontoPagoActual] = useState("")
+  const [cajaAbierta, setCajaAbierta] = useState(null)
+
+  // Verificar si la caja está abierta para el punto de venta (requerido para registrar ventas de equipos)
+  useEffect(() => {
+    if (!puntoVentaSeleccionado) {
+      setCajaAbierta(null)
+      return
+    }
+    let cancelled = false
+    getCajaActual(puntoVentaSeleccionado)
+      .then((data) => {
+        if (!cancelled) setCajaAbierta(!!data)
+      })
+      .catch(() => {
+        if (!cancelled) setCajaAbierta(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [puntoVentaSeleccionado])
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -825,6 +847,19 @@ const VentasEquipos = () => {
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
 
+      {puntoVentaSeleccionado && cajaAbierta === false && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-amber-800 font-medium">
+            La caja está cerrada para este punto de venta. Debe abrir la caja para poder registrar ventas de equipos.
+          </p>
+          <Link to="/caja">
+            <Button variant="outline" size="sm" className="border-amber-600 text-amber-700 hover:bg-amber-100">
+              Ir a Caja
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -1412,7 +1447,7 @@ const VentasEquipos = () => {
               <DialogTrigger asChild>
                 <Button
                   onClick={() => setDialogFinalizarAbierto(true)}
-                  disabled={!equipoSeleccionado || !cliente.id}
+                  disabled={!equipoSeleccionado || !cliente.id || cajaAbierta === false}
                   className="gap-1 bg-orange-600 hover:bg-orange-700"
                 >
                   <Receipt size={16} /> Finalizar Venta
@@ -1681,7 +1716,12 @@ const VentasEquipos = () => {
                   <Button
                     onClick={finalizarVenta}
                     className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={Math.abs(montoRestante) > 0.01 || procesandoVenta || pagos.length === 0}
+                    disabled={
+                      cajaAbierta === false ||
+                      Math.abs(montoRestante) > 0.01 ||
+                      procesandoVenta ||
+                      pagos.length === 0
+                    }
                   >
                     {procesandoVenta ? (
                       <>

@@ -51,6 +51,8 @@ import { getMetodosPagoReparacion } from "@/services/metodosPagoService"
 import { printTicket } from "@/services/ticketPrinterService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
 import { searchRepuestos } from "@/services/repuestosService"
+import { getCajaActual } from "@/services/cajaService"
+import { Link } from "react-router-dom"
 
 // Importar componentes
 import TicketThermal from "@/components/tickets/TicketThermal"
@@ -136,6 +138,8 @@ const ReparacionesPage = () => {
   const [searchRepuestoTerm, setSearchRepuestoTerm] = useState("")
   const [cargandoRepuestos, setCargandoRepuestos] = useState(false)
   const [repuestoSeleccionadoIndex, setRepuestoSeleccionadoIndex] = useState(null)
+
+  const [cajaAbierta, setCajaAbierta] = useState(null)
 
   // Referencia para imprimir
   const ticketRef = useRef()
@@ -224,6 +228,24 @@ const ReparacionesPage = () => {
 
     cargarDatosIniciales()
   }, [])
+
+  useEffect(() => {
+    if (!puntoVentaSeleccionado) {
+      setCajaAbierta(null)
+      return
+    }
+    let cancelled = false
+    getCajaActual(puntoVentaSeleccionado)
+      .then((data) => {
+        if (!cancelled) setCajaAbierta(!!data)
+      })
+      .catch(() => {
+        if (!cancelled) setCajaAbierta(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [puntoVentaSeleccionado])
 
   // Efecto para verificar la cuenta corriente cuando se selecciona como método de pago
   useEffect(() => {
@@ -813,6 +835,19 @@ const ReparacionesPage = () => {
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-200">
       <ToastContainer position="bottom-right" />
+
+      {puntoVentaSeleccionado && cajaAbierta === false && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-amber-800 font-medium">
+            La caja está cerrada para este punto de venta. Debe abrir la caja para poder registrar reparaciones.
+          </p>
+          <Link to="/caja">
+            <Button variant="outline" size="sm" className="border-amber-600 text-amber-700 hover:bg-amber-100">
+              Ir a Caja
+            </Button>
+          </Link>
+        </div>
+      )}
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 text-center">Registrar reparaciones</h1>
@@ -1622,7 +1657,7 @@ const ReparacionesPage = () => {
                 ) : (
                   <Button
                     onClick={prepararTicket}
-                    disabled={cargando}
+                    disabled={cargando || cajaAbierta === false}
                     className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700"
                   >
                     {cargando ? (
@@ -1673,7 +1708,7 @@ const ReparacionesPage = () => {
                       setCargando(false)
                     }
                   }}
-                  disabled={cargando}
+                  disabled={cargando || cajaAbierta === false}
                   className="flex items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white flex-1"
                 >
                   {cargando ? (
@@ -1697,7 +1732,7 @@ const ReparacionesPage = () => {
                       console.error("Error al imprimir:", error)
                     }
                   }}
-                  disabled={cargando}
+                  disabled={cargando || cajaAbierta === false}
                   className="flex items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white flex-1"
                 >
                   {cargando ? (

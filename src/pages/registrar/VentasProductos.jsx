@@ -55,7 +55,9 @@ import { searchClientes, createCliente } from "@/services/clientesService"
 import { getTiposPago } from "@/services/pagosService"
 import { createVenta } from "@/services/ventasService"
 import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService"
+import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
+import { Link } from "react-router-dom"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -112,6 +114,7 @@ const VentasProductos = () => {
   const [procesandoVenta, setProcesandoVenta] = useState(false)
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
+  const [cajaAbierta, setCajaAbierta] = useState(null)
 
   // Estados para múltiples pagos
   const [pagos, setPagos] = useState([])
@@ -120,6 +123,25 @@ const VentasProductos = () => {
 
   // Debounce para la búsqueda
   const debouncedSearchTerm = useDebounce(busqueda, 300)
+
+  // Verificar si la caja está abierta para el punto de venta seleccionado (requerido para registrar ventas)
+  useEffect(() => {
+    if (!puntoVentaSeleccionado) {
+      setCajaAbierta(null)
+      return
+    }
+    let cancelled = false
+    getCajaActual(puntoVentaSeleccionado)
+      .then((data) => {
+        if (!cancelled) setCajaAbierta(!!data)
+      })
+      .catch(() => {
+        if (!cancelled) setCajaAbierta(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [puntoVentaSeleccionado])
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -514,6 +536,20 @@ const VentasProductos = () => {
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} />
+
+      {/* Aviso si la caja está cerrada: no se pueden registrar ventas */}
+      {puntoVentaSeleccionado && cajaAbierta === false && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-amber-800 font-medium">
+            La caja está cerrada para este punto de venta. Debe abrir la caja para poder registrar ventas.
+          </p>
+          <Link to="/caja">
+            <Button variant="outline" size="sm" className="border-amber-600 text-amber-700 hover:bg-amber-100">
+              Ir a Caja
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6">
@@ -1053,7 +1089,7 @@ const VentasProductos = () => {
                     }
                     setDialogFinalizarAbierto(true)
                   }}
-                  disabled={!productosSeleccionados.length}
+                  disabled={!productosSeleccionados.length || cajaAbierta === false}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
                   <Receipt size={16} className="mr-1" /> Finalizar Venta
@@ -1309,7 +1345,12 @@ const VentasProductos = () => {
                   <Button
                     onClick={finalizarVenta}
                     className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={Math.abs(calcularRestante()) > 0.01 || pagos.length === 0 || procesandoVenta}
+                    disabled={
+                      cajaAbierta === false ||
+                      Math.abs(calcularRestante()) > 0.01 ||
+                      pagos.length === 0 ||
+                      procesandoVenta
+                    }
                   >
                     {procesandoVenta ? (
                       <>
