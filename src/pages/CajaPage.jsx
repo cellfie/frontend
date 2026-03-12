@@ -117,9 +117,8 @@ const CajaPage = () => {
   const [montoMovimiento, setMontoMovimiento] = useState("")
   const [metodoMovimiento, setMetodoMovimiento] = useState("Efectivo")
   const [registrandoMovimiento, setRegistrandoMovimiento] = useState(false)
-  const [origenMovimiento, setOrigenMovimiento] = useState("ventas_productos")
   const [tabCaja, setTabCaja] = useState("ventas_productos")
-  const [mostrarFormularioMovimiento, setMostrarFormularioMovimiento] = useState(false)
+  const [dialogMovimientoAbierto, setDialogMovimientoAbierto] = useState(false)
 
   const [dialogHistorialAbierto, setDialogHistorialAbierto] = useState(false)
   const [sesiones, setSesiones] = useState([])
@@ -300,13 +299,13 @@ const CajaPage = () => {
         concepto: conceptoMovimiento.trim(),
         monto,
         metodo_pago: metodoMovimiento || "Efectivo",
-        origen: origenMovimiento || "general",
+        origen: "general",
       })
       toast.success("Movimiento registrado correctamente")
       setConceptoMovimiento("")
       setMontoMovimiento("")
       setMetodoMovimiento(tiposPago[0]?.nombre || "Efectivo")
-      setMostrarFormularioMovimiento(false)
+      setDialogMovimientoAbierto(false)
       await cargarCajaActual()
       await cargarMovimientos(1)
     } catch (error) {
@@ -399,6 +398,11 @@ const CajaPage = () => {
 
   const movimientosPorOrigen = resumenTotales?.movimientos_por_origen || {}
 
+  // Ingresos y egresos manuales son siempre "general": se aplican igual en todos los tabs
+  const manualGeneral = movimientosPorOrigen.general || { ingresos: 0, egresos: 0 }
+  const ingresosManuales = manualGeneral.ingresos || 0
+  const egresosManuales = manualGeneral.egresos || 0
+
   const getTotalesTab = (tab) => {
     if (tab === "general") {
       return {
@@ -406,7 +410,6 @@ const CajaPage = () => {
         egresos: totalEgresosCaja,
       }
     }
-    const manual = movimientosPorOrigen[tab] || { ingresos: 0, egresos: 0 }
     const ventas =
       tab === "ventas_productos"
         ? totalVentasProductos
@@ -416,8 +419,8 @@ const CajaPage = () => {
             ? totalReparaciones
             : 0
     return {
-      ingresos: ventas + (manual.ingresos || 0),
-      egresos: manual.egresos || 0,
+      ingresos: ventas + ingresosManuales,
+      egresos: egresosManuales,
     }
   }
 
@@ -425,8 +428,7 @@ const CajaPage = () => {
 
   // Desglose de ingresos por método de pago para el modal (al hacer clic en la tarjeta Ingresos)
   const getDesgloseIngresos = (tab) => {
-    const manual = movimientosPorOrigen[tab] || { ingresos: 0, egresos: 0 }
-    const manualIngresos = manual.ingresos || 0
+    const manualIngresos = ingresosManuales
 
     let porMetodo = {}
     if (tab === "ventas_productos" && Array.isArray(resumenTotales?.ventas_productos)) {
@@ -654,14 +656,37 @@ const CajaPage = () => {
           </div>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
-          <Tabs
-            value={tabCaja}
-            onValueChange={(val) => {
-              setTabCaja(val)
-              setOrigenMovimiento(val === "general" ? "general" : val)
-              setMostrarFormularioMovimiento(false)
-            }}
-          >
+          {/* Botones únicos para ingresos y egresos manuales (aplican a toda la caja, se ven en todos los tabs) */}
+          <div className="flex flex-wrap gap-3 mb-4">
+            <Button
+              className="bg-green-600 hover:bg-green-700 flex items-center gap-1"
+              onClick={() => {
+                setTipoMovimiento("ingreso")
+                setConceptoMovimiento("")
+                setMontoMovimiento("")
+                setDialogMovimientoAbierto(true)
+              }}
+              disabled={loadingMovimientos}
+            >
+              <Plus className="h-4 w-4" />
+              Registrar ingreso
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 flex items-center gap-1"
+              onClick={() => {
+                setTipoMovimiento("egreso")
+                setConceptoMovimiento("")
+                setMontoMovimiento("")
+                setDialogMovimientoAbierto(true)
+              }}
+              disabled={loadingMovimientos}
+            >
+              <MinusCircle className="h-4 w-4" />
+              Registrar egreso
+            </Button>
+          </div>
+
+          <Tabs value={tabCaja} onValueChange={setTabCaja}>
             <TabsList className="grid grid-cols-4 mb-4 w-full">
               <TabsTrigger value="ventas_productos">Ventas productos</TabsTrigger>
               <TabsTrigger value="ventas_equipos">Ventas equipos</TabsTrigger>
@@ -723,111 +748,6 @@ const CajaPage = () => {
                     </CardContent>
                   </Card>
                 </div>
-
-                {/* Botones para registrar ingreso/egreso */}
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    className="bg-green-600 hover:bg-green-700 flex items-center gap-1"
-                    onClick={() => {
-                      setTabCaja(tab)
-                      setOrigenMovimiento(tab === "general" ? "general" : tab)
-                      setTipoMovimiento("ingreso")
-                      setMostrarFormularioMovimiento(true)
-                    }}
-                    disabled={loadingMovimientos}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Registrar ingreso
-                  </Button>
-                  <Button
-                    className="bg-red-600 hover:bg-red-700 flex items-center gap-1"
-                    onClick={() => {
-                      setTabCaja(tab)
-                      setOrigenMovimiento(tab === "general" ? "general" : tab)
-                      setTipoMovimiento("egreso")
-                      setMostrarFormularioMovimiento(true)
-                    }}
-                    disabled={loadingMovimientos}
-                  >
-                    <MinusCircle className="h-4 w-4" />
-                    Registrar egreso
-                  </Button>
-                </div>
-
-                {/* Formulario de movimiento (solo en el tab activo) */}
-                {tab === tabCaja && mostrarFormularioMovimiento && (
-                  <div className="border rounded-md bg-gray-50 p-3 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-gray-700">Tipo de movimiento</label>
-                        <Input value={tipoMovimiento === "ingreso" ? "Ingreso" : "Egreso"} disabled />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-gray-700">Monto</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={montoMovimiento}
-                          onChange={(e) => setMontoMovimiento(e.target.value)}
-                          placeholder="Monto"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-gray-700">Método de pago</label>
-                        <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Seleccionar método" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {tiposPago.map((tp) => (
-                              <SelectItem key={tp.id} value={tp.nombre}>
-                                {tp.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-700">Concepto</label>
-                      <Textarea
-                        rows={2}
-                        value={conceptoMovimiento}
-                        onChange={(e) => setConceptoMovimiento(e.target.value)}
-                        placeholder="Ej: Ajuste, retiro, depósito, etc."
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2 pt-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setMostrarFormularioMovimiento(false)
-                          setConceptoMovimiento("")
-                          setMontoMovimiento("")
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleRegistrarMovimiento}
-                        disabled={registrandoMovimiento}
-                        className={
-                          tipoMovimiento === "ingreso"
-                            ? "bg-green-600 hover:bg-green-700"
-                            : "bg-red-600 hover:bg-red-700"
-                        }
-                      >
-                        {registrandoMovimiento
-                          ? "Guardando..."
-                          : tipoMovimiento === "ingreso"
-                          ? "Guardar ingreso"
-                          : "Guardar egreso"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Tabla/lista de movimientos (ventas + manuales que explican los ingresos del tab) */}
                 <div className="border rounded-md bg-white">
@@ -1065,6 +985,104 @@ const CajaPage = () => {
                 </div>
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para registrar ingreso o egreso manual (aplica a toda la caja, se refleja en todos los tabs) */}
+      <Dialog
+        open={dialogMovimientoAbierto}
+        onOpenChange={(open) => {
+          setDialogMovimientoAbierto(open)
+          if (!open) {
+            setConceptoMovimiento("")
+            setMontoMovimiento("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-orange-600 flex items-center gap-2">
+              {tipoMovimiento === "ingreso" ? (
+                <Plus className="h-5 w-5 text-green-600" />
+              ) : (
+                <MinusCircle className="h-5 w-5 text-red-600" />
+              )}
+              {tipoMovimiento === "ingreso" ? "Registrar ingreso" : "Registrar egreso"}
+            </DialogTitle>
+            <DialogDescription>
+              El movimiento se aplica a la caja en general y se verá en todos los tabs (productos, equipos, reparaciones y general).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Tipo</label>
+                <Input value={tipoMovimiento === "ingreso" ? "Ingreso" : "Egreso"} disabled />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Monto</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={montoMovimiento}
+                  onChange={(e) => setMontoMovimiento(e.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Método de pago</label>
+              <Select value={metodoMovimiento} onValueChange={setMetodoMovimiento}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Seleccionar método" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiposPago.map((tp) => (
+                    <SelectItem key={tp.id} value={tp.nombre}>
+                      {tp.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Concepto</label>
+              <Textarea
+                rows={2}
+                value={conceptoMovimiento}
+                onChange={(e) => setConceptoMovimiento(e.target.value)}
+                placeholder="Ej: Ajuste, retiro, depósito, etc."
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDialogMovimientoAbierto(false)
+                  setConceptoMovimiento("")
+                  setMontoMovimiento("")
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleRegistrarMovimiento}
+                disabled={registrandoMovimiento}
+                className={
+                  tipoMovimiento === "ingreso"
+                    ? "bg-green-600 hover:bg-green-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }
+              >
+                {registrandoMovimiento
+                  ? "Guardando..."
+                  : tipoMovimiento === "ingreso"
+                    ? "Guardar ingreso"
+                    : "Guardar egreso"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
