@@ -91,6 +91,19 @@ export const registrarMovimientoCaja = async (movimientoData) => {
   return await response.json()
 }
 
+// Obtener una sesión de caja por ID con totales (para historial/detalle)
+export const getSesionCajaPorId = async (sesionId) => {
+  const response = await fetch(`${API_URL}/caja/sesion/${sesionId}`, {
+    method: "GET",
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Error al obtener sesión" }))
+    throw new Error(errorData.message || "Error al obtener sesión de caja")
+  }
+  return await response.json()
+}
+
 // Historial de sesiones de caja
 export const getSesionesCaja = async (page = 1, limit = 20, filters = {}) => {
   const cleanFilters = Object.fromEntries(
@@ -165,18 +178,20 @@ export const getMovimientosCaja = async (
   return data
 }
 
-// Movimientos completos por tab (ventas + manuales unificados)
+// Movimientos completos por tab (ventas + manuales unificados). tipo: todos | ingreso | egreso
 export const getMovimientosCompletosCaja = async (
   cajaSesionId,
   origen = "ventas_productos",
   page = 1,
   limit = 50,
+  tipo = "todos",
 ) => {
   const params = new URLSearchParams({
     origen,
     page: page.toString(),
     limit: limit.toString(),
   })
+  if (tipo && tipo !== "todos") params.append("tipo", tipo)
   const response = await fetch(
     `${API_URL}/caja/sesion/${cajaSesionId}/movimientos-completos?${params.toString()}`,
     { method: "GET", credentials: "include" },

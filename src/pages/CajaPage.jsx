@@ -31,6 +31,7 @@ import {
   cerrarCaja,
   registrarMovimientoCaja,
   getSesionesCaja,
+  getSesionCajaPorId,
   getMovimientosCompletosCaja,
 } from "@/services/cajaService"
 import { getTiposPago } from "@/services/pagosService"
@@ -148,6 +149,21 @@ const CajaPage = () => {
     itemsPerPage: 20,
   })
   const [loadingSesiones, setLoadingSesiones] = useState(false)
+
+  const [sesionDetalle, setSesionDetalle] = useState(null)
+  const [dialogDetalleSesionAbierto, setDialogDetalleSesionAbierto] = useState(false)
+  const [loadingDetalleSesion, setLoadingDetalleSesion] = useState(false)
+  const [historialMovimientos, setHistorialMovimientos] = useState([])
+  const [historialMovimientosPagination, setHistorialMovimientosPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 50,
+  })
+  const [loadingHistorialMovimientos, setLoadingHistorialMovimientos] = useState(false)
+  const [historialFiltroOrigen, setHistorialFiltroOrigen] = useState("general")
+  const [historialFiltroTipo, setHistorialFiltroTipo] = useState("todos")
+  const [historialTabDesglose, setHistorialTabDesglose] = useState("ventas_productos")
 
   const [movimientos, setMovimientos] = useState([])
   const [movimientosPagination, setMovimientosPagination] = useState({
@@ -352,6 +368,54 @@ const CajaPage = () => {
       setLoadingSesiones(false)
     }
   }
+
+  const abrirDetalleSesion = async (sesionRow) => {
+    setDialogDetalleSesionAbierto(true)
+    setSesionDetalle(null)
+    setLoadingDetalleSesion(true)
+    setHistorialMovimientos([])
+    setHistorialFiltroOrigen("general")
+    setHistorialFiltroTipo("todos")
+    setHistorialTabDesglose("ventas_productos")
+    try {
+      const data = await getSesionCajaPorId(sesionRow.id)
+      setSesionDetalle(data)
+    } catch (error) {
+      console.error("Error al cargar detalle de sesión:", error)
+      toast.error(error.message || "Error al cargar detalle")
+      setDialogDetalleSesionAbierto(false)
+    } finally {
+      setLoadingDetalleSesion(false)
+    }
+  }
+
+  const cargarHistorialMovimientos = async (page = 1) => {
+    if (!sesionDetalle?.sesion?.id) return
+    setLoadingHistorialMovimientos(true)
+    try {
+      const data = await getMovimientosCompletosCaja(
+        sesionDetalle.sesion.id,
+        historialFiltroOrigen,
+        page,
+        100,
+        historialFiltroTipo,
+      )
+      setHistorialMovimientos(data.movimientos)
+      setHistorialMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
+    } catch (error) {
+      console.error("Error al cargar movimientos del historial:", error)
+      toast.error(error.message || "Error al cargar movimientos")
+    } finally {
+      setLoadingHistorialMovimientos(false)
+    }
+  }
+
+  useEffect(() => {
+    if (dialogDetalleSesionAbierto && sesionDetalle?.sesion?.id && !loadingDetalleSesion) {
+      cargarHistorialMovimientos(1)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogDetalleSesionAbierto, sesionDetalle?.sesion?.id, historialFiltroOrigen, historialFiltroTipo])
 
   const cargarMovimientos = async (page = 1) => {
     if (!cajaActual) return
@@ -956,16 +1020,16 @@ const CajaPage = () => {
         </CardContent>
       </Card>
 
-      {/* Diálogo de historial de sesiones */}
+      {/* Diálogo de historial de sesiones: lista compacta, clic abre detalle */}
       <Dialog open={dialogHistorialAbierto} onOpenChange={setDialogHistorialAbierto}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-orange-600 flex items-center gap-2">
               <History className="h-5 w-5" />
               Historial de sesiones de caja
             </DialogTitle>
             <DialogDescription>
-              Consulta las aperturas y cierres de caja del sistema. Todos los usuarios comparten estas sesiones.
+              Clic en una sesión para ver el detalle completo. Filtro: punto de venta actual.
             </DialogDescription>
           </DialogHeader>
           <div className="mt-2">
@@ -976,72 +1040,49 @@ const CajaPage = () => {
                 No hay sesiones de caja registradas para los filtros actuales.
               </div>
             ) : (
-              <ScrollArea className="max-h-[400px]">
+              <ScrollArea className="max-h-[420px]">
                 <div className="divide-y">
                   {sesiones.map((s) => (
-                    <div key={s.id} className="py-2 px-1 text-sm flex justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            className={
-                              s.estado === "abierta"
-                                ? "bg-green-100 text-green-800 border-green-300"
-                                : "bg-gray-200 text-gray-800 border-gray-300"
-                            }
-                          >
-                            {s.estado === "abierta" ? "Abierta" : "Cerrada"}
-                          </Badge>
-                          <span className="font-medium">{s.punto_venta_nombre}</span>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Apertura: {formatearFechaHora(s.fecha_apertura)} por {s.usuario_apertura_nombre}
-                        </div>
-                        {s.fecha_cierre && (
-                          <div className="text-xs text-gray-500">
-                            Cierre: {formatearFechaHora(s.fecha_cierre)} por {s.usuario_cierre_nombre}
-                          </div>
-                        )}
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => abrirDetalleSesion(s)}
+                      className="w-full py-3 px-3 text-left text-sm flex justify-between items-center gap-4 rounded-lg hover:bg-orange-50 transition-colors border-0"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Badge
+                          className={
+                            s.estado === "abierta"
+                              ? "bg-green-100 text-green-800 border-green-300 shrink-0"
+                              : "bg-gray-200 text-gray-800 border-gray-300 shrink-0"
+                          }
+                        >
+                          {s.estado === "abierta" ? "Abierta" : "Cerrada"}
+                        </Badge>
+                        <span className="font-medium text-gray-900 truncate">{s.punto_venta_nombre}</span>
+                        <span className="text-xs text-gray-500 shrink-0">
+                          {formatearFechaHora(s.fecha_apertura)}
+                        </span>
                       </div>
-                      <div className="space-y-1 text-right min-w-[150px]">
-                        <div className="flex justify-between gap-2">
-                          <span className="text-xs text-gray-500">Apertura</span>
-                          <span className="font-semibold">
-                            {formatearMonedaARS(s.monto_apertura || 0)}
+                      <div className="flex items-center gap-4 shrink-0">
+                        <span className="text-xs text-gray-500">
+                          Apertura {formatearMonedaARS(s.monto_apertura || 0)}
+                        </span>
+                        {s.monto_cierre != null && (
+                          <span className="text-xs font-medium text-gray-700">
+                            Cierre {formatearMonedaARS(s.monto_cierre)}
                           </span>
-                        </div>
-                        {s.monto_cierre !== null && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-xs text-gray-500">Cierre</span>
-                            <span className="font-semibold">
-                              {formatearMonedaARS(s.monto_cierre || 0)}
-                            </span>
-                          </div>
                         )}
-                        {s.diferencia !== null && (
-                          <div className="flex justify-between gap-2">
-                            <span className="text-xs text-gray-500">Diferencia</span>
-                            <span
-                              className={`font-semibold text-xs ${
-                                Number(s.diferencia || 0) === 0
-                                  ? "text-green-700"
-                                  : Number(s.diferencia || 0) > 0
-                                  ? "text-blue-700"
-                                  : "text-red-700"
-                              }`}
-                            >
-                              {formatearMonedaARS(s.diferencia || 0)}
-                            </span>
-                          </div>
-                        )}
+                        <span className="text-orange-600 text-xs font-medium">Ver detalle →</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </ScrollArea>
             )}
           </div>
-          <div className="pt-2">
-            {sesionesPagination.totalPages > 1 && (
+          {sesionesPagination.totalPages > 1 && (
+            <div className="pt-2 border-t">
               <PaginationControls
                 currentPage={sesionesPagination.currentPage}
                 totalPages={sesionesPagination.totalPages}
@@ -1052,8 +1093,323 @@ const CajaPage = () => {
                 isLoading={loadingSesiones}
                 hidePageSizeSelector
               />
-            )}
-          </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal detalle de sesión: información completa + movimientos con filtros */}
+      <Dialog
+        open={dialogDetalleSesionAbierto}
+        onOpenChange={(open) => {
+          setDialogDetalleSesionAbierto(open)
+          if (!open) setSesionDetalle(null)
+        }}
+      >
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          {loadingDetalleSesion ? (
+            <div className="py-12 text-center">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent mx-auto mb-3" />
+              <p className="text-gray-600">Cargando sesión...</p>
+            </div>
+          ) : sesionDetalle?.sesion ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-orange-600 flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  Sesión de caja — {sesionDetalle.sesion.punto_venta_nombre}
+                </DialogTitle>
+                <DialogDescription>
+                  Apertura: {formatearFechaHora(sesionDetalle.sesion.fecha_apertura)}
+                  {sesionDetalle.sesion.fecha_cierre && (
+                    <> · Cierre: {formatearFechaHora(sesionDetalle.sesion.fecha_cierre)}</>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 pt-2">
+                {/* Quién abrió / quién cerró / duración */}
+                <Card className="border border-gray-200 bg-gray-50/50">
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Abierta por</p>
+                        <p className="font-medium text-gray-900">{sesionDetalle.sesion.usuario_apertura_nombre}</p>
+                        <p className="text-xs text-gray-600">{formatearFechaHora(sesionDetalle.sesion.fecha_apertura)}</p>
+                      </div>
+                      {sesionDetalle.sesion.fecha_cierre && (
+                        <>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Cerrada por</p>
+                            <p className="font-medium text-gray-900">{sesionDetalle.sesion.usuario_cierre_nombre || "—"}</p>
+                            <p className="text-xs text-gray-600">{formatearFechaHora(sesionDetalle.sesion.fecha_cierre)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Duración</p>
+                            <p className="font-medium text-gray-900">
+                              {(() => {
+                                const a = new Date(sesionDetalle.sesion.fecha_apertura)
+                                const b = new Date(sesionDetalle.sesion.fecha_cierre)
+                                const min = Math.round((b - a) / 60000)
+                                const h = Math.floor(min / 60)
+                                const m = min % 60
+                                return h > 0 ? `${h} h ${m} min` : `${m} min`
+                              })()}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Tarjetas de montos */}
+                {(() => {
+                  const tot = sesionDetalle.totales
+                  const vp = (tot?.ventas_productos || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                  const ve = (tot?.ventas_equipos || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                  const rep = (tot?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                  const manual = tot?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
+                  const totalIngresos = vp + ve + rep + (manual.ingresos || 0)
+                  const totalEgresos = manual.egresos || 0
+                  const montoInicial = Number(sesionDetalle.sesion.monto_apertura || 0)
+                  const balance = montoInicial + totalIngresos - totalEgresos
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <Card className="border border-gray-200">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-gray-500">Monto inicial</p>
+                          <p className="text-lg font-semibold text-gray-900">{formatearMonedaARS(montoInicial)}</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border border-green-200 bg-green-50/50">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-gray-600">Ingresos</p>
+                          <p className="text-lg font-semibold text-green-700">{formatearMonedaARS(totalIngresos)}</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border border-red-200 bg-red-50/50">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-gray-600">Egresos</p>
+                          <p className="text-lg font-semibold text-red-700">{formatearMonedaARS(totalEgresos)}</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-2 border-orange-200 bg-orange-50/50">
+                        <CardContent className="p-3">
+                          <p className="text-xs text-gray-700 font-medium">Balance total</p>
+                          <p className="text-lg font-bold text-orange-700">{formatearMonedaARS(balance)}</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )
+                })()}
+
+                {/* Tabs desglose por método de pago */}
+                <Card className="border border-gray-200">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Desglose por tipo y método de pago</CardTitle>
+                    <CardDescription>Totales por categoría y forma de pago.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs value={historialTabDesglose} onValueChange={setHistorialTabDesglose}>
+                      <TabsList className="grid grid-cols-4 w-full mb-3">
+                        <TabsTrigger value="ventas_productos">Ventas productos</TabsTrigger>
+                        <TabsTrigger value="ventas_equipos">Ventas equipos</TabsTrigger>
+                        <TabsTrigger value="reparaciones">Reparaciones</TabsTrigger>
+                        <TabsTrigger value="general">General</TabsTrigger>
+                      </TabsList>
+                      {["ventas_productos", "ventas_equipos", "reparaciones", "general"].map((tab) => {
+                        const arr =
+                          tab === "ventas_productos"
+                            ? sesionDetalle.totales?.ventas_productos || []
+                            : tab === "ventas_equipos"
+                              ? sesionDetalle.totales?.ventas_equipos || []
+                              : tab === "reparaciones"
+                                ? sesionDetalle.totales?.reparaciones || []
+                                : []
+                        const manualIng = tab === "general" ? (sesionDetalle.totales?.movimientos_por_origen?.general?.ingresos || 0) : 0
+                        const manualEgr = tab === "general" ? (sesionDetalle.totales?.movimientos_por_origen?.general?.egresos || 0) : 0
+                        const totalTab =
+                          tab === "general"
+                            ? manualIng +
+                              (sesionDetalle.totales?.ventas_productos || []).reduce((s, v) => s + Number(v.total || 0), 0) +
+                              (sesionDetalle.totales?.ventas_equipos || []).reduce((s, v) => s + Number(v.total || 0), 0) +
+                              (sesionDetalle.totales?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0) -
+                              manualEgr
+                            : arr.reduce((s, v) => s + Number(v.total || 0), 0)
+                        return (
+                          <TabsContent key={tab} value={tab} className="space-y-2 mt-0">
+                            {tab === "general" ? (
+                              <div className="space-y-2 text-sm">
+                                <p className="font-medium text-gray-700">Resumen general (todas las categorías + movimientos manuales)</p>
+                                <ul className="space-y-1">
+                                  {(sesionDetalle.totales?.ventas_productos || []).map((v) => (
+                                    <li key={`vp-${v.tipo_pago}`} className="flex justify-between">
+                                      <span className="text-gray-600">Ventas productos · {v.tipo_pago}</span>
+                                      <span className="font-medium">{formatearMonedaARS(v.total)}</span>
+                                    </li>
+                                  ))}
+                                  {(sesionDetalle.totales?.ventas_equipos || []).map((v) => (
+                                    <li key={`ve-${v.tipo_pago}`} className="flex justify-between">
+                                      <span className="text-gray-600">Ventas equipos · {v.tipo_pago}</span>
+                                      <span className="font-medium">{formatearMonedaARS(v.total)}</span>
+                                    </li>
+                                  ))}
+                                  {(sesionDetalle.totales?.reparaciones || []).map((v) => (
+                                    <li key={`rep-${v.tipo_pago}`} className="flex justify-between">
+                                      <span className="text-gray-600">Reparaciones · {v.tipo_pago}</span>
+                                      <span className="font-medium">{formatearMonedaARS(v.total)}</span>
+                                    </li>
+                                  ))}
+                                  {manualIng > 0 && (
+                                    <li className="flex justify-between text-green-700">
+                                      <span>Ingresos manuales</span>
+                                      <span className="font-medium">{formatearMonedaARS(manualIng)}</span>
+                                    </li>
+                                  )}
+                                  {manualEgr > 0 && (
+                                    <li className="flex justify-between text-red-700">
+                                      <span>Egresos manuales</span>
+                                      <span className="font-medium">{formatearMonedaARS(manualEgr)}</span>
+                                    </li>
+                                  )}
+                                </ul>
+                                <p className="pt-2 font-semibold text-gray-900 border-t">
+                                  Total ingresos (categorías + manual) − Egresos: {formatearMonedaARS(totalTab)}
+                                </p>
+                                <p className="text-orange-700 font-bold">
+                                  Balance total sesión (inicial + ingresos − egresos):{" "}
+                                  {formatearMonedaARS(
+                                    Number(sesionDetalle.sesion?.monto_apertura || 0) + totalTab,
+                                  )}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-1 text-sm">
+                                {arr.length === 0 ? (
+                                  <p className="text-gray-500">Sin movimientos en esta categoría.</p>
+                                ) : (
+                                  <>
+                                    {arr.map((v) => (
+                                      <div key={v.tipo_pago} className="flex justify-between py-1">
+                                        <span className="text-gray-700">{v.tipo_pago}</span>
+                                        <span className="font-semibold text-green-700">{formatearMonedaARS(v.total)}</span>
+                                      </div>
+                                    ))}
+                                    <div className="flex justify-between pt-2 font-semibold border-t">
+                                      <span>Total</span>
+                                      <span className="text-green-700">{formatearMonedaARS(arr.reduce((s, v) => s + Number(v.total || 0), 0))}</span>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </TabsContent>
+                        )
+                      })}
+                    </Tabs>
+                  </CardContent>
+                </Card>
+
+                {/* Tabla de movimientos con filtros */}
+                <Card className="border border-gray-200">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Movimientos de la sesión</CardTitle>
+                    <CardDescription>Filtrar por tipo de movimiento y por categoría.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-600">Origen:</span>
+                        <Select value={historialFiltroOrigen} onValueChange={setHistorialFiltroOrigen}>
+                          <SelectTrigger className="w-[180px] h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="general">Todos</SelectItem>
+                            <SelectItem value="ventas_productos">Ventas productos</SelectItem>
+                            <SelectItem value="ventas_equipos">Ventas equipos</SelectItem>
+                            <SelectItem value="reparaciones">Reparaciones</SelectItem>
+                            <SelectItem value="manual">Ingresos/egresos manuales</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-600">Tipo:</span>
+                        <Select value={historialFiltroTipo} onValueChange={setHistorialFiltroTipo}>
+                          <SelectTrigger className="w-[140px] h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todos</SelectItem>
+                            <SelectItem value="ingreso">Solo ingresos</SelectItem>
+                            <SelectItem value="egreso">Solo egresos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <ScrollArea className="h-[320px] rounded-md border">
+                      <div className="divide-y">
+                        {loadingHistorialMovimientos ? (
+                          <div className="py-8 text-center text-sm text-gray-500">Cargando movimientos...</div>
+                        ) : historialMovimientos.length === 0 ? (
+                          <div className="py-8 text-center text-sm text-gray-500">No hay movimientos para este filtro.</div>
+                        ) : (
+                          historialMovimientos.map((mov) => {
+                            const esIngreso = mov.tipo === "ingreso" || mov.tipo === "venta"
+                            return (
+                              <div
+                                key={`${mov.tipo}-${mov.id}`}
+                                className="flex items-center justify-between py-2 px-4 text-sm"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                                      esIngreso ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                                    }`}
+                                  >
+                                    {esIngreso ? <Plus className="h-4 w-4" /> : <MinusCircle className="h-4 w-4" />}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900">{mov.concepto}</div>
+                                    <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
+                                      <span>{formatearFechaHora(mov.fecha)}</span>
+                                      {mov.tipo_pago && <span>Método: {mov.tipo_pago}</span>}
+                                      {mov.usuario_nombre && <span>Usuario: {mov.usuario_nombre}</span>}
+                                      {mov.tipo === "venta" && (
+                                        <span className="bg-blue-100 text-blue-800 px-1 rounded text-[10px]">Venta</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className={`font-semibold ${esIngreso ? "text-green-700" : "text-red-700"}`}>
+                                  {esIngreso ? "+" : "-"} {formatearMonedaARS(mov.monto)}
+                                </div>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </ScrollArea>
+                    {historialMovimientosPagination.totalPages > 1 && (
+                      <div className="flex justify-end">
+                        <PaginationControls
+                          currentPage={historialMovimientosPagination.currentPage}
+                          totalPages={historialMovimientosPagination.totalPages}
+                          totalItems={historialMovimientosPagination.totalItems}
+                          itemsPerPage={historialMovimientosPagination.itemsPerPage}
+                          onPageChange={(page) => cargarHistorialMovimientos(page)}
+                          onItemsPerPageChange={() => {}}
+                          isLoading={loadingHistorialMovimientos}
+                          hidePageSizeSelector
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
 
