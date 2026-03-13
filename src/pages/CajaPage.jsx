@@ -103,9 +103,11 @@ const CajaPage = () => {
   const [notasApertura, setNotasApertura] = useState("")
 
   const [montoCierre, setMontoCierre] = useState("")
-  const [montoCierreEfectivo, setMontoCierreEfectivo] = useState("")
-  const [montoCierreTransferencia, setMontoCierreTransferencia] = useState("")
-  const [montoCierreTarjeta, setMontoCierreTarjeta] = useState("")
+  const [cierreSecciones, setCierreSecciones] = useState({
+    ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
+    ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
+    reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+  })
   const [notasCierre, setNotasCierre] = useState("")
 
   const [desgloseIngresosAbierto, setDesgloseIngresosAbierto] = useState(false)
@@ -266,9 +268,11 @@ const CajaPage = () => {
       setCajaActualState(result.sesion)
       await cargarCajaActual()
       setMontoCierre("")
-      setMontoCierreEfectivo("")
-      setMontoCierreTransferencia("")
-      setMontoCierreTarjeta("")
+      setCierreSecciones({
+        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
+        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
+        reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+      })
       setNotasCierre("")
     } catch (error) {
       console.error("Error al cerrar caja:", error)
@@ -447,9 +451,20 @@ const CajaPage = () => {
   const saldoEsperadoCierre =
     (Number(cajaActual?.monto_apertura || 0) || 0) + totalIngresosCaja - totalEgresosCaja
   const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
+  const totalSeccionCierre = (s) =>
+    num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta)
   const totalIngresadoCierre =
-    num(montoCierreEfectivo) + num(montoCierreTransferencia) + num(montoCierreTarjeta)
+    totalSeccionCierre(cierreSecciones.ventas_productos) +
+    totalSeccionCierre(cierreSecciones.ventas_equipos) +
+    totalSeccionCierre(cierreSecciones.reparaciones)
   const diferenciaCierre = totalIngresadoCierre - saldoEsperadoCierre
+
+  const setCierreSeccionValor = (seccion, metodo, value) => {
+    setCierreSecciones((prev) => ({
+      ...prev,
+      [seccion]: { ...prev[seccion], [metodo]: value },
+    }))
+  }
 
   // Loader mientras se determina el estado de caja (evita flash "caja cerrada")
   if (estadoCaja === "cargando") {
@@ -1160,113 +1175,180 @@ const CajaPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de cierre de caja */}
+      {/* Diálogo de cierre de caja - 4 secciones (productos, equipos, reparaciones, general) */}
       <Dialog
         open={dialogCierreAbierto}
         onOpenChange={(open) => {
           setDialogCierreAbierto(open)
           if (open) {
-            setMontoCierreEfectivo("")
-            setMontoCierreTransferencia("")
-            setMontoCierreTarjeta("")
+            setCierreSecciones({
+              ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
+              ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
+              reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+            })
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-orange-600 flex items-center gap-2">
               <Wallet className="h-5 w-5" />
               Cerrar caja
             </DialogTitle>
             <DialogDescription>
-              Cierre de sesión para <strong>{puntoVentaNombre}</strong>. Indique el monto contado por método de pago.
+              Cierre de sesión para <strong>{puntoVentaNombre}</strong>. Ingresá el monto contado por sección y método de pago.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 text-sm">
-            <div className="rounded-lg bg-gray-50 p-3 text-center">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Monto esperado</p>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">
-                {formatearMonedaARS(saldoEsperadoCierre)}
-              </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+            {/* 1. Ventas productos */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
+                Ventas productos
+              </h3>
+              <div className="rounded-lg bg-white p-2 text-center border border-gray-100">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
+                <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalVentasProductos)}</p>
+              </div>
+              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+                <div key={metodo} className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700 capitalize">
+                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="h-9"
+                    value={
+                      cierreSecciones.ventas_productos[metodo] === "" ||
+                      cierreSecciones.ventas_productos[metodo] === undefined
+                        ? ""
+                        : formatearNumeroInputARS(Number(cierreSecciones.ventas_productos[metodo]))
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === "") {
+                        setCierreSeccionValor("ventas_productos", metodo, "")
+                        return
+                      }
+                      const n = parsearInputMoneda(v)
+                      setCierreSeccionValor("ventas_productos", metodo, Number.isNaN(n) ? "" : n)
+                    }}
+                  />
+                </div>
+              ))}
             </div>
-            <Separator />
-            <div className="grid grid-cols-1 gap-3">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">Efectivo</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={
-                    montoCierreEfectivo === "" || montoCierreEfectivo === undefined
-                      ? ""
-                      : formatearNumeroInputARS(Number(montoCierreEfectivo))
-                  }
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === "") {
-                      setMontoCierreEfectivo("")
-                      return
-                    }
-                    const n = parsearInputMoneda(v)
-                    setMontoCierreEfectivo(Number.isNaN(n) ? "" : n)
-                  }}
-                />
+
+            {/* 2. Ventas equipos */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
+                Ventas equipos
+              </h3>
+              <div className="rounded-lg bg-white p-2 text-center border border-gray-100">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
+                <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalVentasEquipos)}</p>
               </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">Transferencia</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={
-                    montoCierreTransferencia === "" || montoCierreTransferencia === undefined
-                      ? ""
-                      : formatearNumeroInputARS(Number(montoCierreTransferencia))
-                  }
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === "") {
-                      setMontoCierreTransferencia("")
-                      return
+              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+                <div key={metodo} className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700 capitalize">
+                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="h-9"
+                    value={
+                      cierreSecciones.ventas_equipos[metodo] === "" ||
+                      cierreSecciones.ventas_equipos[metodo] === undefined
+                        ? ""
+                        : formatearNumeroInputARS(Number(cierreSecciones.ventas_equipos[metodo]))
                     }
-                    const n = parsearInputMoneda(v)
-                    setMontoCierreTransferencia(Number.isNaN(n) ? "" : n)
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">Tarjeta de crédito</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={
-                    montoCierreTarjeta === "" || montoCierreTarjeta === undefined
-                      ? ""
-                      : formatearNumeroInputARS(Number(montoCierreTarjeta))
-                  }
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === "") {
-                      setMontoCierreTarjeta("")
-                      return
-                    }
-                    const n = parsearInputMoneda(v)
-                    setMontoCierreTarjeta(Number.isNaN(n) ? "" : n)
-                  }}
-                />
-              </div>
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === "") {
+                        setCierreSeccionValor("ventas_equipos", metodo, "")
+                        return
+                      }
+                      const n = parsearInputMoneda(v)
+                      setCierreSeccionValor("ventas_equipos", metodo, Number.isNaN(n) ? "" : n)
+                    }}
+                  />
+                </div>
+              ))}
             </div>
-            <div className="rounded-lg border p-3 space-y-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Total ingresado</span>
-                <span className="font-semibold">{formatearMonedaARS(totalIngresadoCierre)}</span>
+
+            {/* 3. Reparaciones */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
+                Reparaciones
+              </h3>
+              <div className="rounded-lg bg-white p-2 text-center border border-gray-100">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
+                <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalReparaciones)}</p>
               </div>
-              <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
-                <span className="text-gray-600">Diferencia</span>
-                <span
-                  className={`font-semibold ${
+              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+                <div key={metodo} className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700 capitalize">
+                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="h-9"
+                    value={
+                      cierreSecciones.reparaciones[metodo] === "" ||
+                      cierreSecciones.reparaciones[metodo] === undefined
+                        ? ""
+                        : formatearNumeroInputARS(Number(cierreSecciones.reparaciones[metodo]))
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === "") {
+                        setCierreSeccionValor("reparaciones", metodo, "")
+                        return
+                      }
+                      const n = parsearInputMoneda(v)
+                      setCierreSeccionValor("reparaciones", metodo, Number.isNaN(n) ? "" : n)
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* 4. General - resultado */}
+            <div className="rounded-xl border-2 border-orange-200 bg-orange-50/50 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-orange-800 border-b border-orange-200 pb-2">
+                General
+              </h3>
+              <div className="rounded-lg bg-white p-3 border border-orange-100 space-y-2">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado (balance total)</p>
+                <p className="text-lg font-bold text-gray-900">{formatearMonedaARS(saldoEsperadoCierre)}</p>
+              </div>
+              <div className="rounded-lg bg-white p-3 border border-orange-100 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Total ingresado</span>
+                  <span className="font-semibold text-gray-900">{formatearMonedaARS(totalIngresadoCierre)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-sm font-medium text-gray-700">Diferencia</span>
+                  <span
+                    className={`font-bold text-base ${
+                      diferenciaCierre === 0
+                        ? "text-green-700"
+                        : diferenciaCierre > 0
+                          ? "text-blue-700"
+                          : "text-red-700"
+                    }`}
+                  >
+                    {formatearMonedaARS(diferenciaCierre)}
+                  </span>
+                </div>
+                <p
+                  className={`text-xs font-medium text-center ${
                     diferenciaCierre === 0
                       ? "text-green-700"
                       : diferenciaCierre > 0
@@ -1274,38 +1356,36 @@ const CajaPage = () => {
                         : "text-red-700"
                   }`}
                 >
-                  {formatearMonedaARS(diferenciaCierre)}
-                  {diferenciaCierre === 0
-                    ? " (Cuadra)"
-                    : diferenciaCierre > 0
-                      ? " (Sobrante)"
-                      : " (Faltante)"}
-                </span>
+                  {diferenciaCierre === 0 ? "Cuadra" : diferenciaCierre > 0 ? "Sobrante" : "Faltante"}
+                </p>
+              </div>
+              <div className="space-y-1 pt-1">
+                <label className="block text-xs font-medium text-gray-700">Notas de cierre (opcional)</label>
+                <Textarea
+                  rows={2}
+                  className="resize-none text-sm"
+                  value={notasCierre}
+                  onChange={(e) => setNotasCierre(e.target.value)}
+                  placeholder="Comentarios sobre el cierre"
+                />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-700">Notas de cierre (opcional)</label>
-              <Textarea
-                rows={2}
-                value={notasCierre}
-                onChange={(e) => setNotasCierre(e.target.value)}
-                placeholder="Comentarios sobre el cierre de caja"
-              />
-            </div>
           </div>
-          <div className="pt-2 flex justify-end gap-2">
+
+          <div className="pt-4 flex justify-end gap-2 border-t border-gray-200">
             <Button variant="outline" onClick={() => setDialogCierreAbierto(false)}>
               Cancelar
             </Button>
             <Button
               className="bg-red-600 hover:bg-red-700"
               onClick={async () => {
-                const total = totalIngresadoCierre
-                await handleCerrarCaja(total)
+                await handleCerrarCaja(totalIngresadoCierre)
                 setDialogCierreAbierto(false)
-                setMontoCierreEfectivo("")
-                setMontoCierreTransferencia("")
-                setMontoCierreTarjeta("")
+                setCierreSecciones({
+                  ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
+                  ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
+                  reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+                })
               }}
               disabled={!cajaActual || cajaActual.estado !== "abierta"}
             >
