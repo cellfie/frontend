@@ -76,15 +76,33 @@ const LIMITE_MOVIMIENTOS_COMPLETOS = 100
 
 const formatearFechaHora = (fechaString) => {
   if (!fechaString) return ""
-  const fecha = new Date(fechaString)
-  if (isNaN(fecha.getTime())) return ""
+
+  let fecha
+
+  try {
+    // Si viene con info de timezone (ISO, Z, +hh:mm), dejamos que JS la resuelva
+    if (fechaString.includes("T") || fechaString.includes("Z") || fechaString.includes("+")) {
+      fecha = new Date(fechaString)
+    } else {
+      // Formato típico de MySQL "YYYY-MM-DD HH:mm:ss" sin timezone:
+      // lo interpretamos explícitamente como hora Argentina (GMT-3)
+      const normalizada = fechaString.replace(" ", "T")
+      fecha = new Date(`${normalizada}-03:00`)
+    }
+  } catch {
+    return ""
+  }
+
+  if (Number.isNaN(fecha.getTime())) return ""
 
   return fecha.toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   })
 }
 
@@ -370,9 +388,6 @@ const CajaPage = () => {
   const puntoVentaNombre =
     puntosVenta.find((p) => p.id.toString() === puntoVentaSeleccionado)?.nombre || "Seleccionar"
 
-  const totalIngresosCaja = resumenTotales?.movimientos?.ingresos || 0
-  const totalEgresosCaja = resumenTotales?.movimientos?.egresos || 0
-
   const totalVentasProductos = (resumenTotales?.ventas_productos || []).reduce(
     (s, v) => s + Number(v.total || 0),
     0,
@@ -448,8 +463,16 @@ const CajaPage = () => {
     return filas
   }
 
+  // Saldo esperado para el cierre: mismo cálculo que el "Balance total" general,
+  // es decir: monto de apertura + todas las ventas (productos, equipos, reparaciones)
+  // + ingresos manuales - egresos manuales.
   const saldoEsperadoCierre =
-    (Number(cajaActual?.monto_apertura || 0) || 0) + totalIngresosCaja - totalEgresosCaja
+    (Number(cajaActual?.monto_apertura || 0) || 0) +
+    totalVentasProductos +
+    totalVentasEquipos +
+    totalReparaciones +
+    ingresosManuales -
+    egresosManuales
   const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
   const totalSeccionCierre = (s) =>
     num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta)
