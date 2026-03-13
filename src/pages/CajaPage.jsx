@@ -31,7 +31,6 @@ import {
   cerrarCaja,
   registrarMovimientoCaja,
   getSesionesCaja,
-  getMovimientosCaja,
   getMovimientosCompletosCaja,
 } from "@/services/cajaService"
 import { getTiposPago } from "@/services/pagosService"
@@ -336,23 +335,10 @@ const CajaPage = () => {
     if (!cajaActual) return
     setLoadingMovimientos(true)
     try {
-      if (tabCaja === "general") {
-        const data = await getMovimientosCaja(
-          cajaActual.id,
-          page,
-          movimientosPagination.itemsPerPage,
-          "todos",
-          "general",
-        )
-        setMovimientos(data.movimientos)
-        setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
-      } else {
-        const limit =
-          tabCaja !== "general" ? LIMITE_MOVIMIENTOS_COMPLETOS : movimientosPagination.itemsPerPage
-        const data = await getMovimientosCompletosCaja(cajaActual.id, tabCaja, page, limit)
-        setMovimientos(data.movimientos)
-        setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
-      }
+      const limit = LIMITE_MOVIMIENTOS_COMPLETOS
+      const data = await getMovimientosCompletosCaja(cajaActual.id, tabCaja, page, limit)
+      setMovimientos(data.movimientos)
+      setMovimientosPagination((prev) => ({ ...prev, ...data.pagination }))
     } catch (error) {
       console.error("Error al obtener movimientos de caja:", error)
       toast.error(error.message || "Error al obtener movimientos de caja")
@@ -406,8 +392,8 @@ const CajaPage = () => {
   const getTotalesTab = (tab) => {
     if (tab === "general") {
       return {
-        ingresos: totalIngresosCaja,
-        egresos: totalEgresosCaja,
+        ingresos: totalVentasProductos + totalVentasEquipos + totalReparaciones + ingresosManuales,
+        egresos: egresosManuales,
       }
     }
     const ventas =
@@ -696,58 +682,145 @@ const CajaPage = () => {
 
             {["ventas_productos", "ventas_equipos", "reparaciones", "general"].map((tab) => (
               <TabsContent key={tab} value={tab} className="space-y-4">
-                {/* Tarjetas de resumen */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <Card className="border border-gray-200 shadow-sm">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-gray-500">Monto inicial</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {formatearMonedaARS(cajaActual.monto_apertura || 0)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card
-                    className="border border-gray-200 shadow-sm cursor-pointer hover:bg-green-50/50 hover:border-green-300 transition-colors"
-                    onClick={() => {
-                      setDesgloseTabActual(tab)
-                      setDesgloseIngresosAbierto(true)
-                    }}
-                  >
-                    <CardContent className="p-3">
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        Ingresos
-                        <span className="text-[10px] text-gray-400">(clic para desglose)</span>
-                      </p>
-                      <p className="text-lg font-semibold text-green-700">
-                        {formatearMonedaARS(
-                          tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos,
-                        )}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border border-gray-200 shadow-sm">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-gray-500">Egresos</p>
-                      <p className="text-lg font-semibold text-red-700">
-                        {formatearMonedaARS(
-                          tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos,
-                        )}
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card className="border border-gray-200 shadow-sm">
-                    <CardContent className="p-3">
-                      <p className="text-xs text-gray-500">Balance total</p>
-                      <p className="text-lg font-semibold text-orange-700">
-                        {formatearMonedaARS(
-                          (Number(cajaActual.monto_apertura || 0) || 0) +
-                            (tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos) -
-                            (tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos),
-                        )}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
+                {tab === "general" ? (
+                  /* Vista detallada General: suma de los 3 tabs + manuales */
+                  <div className="space-y-4">
+                    <Card className="border border-gray-200 shadow-sm bg-gray-50/50">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-gray-800">Resumen general de caja</CardTitle>
+                        <CardDescription>
+                          Total de ingresos y egresos de ventas productos, equipos, reparaciones y movimientos manuales.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                            Monto inicial
+                          </p>
+                          <p className="text-xl font-semibold text-gray-900">
+                            {formatearMonedaARS(cajaActual.monto_apertura || 0)}
+                          </p>
+                        </div>
+                        <Separator />
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                            Desglose de ingresos
+                          </p>
+                          <ul className="space-y-1.5 text-sm">
+                            <li className="flex justify-between items-center">
+                              <span className="text-gray-600">Ventas productos</span>
+                              <span className="font-medium text-green-700">
+                                {formatearMonedaARS(totalVentasProductos)}
+                              </span>
+                            </li>
+                            <li className="flex justify-between items-center">
+                              <span className="text-gray-600">Ventas equipos</span>
+                              <span className="font-medium text-green-700">
+                                {formatearMonedaARS(totalVentasEquipos)}
+                              </span>
+                            </li>
+                            <li className="flex justify-between items-center">
+                              <span className="text-gray-600">Reparaciones</span>
+                              <span className="font-medium text-green-700">
+                                {formatearMonedaARS(totalReparaciones)}
+                              </span>
+                            </li>
+                            <li className="flex justify-between items-center">
+                              <span className="text-gray-600">Movimientos manuales</span>
+                              <span className="font-medium text-green-700">
+                                {formatearMonedaARS(ingresosManuales)}
+                              </span>
+                            </li>
+                            <li className="flex justify-between items-center pt-2 border-t border-gray-200 font-semibold text-gray-900">
+                              <span>Total ingresos</span>
+                              <span className="text-green-700">
+                                {formatearMonedaARS(
+                                  totalVentasProductos + totalVentasEquipos + totalReparaciones + ingresosManuales,
+                                )}
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                        <Separator />
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                            Egresos
+                          </p>
+                          <p className="text-xl font-semibold text-red-700">
+                            {formatearMonedaARS(egresosManuales)}
+                          </p>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between items-center pt-2 bg-orange-50 rounded-lg px-4 py-3 border border-orange-100">
+                          <span className="font-semibold text-gray-800">Balance total</span>
+                          <span className="text-xl font-bold text-orange-700">
+                            {formatearMonedaARS(
+                              (Number(cajaActual.monto_apertura || 0) || 0) +
+                                totalVentasProductos +
+                                totalVentasEquipos +
+                                totalReparaciones +
+                                ingresosManuales -
+                                egresosManuales,
+                            )}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  /* Tarjetas de resumen para ventas productos, equipos, reparaciones */
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <Card className="border border-gray-200 shadow-sm">
+                      <CardContent className="p-3">
+                        <p className="text-xs text-gray-500">Monto inicial</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {formatearMonedaARS(cajaActual.monto_apertura || 0)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card
+                      className="border border-gray-200 shadow-sm cursor-pointer hover:bg-green-50/50 hover:border-green-300 transition-colors"
+                      onClick={() => {
+                        setDesgloseTabActual(tab)
+                        setDesgloseIngresosAbierto(true)
+                      }}
+                    >
+                      <CardContent className="p-3">
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          Ingresos
+                          <span className="text-[10px] text-gray-400">(clic para desglose)</span>
+                        </p>
+                        <p className="text-lg font-semibold text-green-700">
+                          {formatearMonedaARS(
+                            tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos,
+                          )}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border border-gray-200 shadow-sm">
+                      <CardContent className="p-3">
+                        <p className="text-xs text-gray-500">Egresos</p>
+                        <p className="text-lg font-semibold text-red-700">
+                          {formatearMonedaARS(
+                            tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos,
+                          )}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border border-gray-200 shadow-sm">
+                      <CardContent className="p-3">
+                        <p className="text-xs text-gray-500">Balance total</p>
+                        <p className="text-lg font-semibold text-orange-700">
+                          {formatearMonedaARS(
+                            (Number(cajaActual.monto_apertura || 0) || 0) +
+                              (tab === tabCaja ? totalesTabActual.ingresos : getTotalesTab(tab).ingresos) -
+                              (tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos),
+                          )}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
                 {/* Tabla/lista de movimientos (ventas + manuales que explican los ingresos del tab) */}
                 <div className="border rounded-md bg-white">
