@@ -11,6 +11,9 @@ import {
   Plus,
   MinusCircle,
   History,
+  ArrowLeft,
+  FolderOpen,
+  FilterX,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -1034,10 +1037,18 @@ const CajaPage = () => {
           </DialogHeader>
           <div className="mt-2">
             {loadingSesiones ? (
-              <div className="py-8 text-center text-sm text-gray-500">Cargando historial...</div>
+              <div className="space-y-2 py-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-14 rounded-lg bg-gray-100 animate-pulse flex items-center gap-3 px-3" />
+                ))}
+              </div>
             ) : sesiones.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-500">
-                No hay sesiones de caja registradas para los filtros actuales.
+              <div className="py-10 px-4 text-center">
+                <FolderOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-gray-600">No hay sesiones de caja</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  No hay sesiones registradas para el punto de venta seleccionado. Las sesiones aparecerán al abrir y cerrar caja.
+                </p>
               </div>
             ) : (
               <ScrollArea className="max-h-[420px]">
@@ -1108,23 +1119,48 @@ const CajaPage = () => {
       >
         <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           {loadingDetalleSesion ? (
-            <div className="py-12 text-center">
-              <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent mx-auto mb-3" />
-              <p className="text-gray-600">Cargando sesión...</p>
+            <div className="space-y-4 py-4">
+              <div className="h-6 w-48 rounded bg-gray-200 animate-pulse" />
+              <div className="h-4 w-64 rounded bg-gray-100 animate-pulse" />
+              <div className="grid grid-cols-4 gap-3 pt-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-20 rounded-lg bg-gray-100 animate-pulse" />
+                ))}
+              </div>
+              <div className="flex justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+              </div>
             </div>
           ) : sesionDetalle?.sesion ? (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-orange-600 flex items-center gap-2">
-                  <Wallet className="h-5 w-5" />
-                  Sesión de caja — {sesionDetalle.sesion.punto_venta_nombre}
-                </DialogTitle>
-                <DialogDescription>
-                  Apertura: {formatearFechaHora(sesionDetalle.sesion.fecha_apertura)}
-                  {sesionDetalle.sesion.fecha_cierre && (
-                    <> · Cierre: {formatearFechaHora(sesionDetalle.sesion.fecha_cierre)}</>
-                  )}
-                </DialogDescription>
+              <DialogHeader className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <DialogTitle className="text-orange-600 flex items-center gap-2">
+                      <Wallet className="h-5 w-5" />
+                      Sesión de caja — {sesionDetalle.sesion.punto_venta_nombre}
+                    </DialogTitle>
+                    <DialogDescription className="mt-1">
+                      Apertura: {formatearFechaHora(sesionDetalle.sesion.fecha_apertura)}
+                      {sesionDetalle.sesion.fecha_cierre && (
+                        <> · Cierre: {formatearFechaHora(sesionDetalle.sesion.fecha_cierre)}</>
+                      )}
+                    </DialogDescription>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1"
+                    onClick={() => {
+                      setDialogDetalleSesionAbierto(false)
+                      setSesionDetalle(null)
+                    }}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver al listado
+                  </Button>
+                </div>
               </DialogHeader>
 
               <div className="space-y-4 pt-2">
@@ -1137,7 +1173,7 @@ const CajaPage = () => {
                         <p className="font-medium text-gray-900">{sesionDetalle.sesion.usuario_apertura_nombre}</p>
                         <p className="text-xs text-gray-600">{formatearFechaHora(sesionDetalle.sesion.fecha_apertura)}</p>
                       </div>
-                      {sesionDetalle.sesion.fecha_cierre && (
+                      {sesionDetalle.sesion.fecha_cierre ? (
                         <>
                           <div>
                             <p className="text-xs font-medium text-gray-500 uppercase">Cerrada por</p>
@@ -1158,6 +1194,25 @@ const CajaPage = () => {
                             </p>
                           </div>
                         </>
+                      ) : (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs font-medium text-gray-500 uppercase">Estado</p>
+                          <p className="font-medium text-green-700 flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                            Sesión en curso
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            Abierta hace{" "}
+                            {(() => {
+                              const a = new Date(sesionDetalle.sesion.fecha_apertura)
+                              const b = new Date()
+                              const min = Math.round((b - a) / 60000)
+                              const h = Math.floor(min / 60)
+                              const m = min % 60
+                              return h > 0 ? `${h} h ${m} min` : `${m} min`
+                            })()}
+                          </p>
+                        </div>
                       )}
                     </div>
                   </CardContent>
@@ -1314,7 +1369,14 @@ const CajaPage = () => {
                 {/* Tabla de movimientos con filtros */}
                 <Card className="border border-gray-200">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Movimientos de la sesión</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      Movimientos de la sesión
+                      {!loadingHistorialMovimientos && (
+                        <span className="text-sm font-normal text-gray-500">
+                          ({historialMovimientosPagination.totalItems} resultado{historialMovimientosPagination.totalItems !== 1 ? "s" : ""})
+                        </span>
+                      )}
+                    </CardTitle>
                     <CardDescription>Filtrar por tipo de movimiento y por categoría.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -1351,9 +1413,30 @@ const CajaPage = () => {
                     <ScrollArea className="h-[320px] rounded-md border">
                       <div className="divide-y">
                         {loadingHistorialMovimientos ? (
-                          <div className="py-8 text-center text-sm text-gray-500">Cargando movimientos...</div>
+                          <div className="py-8 flex flex-col items-center justify-center gap-2 text-gray-500">
+                            <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+                            <span className="text-sm">Cargando movimientos...</span>
+                          </div>
                         ) : historialMovimientos.length === 0 ? (
-                          <div className="py-8 text-center text-sm text-gray-500">No hay movimientos para este filtro.</div>
+                          <div className="py-10 px-4 text-center">
+                            <FilterX className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600">No hay movimientos para este filtro.</p>
+                            {(historialFiltroOrigen !== "general" || historialFiltroTipo !== "todos") && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-3 gap-1"
+                                onClick={() => {
+                                  setHistorialFiltroOrigen("general")
+                                  setHistorialFiltroTipo("todos")
+                                }}
+                              >
+                                <FilterX className="h-3 w-3" />
+                                Limpiar filtros
+                              </Button>
+                            )}
+                          </div>
                         ) : (
                           historialMovimientos.map((mov) => {
                             const esIngreso = mov.tipo === "ingreso" || mov.tipo === "venta"
