@@ -17,6 +17,7 @@ export const AddEquipmentModal = ({ isOpen, onClose, onSave, equipment, puntosVe
     color: "",
     bateria: "",
     precio: "",
+    precioMoneda: "USD",
     descripcion: "",
     imei: "",
     fechaIngreso: "",
@@ -35,6 +36,7 @@ export const AddEquipmentModal = ({ isOpen, onClose, onSave, equipment, puntosVe
         color: equipment.color || "",
         bateria: equipment.bateria?.toString() || "",
         precio: equipment.precio?.toString() || "",
+        precioMoneda: equipment.precioMoneda === "ARS" ? "ARS" : "USD",
         descripcion: equipment.descripcion || "",
         imei: equipment.imei || "",
         fechaIngreso: equipment.fechaIngreso
@@ -94,6 +96,7 @@ export const AddEquipmentModal = ({ isOpen, onClose, onSave, equipment, puntosVe
       const data = {
         ...formData,
         precio: Number.parseFloat(formData.precio),
+        precio_moneda: formData.precioMoneda,
         id: equipment?.id,
       }
       await onSave(data)
@@ -105,15 +108,20 @@ export const AddEquipmentModal = ({ isOpen, onClose, onSave, equipment, puntosVe
     }
   }
 
-  // Calcular el precio en pesos argentinos usando el tipo de cambio actual
-  const precioARS = () => {
-    const precio = Number.parseFloat(formData.precio) || 0
-    return new Intl.NumberFormat("es-AR", {
+  const precioNum = Number.parseFloat(formData.precio) || 0
+  const esUSD = formData.precioMoneda === "USD"
+  const precioARS = () =>
+    new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
       minimumFractionDigits: 2,
-    }).format(precio * dollarPrice)
-  }
+    }).format(esUSD ? precioNum * dollarPrice : precioNum)
+  const precioUSD = () =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(esUSD ? precioNum : (dollarPrice > 0 ? precioNum / dollarPrice : 0))
 
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.95 },
@@ -221,8 +229,23 @@ export const AddEquipmentModal = ({ isOpen, onClose, onSave, equipment, puntosVe
               </div>
 
               <div className="space-y-1">
+                <Label className="text-sm">Moneda del precio <span className="text-red-500">*</span></Label>
+                <Select
+                  value={formData.precioMoneda}
+                  onValueChange={(v) => setFormData((prev) => ({ ...prev, precioMoneda: v }))}
+                >
+                  <SelectTrigger className="border-orange-200 focus-visible:ring-orange-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD (Dólares)</SelectItem>
+                    <SelectItem value="ARS">ARS (Pesos argentinos)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 col-span-2">
                 <Label htmlFor="precio" className="text-sm">
-                  Precio (USD) <span className="text-red-500">*</span>
+                  Precio ({formData.precioMoneda === "ARS" ? "ARS" : "USD"}) <span className="text-red-500">*</span>
                 </Label>
                 <div className="relative">
                   <Input
@@ -240,9 +263,15 @@ export const AddEquipmentModal = ({ isOpen, onClose, onSave, equipment, puntosVe
                     }
                   />
                   {formData.precio && (
-                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      Precio en ARS: {precioARS()}
+                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                      {formData.precioMoneda === "USD" ? (
+                        <>
+                          <DollarSign className="h-3 w-3" />
+                          <span>Equivalente en ARS: {precioARS()}</span>
+                        </>
+                      ) : (
+                        <span>Equivalente en USD: {precioUSD()}</span>
+                      )}
                     </div>
                   )}
                 </div>

@@ -174,9 +174,20 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
                         </div>
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium text-orange-700">${ensureNumber(eq.precio).toFixed(2)}</TableCell>
                     <TableCell className="font-medium text-orange-700">
-                      {formatCurrency(ensureNumber(eq.precio) * dollarPrice)}
+                      <div>
+                        {eq.precioMoneda === "ARS"
+                          ? `$${(ensureNumber(eq.precio) / (eq.tipoCambio || dollarPrice || 1)).toFixed(2)}`
+                          : `$${ensureNumber(eq.precio).toFixed(2)}`}
+                        <span className="block text-xs font-normal text-gray-500 mt-0.5">
+                          {eq.precioMoneda === "ARS" ? "Precio en ARS" : "Precio en USD"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium text-orange-700">
+                      {eq.precioMoneda === "ARS"
+                        ? formatCurrency(ensureNumber(eq.precio))
+                        : formatCurrency(ensureNumber(eq.precio) * dollarPrice)}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -409,18 +420,31 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
 
                                       <div className="space-y-3">
                                         <div>
-                                          <div className="text-gray-500 text-sm">Precio USD</div>
+                                          <div className="text-gray-500 text-sm">
+                                            Precio USD {eq.precioMoneda === "ARS" ? "(equiv.)" : "(precio en USD)"}
+                                          </div>
                                           <div className="text-2xl font-bold text-orange-700">
-                                            ${ensureNumber(eq.precio).toFixed(2)}
+                                            $
+                                            {eq.precioMoneda === "ARS"
+                                              ? (ensureNumber(eq.precio) / (eq.tipoCambio || dollarPrice || 1)).toFixed(
+                                                  2,
+                                                )
+                                              : ensureNumber(eq.precio).toFixed(2)}
                                           </div>
                                         </div>
 
                                         <Separator className="bg-[#131321]/10" />
 
                                         <div>
-                                          <div className="text-gray-500 text-sm">Precio ARS (Actual)</div>
+                                          <div className="text-gray-500 text-sm">
+                                            Precio ARS (Actual) {eq.precioMoneda === "ARS" ? "(precio en ARS)" : "(equiv.)"}
+                                          </div>
                                           <div className="text-xl font-bold text-orange-700">
-                                            {formatCurrency(ensureNumber(eq.precio) * dollarPrice)}
+                                            {formatCurrency(
+                                              eq.precioMoneda === "ARS"
+                                                ? ensureNumber(eq.precio)
+                                                : ensureNumber(eq.precio) * dollarPrice,
+                                            )}
                                             <span className="text-sm text-gray-500 ml-2">
                                               (TC: {dollarPrice.toFixed(2)})
                                             </span>
@@ -430,13 +454,15 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
                                         <Separator className="bg-[#131321]/10" />
 
                                         <div>
-                                          <div className="text-gray-500 text-sm">Precio ARS (Original)</div>
+                                          <div className="text-gray-500 text-sm">Precio ARS (Original / ingreso)</div>
                                           <div className="text-base text-gray-600">
-                                            {formatCurrency(
-                                              ensureNumber(eq.precio) * ensureNumber(eq.tipoCambioOriginal),
-                                            )}
+                                            {eq.precioMoneda === "ARS"
+                                              ? formatCurrency(ensureNumber(eq.precio))
+                                              : formatCurrency(
+                                                  ensureNumber(eq.precio) * ensureNumber(eq.tipoCambioOriginal),
+                                                )}
                                             <span className="text-xs text-gray-500 ml-2">
-                                              (TC: {ensureNumber(eq.tipoCambioOriginal).toFixed(2)})
+                                              (TC: {ensureNumber(eq.tipoCambioOriginal || eq.tipoCambio || dollarPrice).toFixed(2)})
                                             </span>
                                           </div>
                                         </div>

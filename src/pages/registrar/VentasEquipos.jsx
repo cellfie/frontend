@@ -75,6 +75,17 @@ const formatearMonedaARS = (valor) => {
   }).format(valor || 0) // Asegurar que valor no sea undefined
 }
 
+/** Dado un equipo y el tipo de cambio, devuelve precio en USD y ARS (según precio_moneda del equipo). */
+const getPreciosEquipo = (equipo, dollarPrice) => {
+  if (!equipo) return { precioUSD: 0, precioARS: 0 }
+  const d = dollarPrice || 1
+  const p = Number(equipo.precio) || 0
+  if (equipo.precioMoneda === "ARS") {
+    return { precioUSD: p / d, precioARS: p }
+  }
+  return { precioUSD: p, precioARS: p * d }
+}
+
 // Componentes auxiliares
 const PrecioConARS = ({ precio, dollarPrice, className = "" }) => (
   <div className={`flex flex-col items-end ${className}`}>
@@ -142,8 +153,15 @@ const EquipoCard = ({ equipo, onSelect, dollarPrice, puntoVentaSeleccionado, get
             <p className="text-xs text-gray-500 mt-1">IMEI: {equipo.imei}</p>
           </div>
           <div className="text-right">
-            <p className="font-semibold text-orange-600">${Number(equipo.precio).toFixed(2)}</p>
-            <p className="text-xs text-gray-500">{formatearMonedaARS(Number(equipo.precio) * dollarPrice)}</p>
+            {(() => {
+              const { precioUSD, precioARS } = getPreciosEquipo(equipo, dollarPrice)
+              return (
+                <>
+                  <p className="font-semibold text-orange-600">${precioUSD.toFixed(2)}</p>
+                  <p className="text-xs text-gray-500">{formatearMonedaARS(precioARS)}</p>
+                </>
+              )
+            })()}
             <Badge
               variant={
                 Number(equipo.bateria) > 90 ? "secondary" : Number(equipo.bateria) > 80 ? "outline" : "destructive"
@@ -353,8 +371,8 @@ const VentasEquipos = () => {
     }
   }, [cliente.id])
 
-  // Cálculos
-  const precioBruto = equipoSeleccionado ? Number(equipoSeleccionado.precio) : 0
+  // Cálculos (precio bruto en USD para totales e interés)
+  const precioBruto = equipoSeleccionado ? getPreciosEquipo(equipoSeleccionado, dollarPrice).precioUSD : 0
   const descuentoCanje = canjeCompletado ? Number(nuevoEquipoCanje.precio) || 0 : 0
   const subtotal = precioBruto - descuentoCanje
   const interesGeneralCalculado = (subtotal * porcentajeInteresGeneral) / 100 // Renombrado
@@ -1200,10 +1218,15 @@ const VentasEquipos = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <p className="font-medium text-orange-600">${Number(equipoSeleccionado.precio).toFixed(2)}</p>
-                        <p className="text-xs text-gray-500">
-                          {formatearMonedaARS(Number(equipoSeleccionado.precio) * dollarPrice)}
-                        </p>
+                        {(() => {
+                          const { precioUSD, precioARS } = getPreciosEquipo(equipoSeleccionado, dollarPrice)
+                          return (
+                            <>
+                              <p className="font-medium text-orange-600">${precioUSD.toFixed(2)}</p>
+                              <p className="text-xs text-gray-500">{formatearMonedaARS(precioARS)}</p>
+                            </>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
                         <Button
