@@ -501,6 +501,257 @@ export default function HistorialComprasProductosPage() {
         </CardFooter>
       </Card>
 
+      {/* Modal de detalle de compra */}
+      <Dialog
+        open={!!compraSeleccionada}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCompraSeleccionada(null)
+            setDetalleCompraAbierto(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-orange-600" />
+              Detalle de compra
+            </DialogTitle>
+            <DialogDescription>
+              Información completa de la compra, sus productos y pagos registrados.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetalle && (
+            <div className="py-6">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+            </div>
+          )}
+
+          {!loadingDetalle && compraSeleccionada && (
+            <div className="space-y-4">
+              {/* Información principal */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">Comprobante</p>
+                  <p className="font-semibold">{compraSeleccionada.numero_comprobante}</p>
+                  <p className="text-xs text-gray-500 mt-2">Fecha</p>
+                  <p className="font-medium">
+                    {compraSeleccionada.fecha
+                      ? new Date(compraSeleccionada.fecha).toLocaleString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "-"}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">Registrado por</p>
+                  <p className="font-medium">{compraSeleccionada.usuario_nombre || "N/A"}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">Proveedor</p>
+                  <p className="font-semibold">{compraSeleccionada.proveedor_nombre}</p>
+                  {compraSeleccionada.proveedor_cuit && (
+                    <p className="text-xs text-gray-500">CUIT: {compraSeleccionada.proveedor_cuit}</p>
+                  )}
+                  {compraSeleccionada.proveedor_telefono && (
+                    <p className="text-xs text-gray-500">Teléfono: {compraSeleccionada.proveedor_telefono}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">Punto de venta</p>
+                  <p className="font-medium">{compraSeleccionada.punto_venta_nombre}</p>
+                  <p className="text-xs text-gray-500 mt-2">Estado</p>
+                  <div>
+                    {compraSeleccionada.anulada ? (
+                      <Badge className="bg-red-100 text-red-800 border-red-300 text-[10px]">Anulada</Badge>
+                    ) : (
+                      <Badge className="bg-green-100 text-green-800 border-green-300 text-[10px]">Vigente</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Totales */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500">Subtotal</p>
+                  <p className="font-semibold">
+                    {formatearMonedaARS(compraSeleccionada.subtotal ?? compraSeleccionada.total ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Descuento</p>
+                  <p className="font-semibold">
+                    {compraSeleccionada.porcentaje_descuento
+                      ? `${compraSeleccionada.porcentaje_descuento}% (${formatearMonedaARS(
+                          compraSeleccionada.monto_descuento || 0,
+                        )})`
+                      : formatearMonedaARS(compraSeleccionada.monto_descuento || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Total</p>
+                  <p className="font-bold text-orange-600">
+                    {formatearMonedaARS(compraSeleccionada.total || 0)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Productos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold flex items-center gap-1">
+                    <FileText className="h-4 w-4 text-gray-500" />
+                    Productos de la compra
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {Array.isArray(compraSeleccionada.detalles) ? compraSeleccionada.detalles.length : 0} ítems
+                  </p>
+                </div>
+                {(!compraSeleccionada.detalles || compraSeleccionada.detalles.length === 0) && (
+                  <p className="text-xs text-gray-500">Esta compra no tiene productos asociados.</p>
+                )}
+                {compraSeleccionada.detalles && compraSeleccionada.detalles.length > 0 && (
+                  <div className="border rounded-md max-h-64 overflow-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-gray-50 z-10">
+                        <TableRow>
+                          <TableHead className="text-xs">Producto</TableHead>
+                          <TableHead className="text-xs text-center">Cant.</TableHead>
+                          <TableHead className="text-xs text-right">Costo unit.</TableHead>
+                          <TableHead className="text-xs text-right">Subtotal</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {compraSeleccionada.detalles.map((det) => (
+                          <TableRow key={det.id}>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">{det.producto_nombre}</span>
+                                {det.producto_codigo && (
+                                  <span className="text-[11px] text-gray-500">Cod: {det.producto_codigo}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center text-sm">{det.cantidad}</TableCell>
+                            <TableCell className="text-right text-sm">
+                              {formatearMonedaARS(det.costo_unitario)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {formatearMonedaARS(det.subtotal)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
+              {/* Pagos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold flex items-center gap-1">
+                    <Wallet className="h-4 w-4 text-gray-500" />
+                    Pagos de la compra
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {Array.isArray(compraSeleccionada.pagos) ? compraSeleccionada.pagos.length : 0} registros
+                  </p>
+                </div>
+                {(!compraSeleccionada.pagos || compraSeleccionada.pagos.length === 0) && (
+                  <p className="text-xs text-gray-500">No hay pagos registrados para esta compra.</p>
+                )}
+                {compraSeleccionada.pagos && compraSeleccionada.pagos.length > 0 && (
+                  <div className="border rounded-md max-h-56 overflow-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-gray-50 z-10">
+                        <TableRow>
+                          <TableHead className="text-xs">Fecha</TableHead>
+                          <TableHead className="text-xs">Tipo</TableHead>
+                          <TableHead className="text-xs text-right">Monto</TableHead>
+                          <TableHead className="text-xs">Estado</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {compraSeleccionada.pagos.map((pago) => (
+                          <TableRow key={pago.id}>
+                            <TableCell className="text-xs">
+                              {pago.fecha
+                                ? new Date(pago.fecha).toLocaleString("es-AR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs">{pago.tipo_pago_nombre}</TableCell>
+                            <TableCell className="text-xs text-right">
+                              {formatearMonedaARS(pago.monto)}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {pago.anulado ? (
+                                <Badge className="bg-red-100 text-red-800 border-red-300 text-[10px]">Anulado</Badge>
+                              ) : (
+                                <Badge className="bg-green-100 text-green-800 border-green-300 text-[10px]">
+                                  Vigente
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
+              {/* Notas y anulación */}
+              {(compraSeleccionada.notas || compraSeleccionada.anulada) && (
+                <div className="space-y-2">
+                  {compraSeleccionada.notas && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Notas</p>
+                      <p className="text-sm bg-gray-50 border rounded-md p-2">{compraSeleccionada.notas}</p>
+                    </div>
+                  )}
+                  {compraSeleccionada.anulada && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-2 text-xs text-red-800 space-y-1">
+                      <p className="font-semibold">Compra anulada</p>
+                      {compraSeleccionada.fecha_anulacion && (
+                        <p>
+                          Fecha de anulación:{" "}
+                          {new Date(compraSeleccionada.fecha_anulacion).toLocaleString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      )}
+                      {compraSeleccionada.motivo_anulacion && (
+                        <p>Motivo: {compraSeleccionada.motivo_anulacion}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogAnularAbierto} onOpenChange={setDialogAnularAbierto}>
         <DialogContent>
           <DialogHeader>
