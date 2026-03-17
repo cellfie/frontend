@@ -501,7 +501,7 @@ export default function HistorialComprasProductosPage() {
           }
         }}
       >
-        <DialogContent className="max-w-5xl w-[95vw]">
+        <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5 text-orange-600" />
@@ -512,19 +512,20 @@ export default function HistorialComprasProductosPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {loadingDetalle && (
-            <div className="py-6">
-              <div className="flex flex-col items-center justify-center gap-2">
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
+          <div className="mt-2 flex-1 overflow-y-auto pr-1 pb-2">
+            {loadingDetalle && (
+              <div className="py-6">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!loadingDetalle && compraSeleccionada && (
-            <div className="space-y-4">
-              {/* Información principal */}
+            {!loadingDetalle && compraSeleccionada && (
+              <div className="space-y-4">
+                {/* Información principal */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
                   <p className="text-xs text-gray-500">Comprobante</p>
@@ -569,7 +570,7 @@ export default function HistorialComprasProductosPage() {
 
               <Separator />
 
-              {/* Totales */}
+                {/* Totales */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-gray-500">Subtotal</p>
@@ -595,7 +596,7 @@ export default function HistorialComprasProductosPage() {
                 </div>
               </div>
 
-              {/* Productos */}
+                {/* Productos */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold flex items-center gap-1">
@@ -646,7 +647,7 @@ export default function HistorialComprasProductosPage() {
                 )}
               </div>
 
-              {/* Pagos */}
+                {/* Pagos */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold flex items-center gap-1">
@@ -706,39 +707,40 @@ export default function HistorialComprasProductosPage() {
                 )}
               </div>
 
-              {/* Notas y anulación */}
-              {(compraSeleccionada.notas || compraSeleccionada.anulada) && (
-                <div className="space-y-2">
-                  {compraSeleccionada.notas && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Notas</p>
-                      <p className="text-sm bg-gray-50 border rounded-md p-2">{compraSeleccionada.notas}</p>
-                    </div>
-                  )}
-                  {compraSeleccionada.anulada && (
-                    <div className="bg-red-50 border border-red-200 rounded-md p-2 text-xs text-red-800 space-y-1">
-                      <p className="font-semibold">Compra anulada</p>
-                      {compraSeleccionada.fecha_anulacion && (
-                        <p>
-                          Fecha de anulación:{" "}
-                          {new Date(compraSeleccionada.fecha_anulacion).toLocaleString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      )}
-                      {compraSeleccionada.motivo_anulacion && (
-                        <p>Motivo: {compraSeleccionada.motivo_anulacion}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                {/* Notas y anulación */}
+                {(compraSeleccionada.notas || compraSeleccionada.anulada) && (
+                  <div className="space-y-2">
+                    {compraSeleccionada.notas && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Notas</p>
+                        <p className="text-sm bg-gray-50 border rounded-md p-2">{compraSeleccionada.notas}</p>
+                      </div>
+                    )}
+                    {compraSeleccionada.anulada && (
+                      <div className="bg-red-50 border border-red-200 rounded-md p-2 text-xs text-red-800 space-y-1">
+                        <p className="font-semibold">Compra anulada</p>
+                        {compraSeleccionada.fecha_anulacion && (
+                          <p>
+                            Fecha de anulación:{" "}
+                            {new Date(compraSeleccionada.fecha_anulacion).toLocaleString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        )}
+                        {compraSeleccionada.motivo_anulacion && (
+                          <p>Motivo: {compraSeleccionada.motivo_anulacion}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
