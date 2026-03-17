@@ -87,14 +87,26 @@ const getPreciosEquipo = (equipo, dollarPrice) => {
 }
 
 // Componentes auxiliares
-const PrecioConARS = ({ precio, dollarPrice, className = "" }) => (
-  <div className={`flex flex-col items-end ${className}`}>
-    <span>
-      {precio < 0 ? "-" : ""}${Math.abs(precio).toFixed(2)}
-    </span>
-    <span className="text-xs text-gray-500">{formatearMonedaARS(Math.abs(precio * dollarPrice))}</span>
-  </div>
-)
+const PrecioConARS = ({ precio, dollarPrice, className = "", principalEnARS = false }) => {
+  const signo = precio < 0 ? "-" : ""
+  const valorUSD = Math.abs(precio)
+  const valorARS = Math.abs(precio * dollarPrice)
+
+  return (
+    <div className={`flex flex-col items-end ${className}`}>
+      <span>
+        {principalEnARS
+          ? `${signo}${formatearMonedaARS(valorARS)}`
+          : `${signo}$${valorUSD.toFixed(2)}`}
+      </span>
+      <span className="text-xs text-gray-500">
+        {principalEnARS
+          ? `${signo}$${valorUSD.toFixed(2)}`
+          : formatearMonedaARS(valorARS)}
+      </span>
+    </div>
+  )
+}
 
 const EquipoCard = ({ equipo, onSelect, dollarPrice, puntoVentaSeleccionado, getNombrePuntoVenta }) => {
   const esPuntoVentaDiferente = equipo.puntoVenta?.id.toString() !== puntoVentaSeleccionado
@@ -1510,7 +1522,11 @@ const VentasEquipos = () => {
                           <Separator className="my-2" />
                           <div className="flex justify-between">
                             <span className="text-gray-600">Precio bruto:</span>
-                            <PrecioConARS precio={precioBruto} dollarPrice={dollarPrice} />
+                            <PrecioConARS
+                              precio={precioBruto}
+                              dollarPrice={dollarPrice}
+                              principalEnARS={equipoSeleccionado?.precioMoneda === "ARS"}
+                            />
                           </div>
                           {canjeCompletado && (
                             <div className="flex justify-between">
@@ -1519,6 +1535,7 @@ const VentasEquipos = () => {
                                 precio={-descuentoCanje}
                                 dollarPrice={dollarPrice}
                                 className="text-red-600"
+                                principalEnARS={equipoSeleccionado?.precioMoneda === "ARS"}
                               />
                             </div>
                           )}
@@ -1529,6 +1546,7 @@ const VentasEquipos = () => {
                                 precio={-descuentoCalculado}
                                 dollarPrice={dollarPrice}
                                 className="text-green-600"
+                                principalEnARS={equipoSeleccionado?.precioMoneda === "ARS"}
                               />
                             </div>
                           )}
@@ -1539,6 +1557,7 @@ const VentasEquipos = () => {
                               precio={totalVentaSinInteresTarjeta}
                               dollarPrice={dollarPrice}
                               className="text-orange-600"
+                              principalEnARS={equipoSeleccionado?.precioMoneda === "ARS"}
                             />
                           </div>
                         </div>
