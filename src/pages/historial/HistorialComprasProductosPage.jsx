@@ -3,17 +3,7 @@
 import { useState, useEffect } from "react"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
-import {
-  Search,
-  Filter,
-  FileText,
-  MapPin,
-  Factory,
-  Trash2,
-  AlertTriangle,
-  Receipt,
-  Calendar,
-} from "lucide-react"
+import { Search, Filter, FileText, MapPin, Factory, Trash2, AlertTriangle, Receipt, Calendar, Wallet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
