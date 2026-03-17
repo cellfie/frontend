@@ -155,10 +155,15 @@ const EquipoCard = ({ equipo, onSelect, dollarPrice, puntoVentaSeleccionado, get
           <div className="text-right">
             {(() => {
               const { precioUSD, precioARS } = getPreciosEquipo(equipo, dollarPrice)
+              const esARS = equipo.precioMoneda === "ARS"
               return (
                 <>
-                  <p className="font-semibold text-orange-600">${precioUSD.toFixed(2)}</p>
-                  <p className="text-xs text-gray-500">{formatearMonedaARS(precioARS)}</p>
+                  <p className="font-semibold text-orange-600">
+                    {esARS ? formatearMonedaARS(precioARS) : `$${precioUSD.toFixed(2)}`}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {esARS ? `$${precioUSD.toFixed(2)}` : formatearMonedaARS(precioARS)}
+                  </p>
                 </>
               )
             })()}
@@ -1220,10 +1225,15 @@ const VentasEquipos = () => {
                       <TableCell className="text-right">
                         {(() => {
                           const { precioUSD, precioARS } = getPreciosEquipo(equipoSeleccionado, dollarPrice)
+                          const esARS = equipoSeleccionado.precioMoneda === "ARS"
                           return (
                             <>
-                              <p className="font-medium text-orange-600">${precioUSD.toFixed(2)}</p>
-                              <p className="text-xs text-gray-500">{formatearMonedaARS(precioARS)}</p>
+                              <p className="font-medium text-orange-600">
+                                {esARS ? formatearMonedaARS(precioARS) : `$${precioUSD.toFixed(2)}`}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {esARS ? `$${precioUSD.toFixed(2)}` : formatearMonedaARS(precioARS)}
+                              </p>
                             </>
                           )
                         })()}
