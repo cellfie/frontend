@@ -195,7 +195,10 @@ const DevolucionDialog = ({
     })
   }
 
+  const [creandoCliente, setCreandoCliente] = useState(false)
+
   const crearNuevoCliente = () => {
+    if (creandoCliente) return
     if (!nuevoCliente.nombre.trim()) {
       toast.error("El nombre del cliente es obligatorio", {
         position: "bottom-right",
@@ -204,6 +207,7 @@ const DevolucionDialog = ({
     }
 
     try {
+      setCreandoCliente(true)
       createCliente(nuevoCliente)
         .then((clienteCreado) => {
           const clienteInfo = {
@@ -256,6 +260,9 @@ const DevolucionDialog = ({
           productosMap.set(key, cantidadActual + producto.cantidad)
         })
       })
+        .finally(() => {
+          setCreandoCliente(false)
+        })
 
       setProductosDevueltos(productosMap)
     } catch (error) {
@@ -1729,8 +1736,13 @@ const DevolucionDialog = ({
           <Button type="button" variant="ghost" onClick={() => setDialogNuevoClienteAbierto(false)}>
             Cancelar
           </Button>
-          <Button type="button" onClick={crearNuevoCliente} className="bg-orange-600 hover:bg-orange-700">
-            Crear Cliente
+          <Button
+            type="button"
+            onClick={crearNuevoCliente}
+            disabled={creandoCliente}
+            className="bg-orange-600 hover:bg-orange-700 disabled:opacity-60"
+          >
+            {creandoCliente ? "Creando..." : "Crear Cliente"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -82,6 +82,7 @@ const ClientesPage = () => {
     mensaje: "",
   })
   const [mostrarSoloConCuenta, setMostrarSoloConCuenta] = useState(false)
+  const [guardandoCliente, setGuardandoCliente] = useState(false)
 
   // Cargar clientes al iniciar solo si es admin
   useEffect(() => {
@@ -345,11 +346,14 @@ const ClientesPage = () => {
 
   // Guardar cliente (crear o actualizar) - CORREGIDO
   const guardarCliente = async () => {
+    if (guardandoCliente) return
+
     if (!formCliente.nombre.trim()) {
       toast.error("El nombre del cliente es obligatorio")
       return
     }
 
+    setGuardandoCliente(true)
     try {
       let clienteGuardado
       if (modoEdicion) {
@@ -393,6 +397,8 @@ const ClientesPage = () => {
     } catch (error) {
       console.error("Error al guardar cliente:", error)
       toast.error(error.message || "Error al guardar cliente")
+    } finally {
+      setGuardandoCliente(false)
     }
   }
 

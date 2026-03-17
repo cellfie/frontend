@@ -351,11 +351,16 @@ const VentasProductos = () => {
   }
 
   // Acciones sobre clientes
+  const [creandoCliente, setCreandoCliente] = useState(false)
+
   const crearNuevoCliente = async () => {
+    if (creandoCliente) return
+
     if (!nuevoCliente.nombre.trim()) {
       toast.error("El nombre del cliente es obligatorio")
       return
     }
+    setCreandoCliente(true)
     try {
       const clienteCreado = await createCliente(nuevoCliente)
       setCliente({
@@ -372,6 +377,8 @@ const VentasProductos = () => {
       toast.success("Cliente creado correctamente")
     } catch (error) {
       toast.error(`Error al crear cliente: ${error.message}`)
+    } finally {
+      setCreandoCliente(false)
     }
   }
 
@@ -724,8 +731,12 @@ const VentasProductos = () => {
                   <Button variant="outline" onClick={() => setDialogNuevoClienteAbierto(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={crearNuevoCliente} className="bg-orange-600 hover:bg-orange-700">
-                    Guardar
+                  <Button
+                    onClick={crearNuevoCliente}
+                    disabled={creandoCliente}
+                    className="bg-orange-600 hover:bg-orange-700 disabled:opacity-60"
+                  >
+                    {creandoCliente ? "Guardando..." : "Guardar"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

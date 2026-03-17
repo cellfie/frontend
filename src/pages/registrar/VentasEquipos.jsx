@@ -450,6 +450,7 @@ const VentasEquipos = () => {
   }
 
   // Handlers para cliente
+  const [creandoCliente, setCreandoCliente] = useState(false)
   const seleccionarCliente = (clienteSeleccionado) => {
     setCliente({
       id: clienteSeleccionado.id,
@@ -464,10 +465,13 @@ const VentasEquipos = () => {
   }
 
   const crearNuevoCliente = async () => {
+    if (creandoCliente) return
+
     if (!nuevoCliente.nombre.trim()) {
       toast.error("El nombre del cliente es obligatorio", { position: "bottom-right" })
       return
     }
+    setCreandoCliente(true)
     try {
       const clienteCreado = await createCliente(nuevoCliente)
       seleccionarCliente(clienteCreado) // Usar la función existente para setear el cliente
@@ -477,6 +481,8 @@ const VentasEquipos = () => {
     } catch (error) {
       console.error("Error al crear cliente:", error)
       toast.error("Error al crear cliente: " + error.message)
+    } finally {
+      setCreandoCliente(false)
     }
   }
 
@@ -1063,8 +1069,12 @@ const VentasEquipos = () => {
                   <Button variant="outline" onClick={() => setDialogNuevoClienteAbierto(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={crearNuevoCliente} className="bg-orange-600 hover:bg-orange-700">
-                    Guardar
+                  <Button
+                    onClick={crearNuevoCliente}
+                    disabled={creandoCliente}
+                    className="bg-orange-600 hover:bg-orange-700 disabled:opacity-60"
+                  >
+                    {creandoCliente ? "Guardando..." : "Guardar"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
