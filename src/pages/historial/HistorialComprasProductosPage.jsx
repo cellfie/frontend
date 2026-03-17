@@ -501,7 +501,7 @@ export default function HistorialComprasProductosPage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl w-[95vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5 text-orange-600" />
