@@ -15,6 +15,7 @@ import { DateRangePicker } from "@/lib/DatePickerWithRange"
 
 import { getSesionesCaja, getSesionCajaPorId } from "@/services/cajaService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
+import { getComprasPaginadas } from "@/services/comprasService"
 
 const formatearMonedaARS = (valor) => {
   const numero = Number(valor) || 0
@@ -64,20 +65,20 @@ const construirResumenSesion = (detalle) => {
   const ventasProductos = sumarTotales(tot.ventas_productos)
   const ventasEquipos = sumarTotalesVentasEquipos(tot.ventas_equipos)
   const reparaciones = sumarTotales(tot.reparaciones)
-  const compras = sumarTotales(tot.compras)
 
   const movIngresos = Number(tot.movimientos?.ingresos) || 0
   const movEgresos = Number(tot.movimientos?.egresos) || 0
 
   const ingresos = ventasProductos + ventasEquipos + reparaciones + movIngresos
-  const egresos = compras + movEgresos
+  // Importante: las COMPRAS se consideran egreso global del rango (no por sesión).
+  // Para balance perfecto de la sesión, usamos solo egresos propios de caja_movimientos.
+  const egresos = movEgresos
   const neto = ingresos - egresos
 
   return {
     ventasProductos,
     ventasEquipos,
     reparaciones,
-    compras,
     movIngresos,
     movEgresos,
     ingresos,
@@ -97,6 +98,7 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(true)
   const [sesiones, setSesiones] = useState([])
   const [detallesPorSesion, setDetallesPorSesion] = useState({})
+  const [compras, setCompras] = useState([])
 
   useEffect(() => {
     const cargarPV = async () => {
@@ -131,6 +133,16 @@ export default function ReportesPage() {
       const data = await getSesionesCaja(1, 500, filtros)
       const list = data?.sesiones || []
       setSesiones(list)
+
+      // Compras del rango (egreso global): usar mismos filtros de fechas y punto de venta
+      const filtrosCompras = {
+        fecha_inicio: filtros.fecha_inicio,
+        fecha_fin: filtros.fecha_fin,
+      }
+      if (selectedPuntoVenta !== "todos") filtrosCompras.punto_venta_id = selectedPuntoVenta
+
+      const comprasData = await getComprasPaginadas(1, 500, filtrosCompras)
+      setCompras(comprasData?.compras || [])
 
       // Para resumen financiero necesitamos los totales por sesión (endpoint detalle)
       const detalles = await Promise.all(
@@ -168,7 +180,6 @@ export default function ReportesPage() {
       ventasProductos: 0,
       ventasEquipos: 0,
       reparaciones: 0,
-      compras: 0,
       movIngresos: 0,
       movEgresos: 0,
       ingresos: 0,
@@ -185,8 +196,15 @@ export default function ReportesPage() {
         base[k] += r[k]
       })
     })
+
+    // Egreso global por compras del rango
+    const totalCompras = (compras || []).reduce((acc, c) => acc + (Number(c.total) || 0), 0)
+    base.egresos = totalCompras
+    // Neto global = suma de netos de sesiones - compras del rango
+    base.neto = base.neto - totalCompras
+
     return base
-  }, [detallesPorSesion])
+  }, [detallesPorSesion, compras])
 
   const sesionesConResumen = useMemo(() => {
     return sesiones.map((s) => {
@@ -321,17 +339,17 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-8 w-40" /> : <div className="text-2xl font-bold text-green-700">{formatearMonedaARS(resumenGlobal.ingresos)}</div>}
-            <p className="text-xs text-gray-500 mt-1">Ventas + Reparaciones + Movimientos</p>
+            <p className="text-xs text-gray-500 mt-1">Ventas + Reparaciones + Ingresos de caja</p>
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-gray-600">Egresos</CardTitle>
+            <CardTitle className="text-sm text-gray-600">Egresos (Compras)</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-8 w-40" /> : <div className="text-2xl font-bold text-red-700">{formatearMonedaARS(resumenGlobal.egresos)}</div>}
-            <p className="text-xs text-gray-500 mt-1">Compras + Movimientos</p>
+            <p className="text-xs text-gray-500 mt-1">Compras realizadas en el rango</p>
           </CardContent>
         </Card>
 
@@ -347,7 +365,7 @@ export default function ReportesPage() {
                 {formatearMonedaARS(resumenGlobal.neto)}
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">Ingresos - Egresos</p>
+            <p className="text-xs text-gray-500 mt-1">Sumatoria sesiones - compras del rango</p>
           </CardContent>
         </Card>
 
@@ -455,8 +473,74 @@ export default function ReportesPage() {
                       <div className="font-semibold">{formatearMonedaARS(s._resumen?.reparaciones || 0)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Compras</div>
-                      <div className="font-semibold">{formatearMonedaARS(s._resumen?.compras || 0)}</div>
+                      <div className="text-xs text-gray-500">Egresos (sesión)</div>
+                      <div className="font-semibold">{formatearMonedaARS(s._resumen?.movEgresos || 0)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Compras incluidas (egreso global del rango) */}
+      <Card className="border-0 shadow-md mt-6">
+        <CardHeader className="bg-[#131321] pb-3">
+          <CardTitle className="text-orange-600 flex items-center gap-2">
+            <BarChart3 size={20} />
+            Compras incluidas en el rango
+          </CardTitle>
+          <CardDescription className="text-gray-300">
+            Estas compras se consideran egreso global del rango (no se reparten por sesión).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4">
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : compras.length === 0 ? (
+            <div className="text-sm text-gray-600">No hay compras en el rango seleccionado.</div>
+          ) : (
+            <div className="space-y-3">
+              {compras.map((c) => (
+                <div key={c.id} className="border rounded-lg bg-white p-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="text-sm">
+                      <div className="font-semibold text-gray-900">{c.numero_comprobante}</div>
+                      <div className="text-xs text-gray-500">
+                        {c.fecha
+                          ? new Date(c.fecha).toLocaleString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "-"}
+                        {"  "}·{"  "}
+                        {c.proveedor_nombre || "Proveedor"}
+                        {"  "}·{"  "}
+                        {c.punto_venta_nombre || "Punto de venta"}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 justify-between md:justify-end">
+                      {c.anulada ? (
+                        <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700">
+                          Anulada
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-green-300 bg-green-50 text-green-700">
+                          Vigente
+                        </Badge>
+                      )}
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500">Total compra</div>
+                        <div className="font-bold text-red-700">{formatearMonedaARS(c.total || 0)}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
