@@ -27,6 +27,7 @@ import AccesoDenegadoPage from "./pages/AccesoDenegadoPage"
 import ComprasProductos from "./pages/registrar/ComprasProductos"
 import HistorialComprasProductosPage from "./pages/historial/HistorialComprasProductosPage"
 import CajaPage from "./pages/CajaPage"
+import ReportesPage from "./pages/reportes/ReportesPage"
 
 function App() {
   return (
@@ -158,6 +159,15 @@ function App() {
             </Route>
 
             <Route path="reparaciones-pendientes" element={<ReparacionesPendientes />} />
+
+            <Route
+              path="reportes"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <ReportesPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
         </Routes>
       </DollarProvider>
