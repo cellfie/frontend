@@ -2,7 +2,7 @@ import { Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 
 // Componente para proteger rutas que requieren autenticación
-const ProtectedRoute = ({ children, requiredRole = null }) => {
+const ProtectedRoute = ({ children, requiredRole = null, requiredRoles = null }) => {
   const { currentUser, loading, isAuthenticated } = useAuth()
   const location = useLocation()
 
@@ -20,9 +20,14 @@ const ProtectedRoute = ({ children, requiredRole = null }) => {
     return <Navigate to="/auth/login" state={{ from: location }} replace />
   }
 
-  // Si se requiere un rol específico y el usuario no lo tiene, redirigir a una página de acceso denegado
-  if (requiredRole && currentUser.role !== requiredRole) {
-    return <Navigate to="/acceso-denegado" replace />
+  // Si se requieren roles específicos y el usuario no lo tiene, redirigir a una página de acceso denegado
+  const rolesToCheck = requiredRoles || requiredRole
+
+  if (rolesToCheck) {
+    const allowedRoles = Array.isArray(rolesToCheck) ? rolesToCheck : [rolesToCheck]
+    if (!allowedRoles.includes(currentUser.role)) {
+      return <Navigate to="/acceso-denegado" replace />
+    }
   }
 
   // Si está autenticado y tiene los permisos necesarios, mostrar el contenido protegido

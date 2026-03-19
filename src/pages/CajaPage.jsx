@@ -112,6 +112,7 @@ const formatearFechaHora = (fechaString) => {
 
 const CajaPage = () => {
   const { currentUser } = useAuth()
+  const esAdmin = currentUser?.role === "admin"
 
   const [puntosVenta, setPuntosVenta] = useState([])
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState("")
@@ -373,6 +374,10 @@ const CajaPage = () => {
   }
 
   const abrirDetalleSesion = async (sesionRow) => {
+    if (!esAdmin) {
+      toast.error("No tenés permisos para ver el detalle con movimientos")
+      return
+    }
     setDialogDetalleSesionAbierto(true)
     setSesionDetalle(null)
     setLoadingDetalleSesion(true)
@@ -414,11 +419,16 @@ const CajaPage = () => {
   }
 
   useEffect(() => {
-    if (dialogDetalleSesionAbierto && sesionDetalle?.sesion?.id && !loadingDetalleSesion) {
+    if (
+      dialogDetalleSesionAbierto &&
+      sesionDetalle?.sesion?.id &&
+      !loadingDetalleSesion &&
+      esAdmin
+    ) {
       cargarHistorialMovimientos(1)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialogDetalleSesionAbierto, sesionDetalle?.sesion?.id, historialFiltroOrigen, historialFiltroTipo])
+  }, [dialogDetalleSesionAbierto, sesionDetalle?.sesion?.id, historialFiltroOrigen, historialFiltroTipo, esAdmin])
 
   const cargarMovimientos = async (page = 1) => {
     if (!cajaActual) return
@@ -444,13 +454,18 @@ const CajaPage = () => {
   }, [dialogHistorialAbierto])
 
   useEffect(() => {
-    if (cajaActual) {
-      cargarMovimientos(1)
-    } else {
+    if (!cajaActual) {
       setMovimientos([])
+      return
     }
+    // Empleado: no debe ver movimientos (ni cargar historial para los tabs).
+    if (!esAdmin) {
+      setMovimientos([])
+      return
+    }
+    cargarMovimientos(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cajaActual, tabCaja])
+  }, [cajaActual, tabCaja, esAdmin])
 
   const puntoVentaNombre =
     puntosVenta.find((p) => p.id.toString() === puntoVentaSeleccionado)?.nombre || "Seleccionar"
@@ -787,7 +802,14 @@ const CajaPage = () => {
 
             {["ventas_productos", "ventas_equipos", "reparaciones", "general"].map((tab) => (
               <TabsContent key={tab} value={tab} className="space-y-4">
-                {tab === "general" ? (
+                {!esAdmin ? (
+                  <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+                    Vista restringida para empleados. Podés abrir/cerrar caja y registrar ingresos/egresos manuales,
+                    pero no ver totales ni movimientos.
+                  </div>
+                ) : (
+                  <>
+                    {tab === "general" ? (
                   /* Vista detallada General: suma de los 3 tabs + manuales */
                   <div className="space-y-4">
                     <Card className="border border-gray-200 shadow-sm bg-gray-50/50">
@@ -925,10 +947,10 @@ const CajaPage = () => {
                       </CardContent>
                     </Card>
                   </div>
-                )}
+                    )}
 
-                {/* Tabla/lista de movimientos (ventas + manuales que explican los ingresos del tab) */}
-                <div className="border rounded-md bg-white">
+                    {/* Tabla/lista de movimientos (ventas + manuales que explican los ingresos del tab) */}
+                    <div className="border rounded-md bg-white">
                   <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between flex-wrap gap-2">
                     <span className="text-sm font-medium text-gray-700">
                       Movimientos de {tab === "general" ? "toda la caja" : tab.replace("_", " ")}
@@ -1016,7 +1038,9 @@ const CajaPage = () => {
                 />
               )}
             </div>
-                </div>
+                    </div>
+                  </>
+                )}
               </TabsContent>
             ))}
           </Tabs>
@@ -1057,8 +1081,11 @@ const CajaPage = () => {
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => abrirDetalleSesion(s)}
-                      className="w-full py-3 px-3 text-left text-sm flex justify-between items-center gap-4 rounded-lg hover:bg-orange-50 transition-colors border-0"
+                      onClick={esAdmin ? () => abrirDetalleSesion(s) : undefined}
+                      aria-disabled={!esAdmin}
+                      className={`w-full py-3 px-3 text-left text-sm flex justify-between items-center gap-4 rounded-lg border-0 transition-colors ${
+                        esAdmin ? "hover:bg-orange-50" : "opacity-70 cursor-not-allowed"
+                      }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Badge
@@ -1084,7 +1111,11 @@ const CajaPage = () => {
                             Cierre {formatearMonedaARS(s.monto_cierre)}
                           </span>
                         )}
-                        <span className="text-orange-600 text-xs font-medium">Ver detalle →</span>
+                        {esAdmin ? (
+                          <span className="text-orange-600 text-xs font-medium">Ver detalle →</span>
+                        ) : (
+                          <span className="text-gray-500 text-xs font-medium">Detalle restringido</span>
+                        )}
                       </div>
                     </button>
                   ))}

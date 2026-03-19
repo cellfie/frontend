@@ -113,7 +113,7 @@ function App() {
               <Route
                 path="caja"
                 element={
-                  <ProtectedRoute requiredRole="admin">
+                  <ProtectedRoute requiredRoles={["admin", "empleado"]}>
                     <CajaPage />
                   </ProtectedRoute>
                 }

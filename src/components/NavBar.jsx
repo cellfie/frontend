@@ -302,7 +302,7 @@ export const NavBar = () => {
         {/* Navegación de Escritorio */}
         <div className="hidden md:flex items-center space-x-1">
           <DesktopMenuItem title="Inicio" to="/" icon={Home} />
-          <DesktopMenuItem title="Caja" to="/historial/caja" icon={Clock} hidden={!isAdmin} />
+          <DesktopMenuItem title="Caja" to="/historial/caja" icon={Clock} />
           <DesktopMenuItem title="Reportes" to="/reportes" icon={FileSpreadsheet} hidden={!isAdmin} />
 
           <DesktopMenuItem title="Registrar" icon={ShoppingCart}>
@@ -389,7 +389,7 @@ export const NavBar = () => {
 
               <nav className="flex flex-col gap-2">
                 <MobileNavItem title="Inicio" to="/" icon={Home} />
-                <MobileNavButton to="/historial/caja" icon={Clock} title="Caja" hidden={!isAdmin} />
+                <MobileNavButton to="/historial/caja" icon={Clock} title="Caja" />
                 <MobileNavButton to="/reportes" icon={FileSpreadsheet} title="Reportes" hidden={!isAdmin} />
 
                 <MobileNavItem title="Registrar" icon={ShoppingCart}>
