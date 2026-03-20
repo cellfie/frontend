@@ -303,7 +303,6 @@ export const NavBar = () => {
         <div className="hidden md:flex items-center space-x-1">
           <DesktopMenuItem title="Inicio" to="/" icon={Home} />
           <DesktopMenuItem title="Caja" to="/historial/caja" icon={Clock} />
-          <DesktopMenuItem title="Reportes" to="/reportes" icon={FileSpreadsheet} hidden={!isAdmin} />
 
           <DesktopMenuItem title="Registrar" icon={ShoppingCart}>
             <DesktopSubMenuItem title="Ventas productos" to="/registrar/ventas-productos" icon={ShoppingBag} />
@@ -330,6 +329,8 @@ export const NavBar = () => {
             <DesktopSubMenuItem title="Ventas Equipos" to="/historial/ventas-equipos" icon={BarChart3} />
             <DesktopSubMenuItem title="Devoluciones" to="/historial/devoluciones" icon={RefreshCw} />
           </DesktopMenuItem>
+
+          <DesktopMenuItem title="Reportes" to="/reportes" icon={FileSpreadsheet} hidden={!isAdmin} />
 
           <DesktopMenuItem title="Configuraciones" icon={Settings}>
             <DesktopSubMenuItem title="Clientes" to="/configuraciones/clientes" icon={Users} />
@@ -396,7 +397,6 @@ export const NavBar = () => {
               <nav className="flex flex-col gap-2">
                 <MobileNavItem title="Inicio" to="/" icon={Home} />
                 <MobileNavButton to="/historial/caja" icon={Clock} title="Caja" />
-                <MobileNavButton to="/reportes" icon={FileSpreadsheet} title="Reportes" hidden={!isAdmin} />
 
                 <MobileNavItem title="Registrar" icon={ShoppingCart}>
                   <div className="flex flex-col gap-1 py-1">
@@ -433,6 +433,8 @@ export const NavBar = () => {
                     <MobileNavButton to="/historial/devoluciones" icon={RefreshCw} title="Devoluciones" />
                   </div>
                 </MobileNavItem>
+
+                <MobileNavButton to="/reportes" icon={FileSpreadsheet} title="Reportes" hidden={!isAdmin} />
 
                 <MobileNavItem title="Configuraciones" icon={Settings}>
                   <div className="flex flex-col gap-1 py-1">
