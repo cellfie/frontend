@@ -14,6 +14,11 @@ import {
   ArrowLeft,
   FolderOpen,
   FilterX,
+  CheckCircle2,
+  TrendingUp,
+  TrendingDown,
+  Scale,
+  Info,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -47,6 +52,33 @@ const formatearMonedaARS = (valor) => {
     style: "currency",
     currency: "ARS",
   }).format(numero)
+}
+
+/** Tolerancia en pesos para considerar cierre "perfecto" (redondeos). */
+const DIF_CIERRE_EPS = 0.02
+
+const interpretarCierreCaja = (diferencia) => {
+  const d = Number(diferencia)
+  if (!Number.isFinite(d)) return { tipo: "sin_datos", label: "Sin datos", descripcion: "" }
+  if (Math.abs(d) <= DIF_CIERRE_EPS) {
+    return {
+      tipo: "perfecto",
+      label: "Cierre perfecto",
+      descripcion: "El dinero contado coincide con el saldo teórico de la caja (movimientos registrados).",
+    }
+  }
+  if (d > 0) {
+    return {
+      tipo: "sobrante",
+      label: "Sobrante",
+      descripcion: "Hay más dinero en caja de lo que indican los movimientos registrados.",
+    }
+  }
+  return {
+    tipo: "faltante",
+    label: "Faltante",
+    descripcion: "Falta dinero en caja respecto del saldo teórico según movimientos registrados.",
+  }
 }
 
 // Métodos de pago usados en el sistema (orden fijo para desglose)
@@ -1148,7 +1180,7 @@ const CajaPage = () => {
           if (!open) setSesionDetalle(null)
         }}
       >
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent hideCloseButton className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           {loadingDetalleSesion ? (
             <div className="space-y-4 py-4">
               <div className="h-6 w-48 rounded bg-gray-200 animate-pulse" />
@@ -1248,6 +1280,168 @@ const CajaPage = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Cierre de caja: arqueo, diferencia, notas */}
+                {(() => {
+                  const s = sesionDetalle.sesion
+                  const movTot = sesionDetalle.totales?.movimientos || { ingresos: 0, egresos: 0 }
+                  const ingMov = Number(movTot.ingresos) || 0
+                  const egrMov = Number(movTot.egresos) || 0
+                  const montoApertura = Number(s.monto_apertura) || 0
+                  const saldoTeoricoMovimientos = montoApertura + ingMov - egrMov
+                  const montoCierre =
+                    s.monto_cierre != null && s.monto_cierre !== "" ? Number(s.monto_cierre) : null
+                  const diferencia =
+                    s.diferencia != null && s.diferencia !== "" ? Number(s.diferencia) : null
+                  const cierreRegistrado =
+                    s.estado === "cerrada" &&
+                    s.fecha_cierre &&
+                    montoCierre != null &&
+                    !Number.isNaN(montoCierre) &&
+                    diferencia != null &&
+                    !Number.isNaN(diferencia)
+                  const cierreAutoSinArqueo =
+                    s.estado === "cerrada" &&
+                    s.fecha_cierre &&
+                    (montoCierre == null || Number.isNaN(montoCierre) || diferencia == null || Number.isNaN(diferencia))
+
+                  if (s.estado === "abierta" || !s.fecha_cierre) {
+                    return (
+                      <Card className="border border-amber-200 bg-amber-50/60">
+                        <CardContent className="p-4 flex gap-3">
+                          <Info className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-amber-900">Sesión en curso</p>
+                            <p className="text-sm text-amber-900/90 mt-1">
+                              El cierre de caja (dinero contado, diferencia y notas) se registra cuando cerrás la caja
+                              desde el botón <strong>Cerrar caja</strong>.
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  }
+
+                  if (cierreAutoSinArqueo) {
+                    return (
+                      <Card className="border border-gray-300 bg-gray-50/80">
+                        <CardContent className="p-4 flex gap-3">
+                          <Info className="h-5 w-5 text-gray-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-gray-900">Cierre sin arqueo</p>
+                            <p className="text-sm text-gray-700 mt-1">
+                              Esta sesión figura como cerrada pero no hay monto de cierre ni diferencia registrados
+                              (por ejemplo, cierre automático al abrir otra sesión). No se puede evaluar sobrante ni
+                              faltante.
+                            </p>
+                            {s.notas_cierre && (
+                              <p className="text-sm text-gray-600 mt-2 italic border-t pt-2">
+                                Notas: {s.notas_cierre}
+                              </p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  }
+
+                  if (!cierreRegistrado) {
+                    return null
+                  }
+
+                  const interp = interpretarCierreCaja(diferencia)
+                  const absDif = Math.abs(Number(diferencia) || 0)
+                  const borderClass =
+                    interp.tipo === "perfecto"
+                      ? "border-emerald-300 bg-emerald-50/50"
+                      : interp.tipo === "sobrante"
+                        ? "border-sky-300 bg-sky-50/50"
+                        : "border-rose-300 bg-rose-50/50"
+
+                  return (
+                    <Card className={`border-2 ${borderClass}`}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2 text-gray-900">
+                          <Scale className="h-5 w-5 text-gray-700" />
+                          Cierre de caja
+                        </CardTitle>
+                        <CardDescription>
+                          Arqueo al cerrar. La diferencia compara el dinero contado con el saldo teórico según{" "}
+                          <strong>apertura + ingresos en caja − egresos en caja</strong> (tabla de movimientos de
+                          caja).
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                          <div className="rounded-lg border bg-white/80 p-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase">Cerrada el</p>
+                            <p className="font-semibold text-gray-900">{formatearFechaHora(s.fecha_cierre)}</p>
+                            {s.usuario_cierre_nombre && (
+                              <p className="text-xs text-gray-600 mt-1">Por {s.usuario_cierre_nombre}</p>
+                            )}
+                          </div>
+                          <div className="rounded-lg border bg-white/80 p-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase">Dinero contado</p>
+                            <p className="text-lg font-bold text-gray-900">{formatearMonedaARS(montoCierre)}</p>
+                            <p className="text-xs text-gray-500 mt-1">Monto físico declarado al cerrar</p>
+                          </div>
+                          <div className="rounded-lg border bg-white/80 p-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase">Saldo teórico</p>
+                            <p className="text-lg font-bold text-violet-800">
+                              {formatearMonedaARS(saldoTeoricoMovimientos)}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Apertura {formatearMonedaARS(montoApertura)} + ingresos {formatearMonedaARS(ingMov)} −
+                              egresos {formatearMonedaARS(egrMov)}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border bg-white/80 p-3 flex flex-col justify-center">
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-2">Resultado</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {interp.tipo === "perfecto" && (
+                                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 gap-1">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  {interp.label}
+                                </Badge>
+                              )}
+                              {interp.tipo === "sobrante" && (
+                                <Badge className="bg-sky-600 text-white hover:bg-sky-600 gap-1">
+                                  <TrendingUp className="h-3.5 w-3.5" />
+                                  {interp.label}: +{formatearMonedaARS(absDif)}
+                                </Badge>
+                              )}
+                              {interp.tipo === "faltante" && (
+                                <Badge className="bg-rose-600 text-white hover:bg-rose-600 gap-1">
+                                  <TrendingDown className="h-3.5 w-3.5" />
+                                  {interp.label}: −{formatearMonedaARS(absDif)}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-600 mt-2">{interp.descripcion}</p>
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-dashed border-gray-300 bg-white/60 p-3 text-sm">
+                          <p className="text-xs font-medium text-gray-500 uppercase mb-1">Diferencia registrada</p>
+                          <p className="font-mono font-semibold text-gray-900">
+                            Contado − teórico = {formatearMonedaARS(diferencia)}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Coincide con lo guardado al cerrar la sesión. Un valor cercano a cero implica arqueo
+                            correcto.
+                          </p>
+                        </div>
+                        {s.notas_cierre ? (
+                          <div className="rounded-lg border bg-white/80 p-3">
+                            <p className="text-xs font-medium text-gray-500 uppercase mb-1">Notas al cerrar</p>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{s.notas_cierre}</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Sin notas de cierre registradas.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })()}
 
                 {/* Tarjetas de montos */}
                 {(() => {
