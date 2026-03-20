@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { Eye, EyeOff, LogIn } from "lucide-react"
 import { toast } from "react-toastify"
 import { loginUser } from "../../services/authService"
@@ -175,14 +175,7 @@ const LoginPage = () => {
               )}
             </button>
 
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
-                ¿No tienes una cuenta?{" "}
-                <Link to="/auth/register" className="text-primary font-medium hover:underline">
-                  Regístrate aquí
-                </Link>
-              </p>
-            </div>
+            {/* Registro deshabilitado: los usuarios solo los administra un administrador */}
           </form>
         </div>
       </div>

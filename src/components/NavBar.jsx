@@ -333,6 +333,12 @@ export const NavBar = () => {
 
           <DesktopMenuItem title="Configuraciones" icon={Settings}>
             <DesktopSubMenuItem title="Clientes" to="/configuraciones/clientes" icon={Users} />
+            <DesktopSubMenuItem
+              title="Usuarios"
+              to="/configuraciones/usuarios"
+              icon={Users}
+              hidden={!isAdmin}
+            />
             <DesktopSubMenuItem title="Proveedores" to="/configuraciones/proveedores" icon={Users} hidden={!isAdmin} />
             <DesktopSubMenuItem title="Categorías" to="/configuraciones/categorias" icon={Tag} hidden={!isAdmin} />
             <DesktopSubMenuItem title="Pérdidas" to="/historial/perdidas" icon={AlertTriangle} />
@@ -431,6 +437,12 @@ export const NavBar = () => {
                 <MobileNavItem title="Configuraciones" icon={Settings}>
                   <div className="flex flex-col gap-1 py-1">
                     <MobileNavButton to="/configuraciones/clientes" icon={Users} title="Clientes" />
+                    <MobileNavButton
+                      to="/configuraciones/usuarios"
+                      icon={Users}
+                      title="Usuarios"
+                      hidden={!isAdmin}
+                    />
                     <MobileNavButton
                       to="/configuraciones/proveedores"
                       icon={Users}

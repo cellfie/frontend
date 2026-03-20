@@ -12,7 +12,6 @@ import ReparacionesPage from "./pages/registrar/ReparacionesPage"
 import Home from "./pages/Home"
 import ReparacionesPendientes from "./components/ReparacionesPedientes"
 import LoginPage from "./pages/auth/LoginPage"
-import RegisterPage from "./pages/auth/RegisterPage"
 import ProtectedRoute from "./lib/ProtectedRoute"
 import { AuthProvider } from "./context/AuthContext"
 import { DollarProvider } from "./context/DollarContext"
@@ -28,6 +27,7 @@ import ComprasProductos from "./pages/registrar/ComprasProductos"
 import HistorialComprasProductosPage from "./pages/historial/HistorialComprasProductosPage"
 import CajaPage from "./pages/CajaPage"
 import ReportesPage from "./pages/reportes/ReportesPage"
+import UsuariosPage from "./pages/config/UsuariosPage"
 
 function App() {
   return (
@@ -38,7 +38,6 @@ function App() {
           {/* Rutas de autenticación */}
           <Route path="/auth">
             <Route path="login" element={<LoginPage />} />
-            <Route path="register" element={<RegisterPage />} />
           </Route>
 
           {/* Página de acceso denegado */}
@@ -148,6 +147,14 @@ function App() {
                 }
               />
               <Route path="clientes" element={<ClientesPage />} />
+              <Route
+                path="usuarios"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <UsuariosPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="proveedores"
                 element={
