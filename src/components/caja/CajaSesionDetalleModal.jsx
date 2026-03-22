@@ -144,11 +144,16 @@ export function CajaSesionDetalleModal({
                 {/* Cierre de caja: arqueo, diferencia, notas */}
                 {(() => {
                   const s = sesionDetalle.sesion
-                  const movTot = sesionDetalle.totales?.movimientos || { ingresos: 0, egresos: 0 }
-                  const ingMov = Number(movTot.ingresos) || 0
-                  const egrMov = Number(movTot.egresos) || 0
+                  const tot = sesionDetalle.totales
+                  const vp = (tot?.ventas_productos || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
+                  const ve = (tot?.ventas_equipos || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
+                  const rep = (tot?.reparaciones || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
+                  const manual = tot?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
+                  const ingManual = Number(manual.ingresos) || 0
+                  const egrManual = Number(manual.egresos) || 0
                   const montoApertura = Number(s.monto_apertura) || 0
-                  const saldoTeoricoMovimientos = montoApertura + ingMov - egrMov
+                  // Mismo criterio que "Balance total" y que el cierre en pantalla (Caja).
+                  const saldoTeoricoArqueo = montoApertura + vp + ve + rep + ingManual - egrManual
                   const montoCierre =
                     s.monto_cierre != null && s.monto_cierre !== "" ? Number(s.monto_cierre) : null
                   const diferencia =
@@ -209,8 +214,15 @@ export function CajaSesionDetalleModal({
                     return null
                   }
 
-                  const interp = interpretarCierreCaja(diferencia)
-                  const absDif = Math.abs(Number(diferencia) || 0)
+                  const diferenciaCoherente = Number(montoCierre) - saldoTeoricoArqueo
+                  const diferenciaRegistrada = Number(diferencia)
+                  const legacyMismatch =
+                    Number.isFinite(diferenciaRegistrada) &&
+                    Number.isFinite(diferenciaCoherente) &&
+                    Math.abs(diferenciaRegistrada - diferenciaCoherente) > 0.02
+
+                  const interp = interpretarCierreCaja(diferenciaCoherente)
+                  const absDif = Math.abs(Number(diferenciaCoherente) || 0)
                   const borderClass =
                     interp.tipo === "perfecto"
                       ? "border-emerald-300 bg-emerald-50/50"
@@ -226,9 +238,9 @@ export function CajaSesionDetalleModal({
                           Cierre de caja
                         </CardTitle>
                         <CardDescription>
-                          Arqueo al cerrar. La diferencia compara el dinero contado con el saldo teórico según{" "}
-                          <strong>apertura + ingresos en caja − egresos en caja</strong> (tabla de movimientos de
-                          caja).
+                          Arqueo al cerrar. El saldo teórico es el mismo <strong>balance total</strong> de la sesión:
+                          apertura + ventas (productos, equipos, reparaciones) + ingresos manuales generales − egresos
+                          manuales generales.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -246,13 +258,14 @@ export function CajaSesionDetalleModal({
                             <p className="text-xs text-gray-500 mt-1">Monto físico declarado al cerrar</p>
                           </div>
                           <div className="rounded-lg border bg-white/80 p-3">
-                            <p className="text-xs font-medium text-gray-500 uppercase">Saldo teórico</p>
+                            <p className="text-xs font-medium text-gray-500 uppercase">Saldo teórico (balance total)</p>
                             <p className="text-lg font-bold text-violet-800">
-                              {formatearMonedaARS(saldoTeoricoMovimientos)}
+                              {formatearMonedaARS(saldoTeoricoArqueo)}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Apertura {formatearMonedaARS(montoApertura)} + ingresos {formatearMonedaARS(ingMov)} −
-                              egresos {formatearMonedaARS(egrMov)}
+                            <p className="text-xs text-gray-500 mt-1 leading-snug">
+                              Apertura {formatearMonedaARS(montoApertura)} + ventas prod. {formatearMonedaARS(vp)} + equipos{" "}
+                              {formatearMonedaARS(ve)} + rep. {formatearMonedaARS(rep)} + ing. manual {formatearMonedaARS(ingManual)}{" "}
+                              − egresos manual {formatearMonedaARS(egrManual)}
                             </p>
                           </div>
                           <div className="rounded-lg border bg-white/80 p-3 flex flex-col justify-center">
@@ -281,13 +294,19 @@ export function CajaSesionDetalleModal({
                           </div>
                         </div>
                         <div className="rounded-lg border border-dashed border-gray-300 bg-white/60 p-3 text-sm">
-                          <p className="text-xs font-medium text-gray-500 uppercase mb-1">Diferencia registrada</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase mb-1">Diferencia (contado − balance total)</p>
                           <p className="font-mono font-semibold text-gray-900">
-                            Contado − teórico = {formatearMonedaARS(diferencia)}
+                            {formatearMonedaARS(montoCierre)} − {formatearMonedaARS(saldoTeoricoArqueo)} ={" "}
+                            {formatearMonedaARS(diferenciaCoherente)}
                           </p>
+                          {legacyMismatch && (
+                            <p className="text-xs text-amber-800 mt-2">
+                              Valor almacenado al cierre (cálculo anterior): {formatearMonedaARS(diferenciaRegistrada)}. Las
+                              nuevas sesiones guardan la diferencia con la misma fórmula que este balance.
+                            </p>
+                          )}
                           <p className="text-xs text-gray-500 mt-1">
-                            Coincide con lo guardado al cerrar la sesión. Un valor cercano a cero implica arqueo
-                            correcto.
+                            Un valor cercano a cero indica arqueo alineado con ventas y movimientos de la sesión.
                           </p>
                         </div>
                         {s.notas_cierre ? (

@@ -47,19 +47,20 @@ export const interpretarCierreCaja = (diferencia) => {
     return {
       tipo: "perfecto",
       label: "Cierre perfecto",
-      descripcion: "El dinero contado coincide con el saldo teórico de la caja (movimientos registrados).",
+      descripcion:
+        "El dinero contado coincide con el saldo teórico: apertura más ventas y cobros de la sesión (menos egresos manuales generales).",
     }
   }
   if (d > 0) {
     return {
       tipo: "sobrante",
       label: "Sobrante",
-      descripcion: "Hay más dinero en caja de lo que indican los movimientos registrados.",
+      descripcion: "Hay más dinero contado que el saldo teórico calculado con el balance total de la sesión.",
     }
   }
   return {
     tipo: "faltante",
     label: "Faltante",
-    descripcion: "Falta dinero en caja respecto del saldo teórico según movimientos registrados.",
+    descripcion: "Falta dinero en caja respecto del saldo teórico del balance total (apertura + ingresos − egresos manuales generales).",
   }
 }
