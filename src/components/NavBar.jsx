@@ -302,7 +302,7 @@ export const NavBar = () => {
         {/* Navegación de Escritorio */}
         <div className="hidden md:flex items-center space-x-1">
           <DesktopMenuItem title="Inicio" to="/" icon={Home} />
-          <DesktopMenuItem title="Caja" to="/historial/caja" icon={Clock} />
+          <DesktopMenuItem title="Caja" to="/caja" icon={Clock} />
 
           <DesktopMenuItem title="Registrar" icon={ShoppingCart}>
             <DesktopSubMenuItem title="Ventas productos" to="/registrar/ventas-productos" icon={ShoppingBag} />
@@ -323,11 +323,32 @@ export const NavBar = () => {
             <DesktopSubMenuItem title="Repuestos" to="/stock/repuestos" icon={Tool} />
           </DesktopMenuItem>
 
-          <DesktopMenuItem title="Historial" icon={Clock} hidden={!isAdmin}>
-            <DesktopSubMenuItem title="Ventas Productos" to="/historial/ventas-productos" icon={BarChart3} />
-            <DesktopSubMenuItem title="Compras Productos" to="/historial/compras-productos" icon={BarChart3} />
-            <DesktopSubMenuItem title="Ventas Equipos" to="/historial/ventas-equipos" icon={BarChart3} />
-            <DesktopSubMenuItem title="Devoluciones" to="/historial/devoluciones" icon={RefreshCw} />
+          <DesktopMenuItem title="Historial" icon={Clock}>
+            <DesktopSubMenuItem title="Historial de caja" to="/historial/caja" icon={Clock} />
+            <DesktopSubMenuItem
+              title="Ventas Productos"
+              to="/historial/ventas-productos"
+              icon={BarChart3}
+              hidden={!isAdmin}
+            />
+            <DesktopSubMenuItem
+              title="Compras Productos"
+              to="/historial/compras-productos"
+              icon={BarChart3}
+              hidden={!isAdmin}
+            />
+            <DesktopSubMenuItem
+              title="Ventas Equipos"
+              to="/historial/ventas-equipos"
+              icon={BarChart3}
+              hidden={!isAdmin}
+            />
+            <DesktopSubMenuItem
+              title="Devoluciones"
+              to="/historial/devoluciones"
+              icon={RefreshCw}
+              hidden={!isAdmin}
+            />
           </DesktopMenuItem>
 
           <DesktopMenuItem title="Reportes" to="/reportes" icon={FileSpreadsheet} hidden={!isAdmin} />
@@ -396,7 +417,7 @@ export const NavBar = () => {
 
               <nav className="flex flex-col gap-2">
                 <MobileNavItem title="Inicio" to="/" icon={Home} />
-                <MobileNavButton to="/historial/caja" icon={Clock} title="Caja" />
+                <MobileNavButton to="/caja" icon={Clock} title="Caja" />
 
                 <MobileNavItem title="Registrar" icon={ShoppingCart}>
                   <div className="flex flex-col gap-1 py-1">
@@ -421,16 +442,33 @@ export const NavBar = () => {
                   </div>
                 </MobileNavItem>
 
-                <MobileNavItem title="Historial" icon={Clock} hidden={!isAdmin}>
+                <MobileNavItem title="Historial" icon={Clock}>
                   <div className="flex flex-col gap-1 py-1">
-                    <MobileNavButton to="/historial/ventas-productos" icon={BarChart3} title="Ventas productos" />
+                    <MobileNavButton to="/historial/caja" icon={Clock} title="Historial de caja" />
+                    <MobileNavButton
+                      to="/historial/ventas-productos"
+                      icon={BarChart3}
+                      title="Ventas productos"
+                      hidden={!isAdmin}
+                    />
                     <MobileNavButton
                       to="/historial/compras-productos"
                       icon={BarChart3}
                       title="Compras productos"
+                      hidden={!isAdmin}
                     />
-                    <MobileNavButton to="/historial/ventas-equipos" icon={BarChart3} title="Ventas Equipos" />
-                    <MobileNavButton to="/historial/devoluciones" icon={RefreshCw} title="Devoluciones" />
+                    <MobileNavButton
+                      to="/historial/ventas-equipos"
+                      icon={BarChart3}
+                      title="Ventas Equipos"
+                      hidden={!isAdmin}
+                    />
+                    <MobileNavButton
+                      to="/historial/devoluciones"
+                      icon={RefreshCw}
+                      title="Devoluciones"
+                      hidden={!isAdmin}
+                    />
                   </div>
                 </MobileNavItem>
 

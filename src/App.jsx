@@ -26,6 +26,7 @@ import AccesoDenegadoPage from "./pages/AccesoDenegadoPage"
 import ComprasProductos from "./pages/registrar/ComprasProductos"
 import HistorialComprasProductosPage from "./pages/historial/HistorialComprasProductosPage"
 import CajaPage from "./pages/CajaPage"
+import HistorialCajaPage from "./pages/historial/HistorialCajaPage"
 import ReportesPage from "./pages/reportes/ReportesPage"
 import UsuariosPage from "./pages/config/UsuariosPage"
 
@@ -98,6 +99,16 @@ function App() {
               />
             </Route>
 
+            {/* Control de caja (abrir/cerrar/movimientos) — disponible con caja cerrada o abierta */}
+            <Route
+              path="caja"
+              element={
+                <ProtectedRoute requiredRoles={["admin", "empleado"]}>
+                  <CajaPage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Rutas de historial (algunas solo para administradores) */}
             <Route path="historial">
               <Route path="ventas-productos" element={<HistorialVentasProductosPage />} />
@@ -113,7 +124,7 @@ function App() {
                 path="caja"
                 element={
                   <ProtectedRoute requiredRoles={["admin", "empleado"]}>
-                    <CajaPage />
+                    <HistorialCajaPage />
                   </ProtectedRoute>
                 }
               />
