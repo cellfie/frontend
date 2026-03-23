@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { DateRangePicker } from "@/lib/DatePickerWithRange"
 
 import { getSesionesCaja, getSesionCajaPorId } from "@/services/cajaService"
@@ -196,6 +198,8 @@ export default function ReportesPage() {
   const [metodosPago, setMetodosPago] = useState([])
   const [selectedMetodoPago, setSelectedMetodoPago] = useState("todos")
   const [tipoReporte, setTipoReporte] = useState(TIPOS_REPORTE_CAJA.GENERAL)
+  /** Compras de productos: en General por defecto no restan; en Ventas de productos por defecto sí. */
+  const [contemplarEgresoCompras, setContemplarEgresoCompras] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [sesiones, setSesiones] = useState([])
@@ -230,6 +234,16 @@ export default function ReportesPage() {
     // si cambian presets, ajustamos rango automáticamente (pero permitir manual cuando preset === "manual")
     if (preset !== "manual") setDateRange(calcularRango(preset))
   }, [preset])
+
+  useEffect(() => {
+    if (tipoReporte === TIPOS_REPORTE_CAJA.GENERAL) {
+      setContemplarEgresoCompras(false)
+    } else if (tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS) {
+      setContemplarEgresoCompras(true)
+    } else {
+      setContemplarEgresoCompras(false)
+    }
+  }, [tipoReporte])
 
   const filtros = useMemo(() => {
     const f = {}
@@ -289,7 +303,14 @@ export default function ReportesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros])
 
-  const vistaCompletaGeneral = tipoReporte === TIPOS_REPORTE_CAJA.GENERAL && selectedMetodoPago === "todos"
+  /** Total compras del rango como egreso y resta en el neto (solo General o Ventas de productos, con interruptor y método «todos»). */
+  const comprasAfectanNeto = useMemo(() => {
+    if (selectedMetodoPago !== "todos") return false
+    if (!contemplarEgresoCompras) return false
+    return (
+      tipoReporte === TIPOS_REPORTE_CAJA.GENERAL || tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS
+    )
+  }, [selectedMetodoPago, contemplarEgresoCompras, tipoReporte])
 
   const descripcionIngresosResumen = () => {
     if (tipoReporte === TIPOS_REPORTE_CAJA.GENERAL) {
@@ -305,27 +326,36 @@ export default function ReportesPage() {
   }
 
   const tituloEgresosResumen = () => {
-    if (vistaCompletaGeneral) return "Egresos (Compras)"
+    if (comprasAfectanNeto) return "Egresos (Compras)"
     if (tipoReporte !== TIPOS_REPORTE_CAJA.GENERAL && selectedMetodoPago === "todos") return "Egresos de caja (origen)"
     if (selectedMetodoPago !== "todos") return "Egresos"
     return "Egresos de caja"
   }
 
   const descripcionEgresosResumen = () => {
-    if (vistaCompletaGeneral) return "Compras registradas en el rango"
+    if (comprasAfectanNeto) return "Total de compras de productos en el rango (resta en el neto)"
     if (selectedMetodoPago !== "todos") return "No aplica al filtrar por método de cobro"
-    if (tipoReporte !== TIPOS_REPORTE_CAJA.GENERAL) {
-      return "Solo egresos manuales con el origen del rubro (no incluye compras)"
+    if (tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_EQUIPOS || tipoReporte === TIPOS_REPORTE_CAJA.REPARACIONES) {
+      return "Solo egresos manuales con el origen del rubro (las compras son de productos y no aplican aquí)"
     }
-    return "Movimientos de egreso de caja por sesión"
+    if (tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS) {
+      return "Egresos manuales de caja con origen ventas de productos (activá «Restar compras…» para incluir compras del rango)"
+    }
+    return contemplarEgresoCompras === false
+      ? "Suma de egresos de caja por sesión (activá «Restar compras…» para restar compras de productos)"
+      : "Compras del rango (opción activada)"
   }
 
   const descripcionNetoResumen = () => {
-    if (vistaCompletaGeneral) return "Suma de netos por sesión − compras del rango"
-    if (tipoReporte !== TIPOS_REPORTE_CAJA.GENERAL) {
-      return "Suma del neto por rubro y sesión (sin restar compras del rango)"
+    if (comprasAfectanNeto) {
+      return tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS
+        ? "Suma de netos (vista productos) − compras del rango"
+        : "Suma de netos por sesión − compras del rango"
     }
-    return "Suma de netos por sesión (sin restar compras en esta vista)"
+    if (tipoReporte !== TIPOS_REPORTE_CAJA.GENERAL) {
+      return "Suma del neto por rubro y sesión (sin restar compras)"
+    }
+    return "Suma de netos por sesión (sin restar compras mientras la opción esté desactivada)"
   }
 
   const resumenGlobal = useMemo(() => {
@@ -354,16 +384,20 @@ export default function ReportesPage() {
     })
 
     const totalCompras = (compras || []).reduce((acc, c) => acc + (Number(c.total) || 0), 0)
-    if (vistaCompletaGeneral) {
+    const aplicarCompras =
+      selectedMetodoPago === "todos" &&
+      contemplarEgresoCompras &&
+      (tipoReporte === TIPOS_REPORTE_CAJA.GENERAL || tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS)
+
+    if (aplicarCompras) {
       base.egresos = totalCompras
       base.neto = base.neto - totalCompras
     } else if (selectedMetodoPago !== "todos") {
       base.egresos = 0
     }
-    // Si no es vista completa general y método = todos: base.egresos ya es la suma de egresos de caja por sesión (por origen o total según tipo)
 
     return base
-  }, [detallesPorSesion, compras, selectedMetodoPago, tipoReporte, vistaCompletaGeneral])
+  }, [detallesPorSesion, compras, selectedMetodoPago, tipoReporte, contemplarEgresoCompras])
 
   const sesionesConResumen = useMemo(() => {
     return sesiones.map((s) => {
@@ -518,9 +552,58 @@ export default function ReportesPage() {
             <p className="text-xs text-slate-800 bg-slate-100 border border-slate-200 rounded-md px-3 py-2">
               Vista por rubro: el <strong>neto por sesión</strong> usa solo cobros de{" "}
               <strong>{ETIQUETA_TIPO_REPORTE[tipoReporte]}</strong> más ingresos/egresos manuales de caja registrados con el mismo{" "}
-              <strong>origen</strong>. No incluye cobros de cuenta corriente ni otros rubros. Las compras del listado inferior no afectan este neto.
+              <strong>origen</strong>. No incluye cobros de cuenta corriente ni otros rubros.
+              {tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS ? (
+                <>
+                  {" "}
+                  {comprasAfectanNeto ? (
+                    <>
+                      Con <strong>«Restar compras del rango»</strong> activo y método «todos», el <strong>neto global</strong> también resta las compras de
+                      productos del listado inferior.
+                    </>
+                  ) : (
+                    <>
+                      Podés activar <strong>«Restar compras del rango»</strong> (por defecto activo en esta vista) para que las compras de productos resten en
+                      el neto del resumen.
+                    </>
+                  )}
+                </>
+              ) : (
+                <> Las compras de productos no aplican al neto en este tipo de reporte.</>
+              )}
             </p>
           ) : null}
+
+          {(tipoReporte === TIPOS_REPORTE_CAJA.GENERAL || tipoReporte === TIPOS_REPORTE_CAJA.VENTAS_PRODUCTOS) && (
+            <div
+              className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-md border px-3 py-3 ${
+                selectedMetodoPago !== "todos" ? "border-amber-200 bg-amber-50/80" : "border-slate-200 bg-white"
+              }`}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                <Switch
+                  id="contemplar-compras"
+                  checked={contemplarEgresoCompras}
+                  onCheckedChange={setContemplarEgresoCompras}
+                  disabled={selectedMetodoPago !== "todos"}
+                  className="data-[state=checked]:bg-orange-600"
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor="contemplar-compras" className="text-sm font-medium text-gray-900 cursor-pointer">
+                    Restar compras de productos del rango en el neto
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    {tipoReporte === TIPOS_REPORTE_CAJA.GENERAL
+                      ? "Por defecto desactivado: el resumen no resta compras. Activá para ver el impacto de las compras de mercadería (egreso global del período)."
+                      : "Por defecto activado en ventas de productos: el neto resta las compras del rango. Desactivalo para ver solo cobros y movimientos de caja con origen «ventas de productos»."}
+                  </p>
+                </div>
+              </div>
+              {selectedMetodoPago !== "todos" ? (
+                <p className="text-xs text-amber-900 sm:max-w-xs">Elegí «Todos los métodos» para poder incluir o excluir compras en el cálculo.</p>
+              ) : null}
+            </div>
+          )}
 
           {selectedMetodoPago !== "todos" ? (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
@@ -735,9 +818,9 @@ export default function ReportesPage() {
             Compras incluidas en el rango
           </CardTitle>
           <CardDescription className="text-gray-300">
-            {vistaCompletaGeneral
-              ? "Estas compras se consideran egreso global del rango (no se reparten por sesión) y restan en el neto del resumen."
-              : "Listado informativo del rango. En vistas por rubro o con método filtrado el neto superior no resta compras."}
+            {comprasAfectanNeto
+              ? "Estas compras de productos restan en el neto del resumen superior (egreso global del rango, no por sesión)."
+              : "Listado del rango. El neto superior solo resta compras si el tipo es General o Ventas de productos, método «todos» y tenés activada «Restar compras del rango»."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4">
