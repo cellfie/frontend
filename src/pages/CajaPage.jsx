@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
@@ -115,6 +115,37 @@ const CajaPage = () => {
   const [dialogAperturaAbierto, setDialogAperturaAbierto] = useState(false)
   const [dialogCierreAbierto, setDialogCierreAbierto] = useState(false)
   const [tiposPago, setTiposPago] = useState([])
+  const prevDialogCierreAbierto = useRef(false)
+
+  // Al abrir "Cerrar caja" (también si solo se hace setDialogCierreAbierto(true)), precargar y efectivo = monto apertura
+  useEffect(() => {
+    if (!dialogCierreAbierto) {
+      prevDialogCierreAbierto.current = false
+      return
+    }
+    if (!cajaActual) return
+
+    const justOpened = !prevDialogCierreAbierto.current
+    if (justOpened) {
+      const raw = cajaActual.monto_apertura
+      let apertura = Number(raw)
+      if (!Number.isFinite(apertura)) {
+        const s = String(raw ?? "")
+          .trim()
+          .replace(/\s/g, "")
+        apertura = Number.parseFloat(s.replace(/\./g, "").replace(",", ".")) || 0
+      }
+      const valorInicial = Number.isFinite(apertura) ? apertura : 0
+      setCierreSecciones({
+        monto_inicial: { efectivo: valorInicial, transferencia: "", tarjeta: "" },
+        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
+        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
+        reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
+      })
+    }
+    prevDialogCierreAbierto.current = true
+  }, [dialogCierreAbierto, cajaActual])
 
   // Cargar puntos de venta y setear por defecto Trancas (igual que en ventas)
   useEffect(() => {
@@ -1107,22 +1138,7 @@ const CajaPage = () => {
       </Dialog>
 
       {/* Diálogo de cierre de caja - 4 secciones (productos, equipos, reparaciones, general) */}
-      <Dialog
-        open={dialogCierreAbierto}
-        onOpenChange={(open) => {
-          setDialogCierreAbierto(open)
-          if (open) {
-            const apertura = Number(cajaActual?.monto_apertura ?? 0)
-            setCierreSecciones({
-              monto_inicial: { efectivo: Number.isFinite(apertura) ? apertura : "", transferencia: "", tarjeta: "" },
-              ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
-              ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
-              reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
-              pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
-            })
-          }
-        }}
-      >
+      <Dialog open={dialogCierreAbierto} onOpenChange={setDialogCierreAbierto}>
         <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-orange-600 flex items-center gap-2">
@@ -1136,41 +1152,49 @@ const CajaPage = () => {
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            {/* Monto inicial: solo efectivo, compacto, prellenado con declarado al abrir */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-sky-200 bg-sky-50/60 px-3 py-2.5">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-sky-900">Monto inicial (solo efectivo)</p>
-                <p className="text-[11px] text-gray-600 mt-0.5 leading-snug">
-                  Fondo al abrir la caja (no mezclar con ventas). Declarado:{" "}
-                  <strong>{formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}</strong>.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto sm:max-w-[200px]">
-                <label htmlFor="cierre-monto-inicial-efectivo" className="text-xs text-gray-600 whitespace-nowrap">
-                  Efectivo contado
-                </label>
-                <Input
-                  id="cierre-monto-inicial-efectivo"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  className="h-9 flex-1 sm:min-w-[140px]"
-                  value={
-                    cierreSecciones.monto_inicial.efectivo === "" ||
-                    cierreSecciones.monto_inicial.efectivo === undefined
-                      ? ""
-                      : formatearNumeroInputARS(Number(cierreSecciones.monto_inicial.efectivo))
-                  }
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === "") {
-                      setCierreSeccionValor("monto_inicial", "efectivo", "")
-                      return
+            {/* Monto inicial: solo efectivo; valor por defecto = monto_apertura (efect sincronizado al abrir el modal) */}
+            <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_minmax(200px,220px)] gap-4 items-start">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-semibold text-sky-950">Monto inicial (solo efectivo)</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    Fondo al abrir la caja (no mezclar con ventas). Declarado al abrir:{" "}
+                    <strong className="text-gray-900">
+                      {formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}
+                    </strong>
+                    .
+                  </p>
+                </div>
+                <div className="flex w-full flex-col gap-1.5 sm:pt-0.5">
+                  <label
+                    htmlFor="cierre-monto-inicial-efectivo"
+                    className="text-xs font-medium text-gray-700"
+                  >
+                    Efectivo contado
+                  </label>
+                  <Input
+                    id="cierre-monto-inicial-efectivo"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="h-10 w-full min-w-0 text-right text-base tabular-nums font-semibold border-sky-300 bg-white shadow-sm"
+                    value={
+                      cierreSecciones.monto_inicial.efectivo === "" ||
+                      cierreSecciones.monto_inicial.efectivo === undefined
+                        ? ""
+                        : formatearNumeroInputARS(Number(cierreSecciones.monto_inicial.efectivo))
                     }
-                    const n = parsearInputMoneda(v)
-                    setCierreSeccionValor("monto_inicial", "efectivo", Number.isNaN(n) ? "" : n)
-                  }}
-                />
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === "") {
+                        setCierreSeccionValor("monto_inicial", "efectivo", "")
+                        return
+                      }
+                      const n = parsearInputMoneda(v)
+                      setCierreSeccionValor("monto_inicial", "efectivo", Number.isNaN(n) ? "" : n)
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
