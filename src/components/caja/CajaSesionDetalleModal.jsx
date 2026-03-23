@@ -323,6 +323,109 @@ export function CajaSesionDetalleModal({
                   )
                 })()}
 
+                {/* Conteo físico guardado al cerrar (desglose por rubro, incluye monto inicial) */}
+                {(() => {
+                  const d = sesionDetalle.sesion.desglose_cierre
+                  if (!d || typeof d !== "object") return null
+                  const n = (x) => (x === "" || x == null || Number.isNaN(Number(x)) ? 0 : Number(x))
+                  const sumSec = (sec) => {
+                    if (!sec || typeof sec !== "object") return 0
+                    return n(sec.efectivo) + n(sec.transferencia) + n(sec.tarjeta)
+                  }
+                  const filas = [
+                    {
+                      key: "mi",
+                      label: "Monto inicial (fondo al abrir caja)",
+                      sub: d.monto_apertura_declarado != null
+                        ? `Declarado al abrir: ${formatearMonedaARS(Number(d.monto_apertura_declarado))}`
+                        : null,
+                      sec: d.monto_inicial,
+                    },
+                    { key: "vp", label: "Ventas productos", sub: null, sec: d.ventas_productos },
+                    { key: "ve", label: "Ventas equipos", sub: null, sec: d.ventas_equipos },
+                    { key: "rep", label: "Reparaciones", sub: null, sec: d.reparaciones },
+                    { key: "pcc", label: "Pagos cuenta corriente", sub: null, sec: d.pagos_cuenta_corriente },
+                  ]
+                  const tot = d.totales || {}
+                  return (
+                    <Card className="border border-sky-200 bg-sky-50/40">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-sky-900">Conteo físico al cerrar</CardTitle>
+                        <CardDescription>
+                          Así se cargó el arqueo al cerrar: el <strong>monto inicial</strong> está separado del resto de
+                          rubros (no mezcla fondo de apertura con ventas).
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3 overflow-x-auto">
+                        <table className="w-full text-sm min-w-[520px]">
+                          <thead>
+                            <tr className="border-b border-sky-200 text-left text-xs uppercase text-sky-800">
+                              <th className="py-2 pr-2">Concepto</th>
+                              <th className="py-2 px-1 text-right">Efectivo</th>
+                              <th className="py-2 px-1 text-right">Transf.</th>
+                              <th className="py-2 px-1 text-right">Tarjeta</th>
+                              <th className="py-2 pl-2 text-right">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filas.map((row) => {
+                              const sub = sumSec(row.sec)
+                              return (
+                                <tr key={row.key} className="border-b border-sky-100/80">
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className="font-medium text-gray-900">{row.label}</span>
+                                    {row.sub && (
+                                      <p className="text-[11px] text-gray-600 mt-0.5">{row.sub}</p>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-1 text-right tabular-nums">
+                                    {formatearMonedaARS(n(row.sec?.efectivo))}
+                                  </td>
+                                  <td className="py-2 px-1 text-right tabular-nums">
+                                    {formatearMonedaARS(n(row.sec?.transferencia))}
+                                  </td>
+                                  <td className="py-2 px-1 text-right tabular-nums">
+                                    {formatearMonedaARS(n(row.sec?.tarjeta))}
+                                  </td>
+                                  <td className="py-2 pl-2 text-right font-medium tabular-nums">
+                                    {formatearMonedaARS(sub)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                        {tot && (tot.saldo_esperado != null || tot.total_contado != null) && (
+                          <div className="rounded-lg border border-sky-200 bg-white/90 p-3 text-sm space-y-1">
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-600">Saldo esperado (balance)</span>
+                              <span className="font-semibold">{formatearMonedaARS(Number(tot.saldo_esperado) || 0)}</span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-600">Total contado (suma del cuadro)</span>
+                              <span className="font-semibold">{formatearMonedaARS(Number(tot.total_contado) || 0)}</span>
+                            </div>
+                            <div className="flex justify-between gap-2 pt-1 border-t border-sky-100">
+                              <span className="text-gray-700 font-medium">Diferencia</span>
+                              <span
+                                className={`font-bold ${
+                                  Number(tot.diferencia) === 0
+                                    ? "text-green-700"
+                                    : Number(tot.diferencia) > 0
+                                      ? "text-sky-700"
+                                      : "text-red-700"
+                                }`}
+                              >
+                                {formatearMonedaARS(Number(tot.diferencia) || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })()}
+
                 {/* Tarjetas de montos */}
                 {(() => {
                   const tot = sesionDetalle.totales

@@ -41,8 +41,8 @@ export const abrirCaja = async ({ punto_venta_id, monto_apertura, notas_apertura
   return await response.json()
 }
 
-// Cerrar caja
-export const cerrarCaja = async (sesionId, { monto_cierre, notas_cierre }) => {
+// Cerrar caja (opcional desglose_cierre: conteo por sección + monto inicial)
+export const cerrarCaja = async (sesionId, { monto_cierre, notas_cierre, desglose_cierre }) => {
   const response = await fetch(`${API_URL}/caja/${sesionId}/cerrar`, {
     method: "PUT",
     headers: {
@@ -52,6 +52,7 @@ export const cerrarCaja = async (sesionId, { monto_cierre, notas_cierre }) => {
     body: JSON.stringify({
       monto_cierre: Number(monto_cierre || 0),
       notas_cierre: notas_cierre || "",
+      ...(desglose_cierre != null ? { desglose_cierre } : {}),
     }),
     credentials: "include",
   })

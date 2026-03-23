@@ -84,6 +84,7 @@ const CajaPage = () => {
 
   const [montoCierre, setMontoCierre] = useState("")
   const [cierreSecciones, setCierreSecciones] = useState({
+    monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
     ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
     ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
     reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
@@ -214,41 +215,6 @@ const CajaPage = () => {
     } catch (error) {
       console.error("Error al abrir caja:", error)
       toast.error(error.message || "Error al abrir caja")
-    }
-  }
-
-  const handleCerrarCaja = async (montoTotal) => {
-    if (!cajaActual) {
-      toast.error("No hay caja abierta para cerrar")
-      return
-    }
-    const monto =
-      typeof montoTotal === "number" && !Number.isNaN(montoTotal)
-        ? montoTotal
-        : Number(montoCierre || 0)
-    if (monto < 0) {
-      toast.error("El monto de cierre debe ser mayor o igual a 0")
-      return
-    }
-    try {
-      const result = await cerrarCaja(cajaActual.id, {
-        monto_cierre: monto,
-        notas_cierre: notasCierre,
-      })
-      toast.success("Caja cerrada correctamente")
-      setCajaActualState(result.sesion)
-      await cargarCajaActual()
-      setMontoCierre("")
-      setCierreSecciones({
-        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
-        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
-        reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
-        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
-      })
-      setNotasCierre("")
-    } catch (error) {
-      console.error("Error al cerrar caja:", error)
-      toast.error(error.message || "Error al cerrar caja")
     }
   }
 
@@ -435,11 +401,62 @@ const CajaPage = () => {
   const totalSeccionCierre = (s) =>
     num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta)
   const totalIngresadoCierre =
+    totalSeccionCierre(cierreSecciones.monto_inicial) +
     totalSeccionCierre(cierreSecciones.ventas_productos) +
     totalSeccionCierre(cierreSecciones.ventas_equipos) +
     totalSeccionCierre(cierreSecciones.reparaciones) +
     totalSeccionCierre(cierreSecciones.pagos_cuenta_corriente)
   const diferenciaCierre = totalIngresadoCierre - saldoEsperadoCierre
+
+  const handleCerrarCaja = async (montoTotal) => {
+    if (!cajaActual) {
+      toast.error("No hay caja abierta para cerrar")
+      return
+    }
+    const monto =
+      typeof montoTotal === "number" && !Number.isNaN(montoTotal)
+        ? montoTotal
+        : Number(montoCierre || 0)
+    if (monto < 0) {
+      toast.error("El monto de cierre debe ser mayor o igual a 0")
+      return
+    }
+    try {
+      const desglose_cierre = {
+        monto_apertura_declarado: Number(cajaActual?.monto_apertura || 0),
+        monto_inicial: { ...cierreSecciones.monto_inicial },
+        ventas_productos: { ...cierreSecciones.ventas_productos },
+        ventas_equipos: { ...cierreSecciones.ventas_equipos },
+        reparaciones: { ...cierreSecciones.reparaciones },
+        pagos_cuenta_corriente: { ...cierreSecciones.pagos_cuenta_corriente },
+        totales: {
+          saldo_esperado: saldoEsperadoCierre,
+          total_contado: monto,
+          diferencia: monto - saldoEsperadoCierre,
+        },
+      }
+      const result = await cerrarCaja(cajaActual.id, {
+        monto_cierre: monto,
+        notas_cierre: notasCierre,
+        desglose_cierre,
+      })
+      toast.success("Caja cerrada correctamente")
+      setCajaActualState(result.sesion)
+      await cargarCajaActual()
+      setMontoCierre("")
+      setCierreSecciones({
+        monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
+        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
+        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
+        reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
+      })
+      setNotasCierre("")
+    } catch (error) {
+      console.error("Error al cerrar caja:", error)
+      toast.error(error.message || "Error al cerrar caja")
+    }
+  }
 
   const setCierreSeccionValor = (seccion, metodo, value) => {
     setCierreSecciones((prev) => ({
@@ -1092,6 +1109,7 @@ const CajaPage = () => {
           setDialogCierreAbierto(open)
           if (open) {
             setCierreSecciones({
+              monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
               ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
               ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
               reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
@@ -1107,11 +1125,68 @@ const CajaPage = () => {
               Cerrar caja
             </DialogTitle>
             <DialogDescription>
-              Cierre de sesión para <strong>{puntoVentaNombre}</strong>. Ingresá el monto contado por sección y método de pago.
+              Cierre de sesión para <strong>{puntoVentaNombre}</strong>. Contá por separado el{" "}
+              <strong>monto inicial</strong> (fondo al abrir) y luego cada rubro de ventas — así el total coincide con el
+              balance esperado.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 pt-2">
+          <div className="space-y-4 pt-2">
+            {/* Monto inicial: fondo al abrir (no es venta del día) */}
+            <div className="rounded-xl border-2 border-sky-300 bg-sky-50/80 p-4 space-y-3 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-sky-200 pb-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-sky-900">Monto inicial (fondo al abrir caja)</h3>
+                  <p className="text-xs text-sky-800/90 mt-1">
+                    Es el dinero que dejaste en caja al abrir la sesión. No lo sumes en ventas de productos, equipos ni
+                    reparaciones: va <strong>solo acá</strong>, para que el arqueo cuadre con el sistema.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2 text-center border border-sky-200 shrink-0">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Declarado al abrir</p>
+                  <p className="text-base font-bold text-sky-950">
+                    {formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+                  <div key={metodo} className="space-y-1">
+                    <label className="block text-xs font-medium text-sky-900 capitalize">
+                      {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}{" "}
+                      <span className="text-xs font-normal text-gray-500">(contado)</span>
+                    </label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="h-9 bg-white"
+                      value={
+                        cierreSecciones.monto_inicial[metodo] === "" ||
+                        cierreSecciones.monto_inicial[metodo] === undefined
+                          ? ""
+                          : formatearNumeroInputARS(Number(cierreSecciones.monto_inicial[metodo]))
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === "") {
+                          setCierreSeccionValor("monto_inicial", metodo, "")
+                          return
+                        }
+                        const n = parsearInputMoneda(v)
+                        setCierreSeccionValor("monto_inicial", metodo, Number.isNaN(n) ? "" : n)
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-sky-900/80 italic">
+                Normalmente el monto inicial está solo en efectivo. La suma de todas las columnas de esta fila debe
+                reflejar lo que contás del fondo de apertura (no de las ventas).
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {/* 1. Ventas productos */}
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
@@ -1321,6 +1396,7 @@ const CajaPage = () => {
               </div>
             </div>
           </div>
+          </div>
 
           <div className="pt-4 flex justify-end gap-2 border-t border-gray-200">
             <Button variant="outline" onClick={() => setDialogCierreAbierto(false)}>
@@ -1332,6 +1408,7 @@ const CajaPage = () => {
                 await handleCerrarCaja(totalIngresadoCierre)
                 setDialogCierreAbierto(false)
                 setCierreSecciones({
+                  monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
                   ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
                   ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
                   reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
