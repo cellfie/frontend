@@ -228,7 +228,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
   }, [isAdmin, filtroTipoFecha, rangoFechas, rangoFechasAccion, tipoAccionSeleccionado, filtroEstado, searchTerm]) // Added searchTerm here for employee logic consistency
 
   // Buscar reparaciones por término de búsqueda (para empleados)
-  const buscarReparaciones = async () => {
+  const buscarReparaciones = useCallback(async () => {
     if (!searchTerm.trim()) {
       if (!isAdmin) {
         setFilteredReparaciones([])
@@ -285,7 +285,53 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     } finally {
       setCargando(false)
     }
+  }, [isAdmin, searchTerm, rangoFechas])
+
+  // Mantener la reparación visible/sincronizada en memoria tras cambios de estado/pago/edición.
+  // Evita que el empleado tenga que volver a buscar en cada transición.
+  const sincronizarReparacionEnListas = (reparacionFormateada) => {
+    if (!reparacionFormateada?.id) return
+
+    const patchList = (list = []) => {
+      const idx = list.findIndex((r) => r.id === reparacionFormateada.id)
+      if (idx === -1) return list
+      const next = [...list]
+      next[idx] = reparacionFormateada
+      return next
+    }
+
+    setReparaciones((prev) => patchList(prev))
+    setFilteredReparaciones((prev) => patchList(prev))
+    setCurrentReparacion(reparacionFormateada)
   }
+
+  const refrescarLuegoDeAccion = useCallback(
+    async (reparacionId, opts = { recargarCuenta: false }) => {
+      try {
+        if (reparacionId) {
+          const reparacionCompleta = await getReparacionById(reparacionId)
+          const reparacionFormateada = adaptReparacionToFrontend(reparacionCompleta)
+          sincronizarReparacionEnListas(reparacionFormateada)
+          if (opts.recargarCuenta && reparacionFormateada.cliente?.id) {
+            await cargarCuentaCorriente(reparacionFormateada.cliente.id)
+          }
+          return
+        }
+      } catch (e) {
+        console.warn("No se pudo sincronizar en memoria, se fuerza recarga:", e)
+      }
+
+      // Fallback: mantener comportamiento original con recarga.
+      if (isAdmin) {
+        await cargarReparaciones()
+      } else if (searchTerm.trim().length >= 3) {
+        await buscarReparaciones()
+      } else {
+        setFilteredReparaciones([])
+      }
+    },
+    [isAdmin, searchTerm, cargarReparaciones, buscarReparaciones],
+  )
 
   // Efecto para filtrar reparaciones localmente (principalmente para admin o refinar búsqueda de empleado)
   useEffect(() => {
@@ -393,7 +439,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       }, 500) // Debounce para no buscar en cada tecleo
       return () => clearTimeout(timer)
     }
-  }, [searchTerm, isAdmin]) // No incluir buscarReparaciones en dependencias para evitar bucles
+  }, [searchTerm, isAdmin, buscarReparaciones])
 
   // Manejar el envío del formulario de búsqueda para empleados
   const handleSubmitBusqueda = (e) => {
@@ -685,10 +731,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
         notas: observacionTecnico,
       }
       await updateReparacion(currentReparacion.id, datosActualizados)
-      const reparacionActualizada = await getReparacionById(currentReparacion.id)
-      const reparacionFormateada = adaptReparacionToFrontend(reparacionActualizada)
-      setCurrentReparacion(reparacionFormateada)
-      await cargarReparaciones() // Recargar la lista principal
+      await refrescarLuegoDeAccion(currentReparacion.id, { recargarCuenta: true })
       setShowEditModal(false)
       toast.success("Reparación actualizada correctamente", { position: "bottom-right" })
     } catch (error) {
@@ -707,7 +750,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       await updateEstadoReparacion(currentReparacion.id, "terminada")
       toast.success("Reparación marcada como terminada", { position: "bottom-right" })
       setShowCompleteModal(false)
-      await cargarReparaciones() // Recargar la lista principal
+      await refrescarLuegoDeAccion(currentReparacion.id, { recargarCuenta: false })
     } catch (error) {
       console.error("Error al marcar como terminada:", error)
       toast.error(error.message || "Error al marcar la reparación como terminada", { position: "bottom-right" })
@@ -736,10 +779,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
         })
       }
       setShowCancelModal(false)
-      await cargarReparaciones() // Recargar la lista principal
-      if (currentReparacion.cliente?.id) {
-        await cargarCuentaCorriente(currentReparacion.cliente.id)
-      }
+      await refrescarLuegoDeAccion(currentReparacion.id, { recargarCuenta: true })
     } catch (error) {
       console.error("Error al cancelar la reparación:", error)
       toast.error(error.message || "Error al cancelar la reparación", { position: "bottom-right" })
@@ -789,7 +829,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     try {
       setCargandoAccion(true)
       await registrarPagoReparacion(currentReparacion.id, nuevoPago)
-      await cargarReparaciones() // Recargar la lista principal
+      await refrescarLuegoDeAccion(currentReparacion.id, { recargarCuenta: true })
       setShowPaymentModal(false)
       toast.success("Pago registrado correctamente", { position: "bottom-right" })
     } catch (error) {
@@ -806,7 +846,7 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
       setCargandoAccion(true)
       await updateEstadoReparacion(id, "entregada")
       toast.success("Reparación marcada como entregada", { position: "bottom-right" })
-      await cargarReparaciones() // Recargar la lista principal
+      await refrescarLuegoDeAccion(id, { recargarCuenta: false })
     } catch (error) {
       console.error("Error al marcar como entregada:", error)
       toast.error(error.message || "Error al marcar la reparación como entregada", { position: "bottom-right" })
@@ -976,6 +1016,19 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
               <div>
                 <p className="font-medium">Término de búsqueda demasiado corto</p>
                 <p className="text-sm">Ingresa al menos 3 caracteres para realizar la búsqueda.</p>
+              </div>
+            </div>
+          )}
+
+          {!isAdmin && busquedaRealizada && filteredReparaciones.length > 0 && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md text-green-800 flex items-start gap-2">
+              <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Resultados fijados para trabajar</p>
+                <p className="text-sm">
+                  Al cambiar estados, la reparación se mantiene visible para continuar el flujo (terminada → pagada → entregada)
+                  sin volver a buscar.
+                </p>
               </div>
             </div>
           )}
