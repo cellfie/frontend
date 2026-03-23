@@ -814,7 +814,7 @@ const ComprasProductos = () => {
                     Mantené el mismo flujo visual de cobro que en ventas. En compras, los pagos son opcionales.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="px-3 sm:px-5 py-3 sm:py-4">
+                <div className="px-3 sm:px-5 pb-3 sm:pb-4">
                   <VentaModalPagosUI
                     resumenSlot={
                       <div className="space-y-3">
@@ -883,7 +883,7 @@ const ComprasProductos = () => {
                     }
                   />
                 </div>
-                <DialogFooter>
+                <DialogFooter className="px-4 sm:px-6 py-3 border-t bg-white gap-2">
                   <Button variant="outline" onClick={() => setDialogFinalizarAbierto(false)}>
                     Cancelar
                   </Button>
