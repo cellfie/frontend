@@ -148,12 +148,13 @@ export function CajaSesionDetalleModal({
                   const vp = (tot?.ventas_productos || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
                   const ve = (tot?.ventas_equipos || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
                   const rep = (tot?.reparaciones || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
+                  const pcc = (tot?.pagos_cuenta_corriente || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
                   const manual = tot?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
                   const ingManual = Number(manual.ingresos) || 0
                   const egrManual = Number(manual.egresos) || 0
                   const montoApertura = Number(s.monto_apertura) || 0
                   // Mismo criterio que "Balance total" y que el cierre en pantalla (Caja).
-                  const saldoTeoricoArqueo = montoApertura + vp + ve + rep + ingManual - egrManual
+                  const saldoTeoricoArqueo = montoApertura + vp + ve + rep + pcc + ingManual - egrManual
                   const montoCierre =
                     s.monto_cierre != null && s.monto_cierre !== "" ? Number(s.monto_cierre) : null
                   const diferencia =
@@ -239,8 +240,8 @@ export function CajaSesionDetalleModal({
                         </CardTitle>
                         <CardDescription>
                           Arqueo al cerrar. El saldo teórico es el mismo <strong>balance total</strong> de la sesión:
-                          apertura + ventas (productos, equipos, reparaciones) + ingresos manuales generales − egresos
-                          manuales generales.
+                          apertura + ventas (productos, equipos, reparaciones) + pagos cuenta corriente + ingresos
+                          manuales generales − egresos manuales generales.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -264,8 +265,8 @@ export function CajaSesionDetalleModal({
                             </p>
                             <p className="text-xs text-gray-500 mt-1 leading-snug">
                               Apertura {formatearMonedaARS(montoApertura)} + ventas prod. {formatearMonedaARS(vp)} + equipos{" "}
-                              {formatearMonedaARS(ve)} + rep. {formatearMonedaARS(rep)} + ing. manual {formatearMonedaARS(ingManual)}{" "}
-                              − egresos manual {formatearMonedaARS(egrManual)}
+                              {formatearMonedaARS(ve)} + rep. {formatearMonedaARS(rep)} + pagos CC {formatearMonedaARS(pcc)} + ing. manual{" "}
+                              {formatearMonedaARS(ingManual)} − egresos manual {formatearMonedaARS(egrManual)}
                             </p>
                           </div>
                           <div className="rounded-lg border bg-white/80 p-3 flex flex-col justify-center">
@@ -328,8 +329,9 @@ export function CajaSesionDetalleModal({
                   const vp = (tot?.ventas_productos || []).reduce((s, v) => s + Number(v.total || 0), 0)
                   const ve = (tot?.ventas_equipos || []).reduce((s, v) => s + Number(v.total || 0), 0)
                   const rep = (tot?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                  const pcc = (tot?.pagos_cuenta_corriente || []).reduce((s, v) => s + Number(v.total || 0), 0)
                   const manual = tot?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
-                  const totalIngresos = vp + ve + rep + (manual.ingresos || 0)
+                  const totalIngresos = vp + ve + rep + pcc + (manual.ingresos || 0)
                   const totalEgresos = manual.egresos || 0
                   const montoInicial = Number(sesionDetalle.sesion.monto_apertura || 0)
                   const balance = montoInicial + totalIngresos - totalEgresos
@@ -393,7 +395,8 @@ export function CajaSesionDetalleModal({
                             ? manualIng +
                               (sesionDetalle.totales?.ventas_productos || []).reduce((s, v) => s + Number(v.total || 0), 0) +
                               (sesionDetalle.totales?.ventas_equipos || []).reduce((s, v) => s + Number(v.total || 0), 0) +
-                              (sesionDetalle.totales?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0) -
+                              (sesionDetalle.totales?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0) +
+                              (sesionDetalle.totales?.pagos_cuenta_corriente || []).reduce((s, v) => s + Number(v.total || 0), 0) -
                               manualEgr
                             : arr.reduce((s, v) => s + Number(v.total || 0), 0)
                         return (
@@ -417,6 +420,12 @@ export function CajaSesionDetalleModal({
                                   {(sesionDetalle.totales?.reparaciones || []).map((v) => (
                                     <li key={`rep-${v.tipo_pago}`} className="flex justify-between">
                                       <span className="text-gray-600">Reparaciones · {v.tipo_pago}</span>
+                                      <span className="font-medium">{formatearMonedaARS(v.total)}</span>
+                                    </li>
+                                  ))}
+                                  {(sesionDetalle.totales?.pagos_cuenta_corriente || []).map((v) => (
+                                    <li key={`pcc-${v.tipo_pago}`} className="flex justify-between">
+                                      <span className="text-gray-600">Pagos cuenta corriente · {v.tipo_pago}</span>
                                       <span className="font-medium">{formatearMonedaARS(v.total)}</span>
                                     </li>
                                   ))}

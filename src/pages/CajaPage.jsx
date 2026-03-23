@@ -87,6 +87,7 @@ const CajaPage = () => {
     ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
     ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
     reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+    pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
   })
   const [notasCierre, setNotasCierre] = useState("")
 
@@ -242,6 +243,7 @@ const CajaPage = () => {
         ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
         ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
         reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
       })
       setNotasCierre("")
     } catch (error) {
@@ -334,6 +336,10 @@ const CajaPage = () => {
     (s, v) => s + Number(v.total || 0),
     0,
   )
+  const totalPagosCuentaCorriente = (resumenTotales?.pagos_cuenta_corriente || []).reduce(
+    (s, v) => s + Number(v.total || 0),
+    0,
+  )
 
   const movimientosPorOrigen = resumenTotales?.movimientos_por_origen || {}
 
@@ -345,7 +351,12 @@ const CajaPage = () => {
   const getTotalesTab = (tab) => {
     if (tab === "general") {
       return {
-        ingresos: totalVentasProductos + totalVentasEquipos + totalReparaciones + ingresosManuales,
+        ingresos:
+          totalVentasProductos +
+          totalVentasEquipos +
+          totalReparaciones +
+          totalPagosCuentaCorriente +
+          ingresosManuales,
         egresos: egresosManuales,
       }
     }
@@ -385,6 +396,18 @@ const CajaPage = () => {
         const nombre = v.tipo_pago || "Otro"
         porMetodo[nombre] = (porMetodo[nombre] || 0) + Number(v.total || 0)
       })
+    } else if (tab === "general") {
+      const sumarFilas = (arr) => {
+        if (!Array.isArray(arr)) return
+        arr.forEach((v) => {
+          const nombre = v.tipo_pago || "Otro"
+          porMetodo[nombre] = (porMetodo[nombre] || 0) + Number(v.total || 0)
+        })
+      }
+      sumarFilas(resumenTotales?.ventas_productos)
+      sumarFilas(resumenTotales?.ventas_equipos)
+      sumarFilas(resumenTotales?.reparaciones)
+      sumarFilas(resumenTotales?.pagos_cuenta_corriente)
     }
 
     const filas = METODOS_PAGO_NOMBRES.map((metodo) => ({
@@ -405,6 +428,7 @@ const CajaPage = () => {
     totalVentasProductos +
     totalVentasEquipos +
     totalReparaciones +
+    totalPagosCuentaCorriente +
     ingresosManuales -
     egresosManuales
   const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
@@ -413,7 +437,8 @@ const CajaPage = () => {
   const totalIngresadoCierre =
     totalSeccionCierre(cierreSecciones.ventas_productos) +
     totalSeccionCierre(cierreSecciones.ventas_equipos) +
-    totalSeccionCierre(cierreSecciones.reparaciones)
+    totalSeccionCierre(cierreSecciones.reparaciones) +
+    totalSeccionCierre(cierreSecciones.pagos_cuenta_corriente)
   const diferenciaCierre = totalIngresadoCierre - saldoEsperadoCierre
 
   const setCierreSeccionValor = (seccion, metodo, value) => {
@@ -713,6 +738,12 @@ const CajaPage = () => {
                               </span>
                             </li>
                             <li className="flex justify-between items-center">
+                              <span className="text-gray-600">Pagos cuenta corriente</span>
+                              <span className="font-medium text-green-700">
+                                {formatearMonedaARS(totalPagosCuentaCorriente)}
+                              </span>
+                            </li>
+                            <li className="flex justify-between items-center">
                               <span className="text-gray-600">Movimientos manuales</span>
                               <span className="font-medium text-green-700">
                                 {formatearMonedaARS(ingresosManuales)}
@@ -722,7 +753,11 @@ const CajaPage = () => {
                               <span>Total ingresos</span>
                               <span className="text-green-700">
                                 {formatearMonedaARS(
-                                  totalVentasProductos + totalVentasEquipos + totalReparaciones + ingresosManuales,
+                                  totalVentasProductos +
+                                    totalVentasEquipos +
+                                    totalReparaciones +
+                                    totalPagosCuentaCorriente +
+                                    ingresosManuales,
                                 )}
                               </span>
                             </li>
@@ -746,6 +781,7 @@ const CajaPage = () => {
                                 totalVentasProductos +
                                 totalVentasEquipos +
                                 totalReparaciones +
+                                totalPagosCuentaCorriente +
                                 ingresosManuales -
                                 egresosManuales,
                             )}
@@ -1059,6 +1095,7 @@ const CajaPage = () => {
               ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
               ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
               reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+              pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
             })
           }
         }}
@@ -1074,7 +1111,7 @@ const CajaPage = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 pt-2">
             {/* 1. Ventas productos */}
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
@@ -1192,7 +1229,46 @@ const CajaPage = () => {
               ))}
             </div>
 
-            {/* 4. General - resultado */}
+            {/* 4. Pagos cuenta corriente (abonos que ingresaron en caja) */}
+            <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-violet-900 border-b border-violet-200 pb-2">
+                Pagos cuenta corriente
+              </h3>
+              <div className="rounded-lg bg-white p-2 text-center border border-violet-100">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
+                <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalPagosCuentaCorriente)}</p>
+              </div>
+              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+                <div key={metodo} className="space-y-1">
+                  <label className="block text-xs font-medium text-gray-700 capitalize">
+                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                  </label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="h-9"
+                    value={
+                      cierreSecciones.pagos_cuenta_corriente[metodo] === "" ||
+                      cierreSecciones.pagos_cuenta_corriente[metodo] === undefined
+                        ? ""
+                        : formatearNumeroInputARS(Number(cierreSecciones.pagos_cuenta_corriente[metodo]))
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === "") {
+                        setCierreSeccionValor("pagos_cuenta_corriente", metodo, "")
+                        return
+                      }
+                      const n = parsearInputMoneda(v)
+                      setCierreSeccionValor("pagos_cuenta_corriente", metodo, Number.isNaN(n) ? "" : n)
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* 5. General - resultado */}
             <div className="rounded-xl border-2 border-orange-200 bg-orange-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-orange-800 border-b border-orange-200 pb-2">
                 General
@@ -1259,6 +1335,7 @@ const CajaPage = () => {
                   ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
                   ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
                   reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
+                  pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
                 })
               }}
               disabled={!cajaActual || cajaActual.estado !== "abierta"}
