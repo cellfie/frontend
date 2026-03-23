@@ -62,6 +62,7 @@ import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { DollarContext } from "@/context/DollarContext"
 import { Link } from "react-router-dom"
+import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
 
 // Importar componente de precios canjes
 import PreciosCanjes from "@/components/PreciosCanje"
@@ -284,6 +285,7 @@ const VentasEquipos = () => {
             let icono = DollarSign
             if (tipo.nombre.toLowerCase().includes("transferencia")) icono = ArrowUpRight
             if (tipo.nombre.toLowerCase().includes("tarjeta")) icono = CreditCardIcon
+            if (tipo.nombre.toLowerCase().includes("viumi")) icono = Smartphone
             if (tipo.nombre.toLowerCase().includes("cuenta")) icono = BookOpen
             return { ...tipo, icono }
           }),
@@ -560,7 +562,7 @@ const VentasEquipos = () => {
       monto: monto,
       icono: tipoPagoObj.icono,
       // MODIFICACIÓN: Inicializar campos para tarjeta
-      esTarjeta: tipoPagoObj.nombre.toLowerCase().includes("tarjeta"),
+      esTarjeta: esMetodoPagoConCalculadoraFinanciacion(tipoPagoObj.nombre),
       interesTarjeta: 0,
       cuotasTarjeta: 1,
     }
@@ -1668,7 +1670,7 @@ const VentasEquipos = () => {
                                         <div className="grid grid-cols-2 gap-2 items-end">
                                           <div>
                                             <Label htmlFor={`interes-${pago.id}`} className="text-xs">
-                                              Interés Tarjeta (%)
+                                              Interés tarjeta / ViuMi (%)
                                             </Label>
                                             <NumericFormat
                                               id={`interes-${pago.id}`}

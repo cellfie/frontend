@@ -330,7 +330,7 @@ export function CajaSesionDetalleModal({
                   const n = (x) => (x === "" || x == null || Number.isNaN(Number(x)) ? 0 : Number(x))
                   const sumSec = (sec) => {
                     if (!sec || typeof sec !== "object") return 0
-                    return n(sec.efectivo) + n(sec.transferencia) + n(sec.tarjeta)
+                    return n(sec.efectivo) + n(sec.transferencia) + n(sec.tarjeta) + n(sec.viumi)
                   }
                   const filas = [
                     {
@@ -358,13 +358,14 @@ export function CajaSesionDetalleModal({
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3 overflow-x-auto">
-                        <table className="w-full text-sm min-w-[520px]">
+                        <table className="w-full text-sm min-w-[620px]">
                           <thead>
                             <tr className="border-b border-sky-200 text-left text-xs uppercase text-sky-800">
                               <th className="py-2 pr-2">Concepto</th>
                               <th className="py-2 px-1 text-right">Efectivo</th>
                               <th className="py-2 px-1 text-right">Transf.</th>
                               <th className="py-2 px-1 text-right">Tarjeta</th>
+                              <th className="py-2 px-1 text-right">ViuMi</th>
                               <th className="py-2 pl-2 text-right">Subtotal</th>
                             </tr>
                           </thead>
@@ -387,6 +388,9 @@ export function CajaSesionDetalleModal({
                                   </td>
                                   <td className="py-2 px-1 text-right text-gray-400 text-xs">
                                     {row.soloEfectivo ? "—" : formatearMonedaARS(n(row.sec?.tarjeta))}
+                                  </td>
+                                  <td className="py-2 px-1 text-right text-gray-400 text-xs">
+                                    {row.soloEfectivo ? "—" : formatearMonedaARS(n(row.sec?.viumi))}
                                   </td>
                                   <td className="py-2 pl-2 text-right font-medium tabular-nums">
                                     {formatearMonedaARS(sub)}

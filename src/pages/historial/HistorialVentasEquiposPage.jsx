@@ -97,6 +97,7 @@ const HistorialVentasEquiposPage = () => {
   const getIconoMetodoPago = (nombreTipoPago) => {
     const nombreLower = nombreTipoPago.toLowerCase()
     if (nombreLower.includes("transferencia")) return <ArrowUpRight className="h-4 w-4 text-blue-500" />
+    if (nombreLower.includes("viumi")) return <Smartphone className="h-4 w-4 text-emerald-600" />
     if (nombreLower.includes("tarjeta")) return <CreditCard className="h-4 w-4 text-green-500" />
     if (nombreLower.includes("cuenta")) return <BookOpen className="h-4 w-4 text-purple-500" />
     return <DollarSign className="h-4 w-4 text-yellow-500" />
@@ -118,6 +119,14 @@ const HistorialVentasEquiposPage = () => {
         <Badge variant="outline" className="font-normal border-blue-300 bg-blue-50 text-blue-700">
           <ArrowUpRight className="h-3 w-3 mr-1" />
           Transferencia
+        </Badge>
+      )
+    }
+    if (nombreLower.includes("viumi")) {
+      return (
+        <Badge variant="outline" className="font-normal border-emerald-300 bg-emerald-50 text-emerald-800">
+          <Smartphone className="h-3 w-3 mr-1" />
+          ViuMi
         </Badge>
       )
     }

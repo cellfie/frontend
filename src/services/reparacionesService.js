@@ -343,6 +343,7 @@ export const getMetodosPagoReparacion = () => {
   return [
     { id: "efectivo", nombre: "Efectivo" },
     { id: "tarjeta", nombre: "Tarjeta" },
+    { id: "viumi", nombre: "ViuMi" },
     { id: "transferencia", nombre: "Transferencia" },
     { id: "cuentaCorriente", nombre: "Cuenta Corriente" },
   ]

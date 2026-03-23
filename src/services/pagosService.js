@@ -111,6 +111,7 @@ export const getTiposPago = async () => {
     { id: 1, nombre: "Efectivo", descripcion: "Pago en efectivo" },
     { id: 2, nombre: "Transferencia", descripcion: "Pago por transferencia bancaria" },
     { id: 3, nombre: "Tarjeta de crédito", descripcion: "Pago con tarjeta de crédito" },
+    { id: 5, nombre: "ViuMi", descripcion: "Pago con ViuMi" },
     { id: 4, nombre: "Cuenta corriente", descripcion: "Pago con cuenta corriente del cliente" },
   ]
 }

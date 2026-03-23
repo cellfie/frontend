@@ -43,8 +43,19 @@ const METODOS_PAGO_NOMBRES = [
   "Efectivo",
   "Transferencia",
   "Tarjeta de crédito",
+  "ViuMi",
   "Cuenta corriente",
 ]
+
+// Columnas del arqueo al cerrar caja (mismas claves que en `desglose_cierre`)
+const METODOS_CIERRE_ORDEN = ["efectivo", "transferencia", "tarjeta", "viumi"]
+const etiquetaMetodoCierre = (metodo) => {
+  if (metodo === "tarjeta") return "Tarjeta de crédito"
+  if (metodo === "viumi") return "ViuMi"
+  if (metodo === "efectivo") return "Efectivo"
+  if (metodo === "transferencia") return "Transferencia"
+  return metodo
+}
 
 // Formatea un número para mostrar en input (opcional, ej. "15.000,50")
 const formatearNumeroInputARS = (valor) => {
@@ -84,11 +95,11 @@ const CajaPage = () => {
 
   const [montoCierre, setMontoCierre] = useState("")
   const [cierreSecciones, setCierreSecciones] = useState({
-    monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
-    ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
-    ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
-    reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
-    pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
+    monto_inicial: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+    ventas_productos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+    ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+    reparaciones: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+    pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
   })
   const [notasCierre, setNotasCierre] = useState("")
 
@@ -137,11 +148,11 @@ const CajaPage = () => {
       }
       const valorInicial = Number.isFinite(apertura) ? apertura : 0
       setCierreSecciones({
-        monto_inicial: { efectivo: valorInicial, transferencia: "", tarjeta: "" },
-        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
-        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
-        reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
-        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
+        monto_inicial: { efectivo: valorInicial, transferencia: "", tarjeta: "", viumi: "" },
+        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        reparaciones: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
       })
     }
     prevDialogCierreAbierto.current = true
@@ -430,7 +441,7 @@ const CajaPage = () => {
     egresosManuales
   const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
   const totalSeccionCierre = (s) =>
-    num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta)
+    num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta) + num(s?.viumi)
   const totalIngresadoCierre =
     totalSeccionCierre(cierreSecciones.monto_inicial) +
     totalSeccionCierre(cierreSecciones.ventas_productos) +
@@ -459,6 +470,7 @@ const CajaPage = () => {
           efectivo: num(cierreSecciones.monto_inicial.efectivo),
           transferencia: 0,
           tarjeta: 0,
+          viumi: 0,
         },
         ventas_productos: { ...cierreSecciones.ventas_productos },
         ventas_equipos: { ...cierreSecciones.ventas_equipos },
@@ -480,11 +492,11 @@ const CajaPage = () => {
       await cargarCajaActual()
       setMontoCierre("")
       setCierreSecciones({
-        monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
-        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
-        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
-        reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
-        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
+        monto_inicial: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        ventas_productos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        reparaciones: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+        pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
       })
       setNotasCierre("")
     } catch (error) {
@@ -1208,10 +1220,10 @@ const CajaPage = () => {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalVentasProductos)}</p>
               </div>
-              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+              {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
                   <label className="block text-xs font-medium text-gray-700 capitalize">
-                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                    {etiquetaMetodoCierre(metodo)}
                   </label>
                   <Input
                     type="text"
@@ -1247,10 +1259,10 @@ const CajaPage = () => {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalVentasEquipos)}</p>
               </div>
-              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+              {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
                   <label className="block text-xs font-medium text-gray-700 capitalize">
-                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                    {etiquetaMetodoCierre(metodo)}
                   </label>
                   <Input
                     type="text"
@@ -1286,10 +1298,10 @@ const CajaPage = () => {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalReparaciones)}</p>
               </div>
-              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+              {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
                   <label className="block text-xs font-medium text-gray-700 capitalize">
-                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                    {etiquetaMetodoCierre(metodo)}
                   </label>
                   <Input
                     type="text"
@@ -1325,10 +1337,10 @@ const CajaPage = () => {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalPagosCuentaCorriente)}</p>
               </div>
-              {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
+              {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
                   <label className="block text-xs font-medium text-gray-700 capitalize">
-                    {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}
+                    {etiquetaMetodoCierre(metodo)}
                   </label>
                   <Input
                     type="text"
@@ -1420,11 +1432,11 @@ const CajaPage = () => {
                 await handleCerrarCaja(totalIngresadoCierre)
                 setDialogCierreAbierto(false)
                 setCierreSecciones({
-                  monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
-                  ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
-                  ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
-                  reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
-                  pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "" },
+                  monto_inicial: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+                  ventas_productos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+                  ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+                  reparaciones: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
+                  pagos_cuenta_corriente: { efectivo: "", transferencia: "", tarjeta: "", viumi: "" },
                 })
               }}
               disabled={!cajaActual || cajaActual.estado !== "abierta"}

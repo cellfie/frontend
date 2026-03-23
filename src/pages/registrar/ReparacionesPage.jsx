@@ -1503,6 +1503,11 @@ const ReparacionesPage = () => {
                                                     className={`w-5 h-5 ${pago.metodo === metodo.id ? "text-orange-600" : "text-gray-600"}`}
                                                   />
                                                 )}
+                                                {metodo.id === "viumi" && (
+                                                  <Smartphone
+                                                    className={`w-5 h-5 ${pago.metodo === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                                                  />
+                                                )}
                                                 {metodo.id === "transferencia" && (
                                                   <ArrowDownToLine
                                                     className={`w-5 h-5 ${pago.metodo === metodo.id ? "text-orange-600" : "text-gray-600"}`}

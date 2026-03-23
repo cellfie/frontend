@@ -1579,6 +1579,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                                           Tarjeta
                                         </span>
                                       )}
+                                      {pago.metodoPago === "viumi" && (
+                                        <span className="flex items-center">
+                                          <Smartphone className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 text-gray-500" /> ViuMi
+                                        </span>
+                                      )}
                                       {pago.metodoPago === "transferencia" && (
                                         <span className="flex items-center">
                                           <ArrowDownToLine className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 text-gray-500" />{" "}
@@ -2090,6 +2095,11 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
                             )}
                             {metodo.id === "tarjeta" && (
                               <CreditCard
+                                className={`w-4 h-4 sm:w-5 sm:h-5 ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
+                              />
+                            )}
+                            {metodo.id === "viumi" && (
+                              <Smartphone
                                 className={`w-4 h-4 sm:w-5 sm:h-5 ${nuevoPago.metodo_pago === metodo.id ? "text-orange-600" : "text-gray-600"}`}
                               />
                             )}

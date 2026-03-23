@@ -58,6 +58,7 @@ import { getCuentaCorrienteByCliente } from "@/services/cuentasCorrientesService
 import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { Link } from "react-router-dom"
+import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -421,7 +422,7 @@ const VentasProductos = () => {
       tipo_pago_id: tipoPago.id,
       tipo_pago_nombre: tipoPago.nombre,
       monto: montoNumerico,
-      esTarjeta: tipoPago.nombre.toLowerCase().includes("tarjeta"),
+      esTarjeta: esMetodoPagoConCalculadoraFinanciacion(tipoPago.nombre),
       interesTarjeta: 0,
       cuotasTarjeta: 1,
     }

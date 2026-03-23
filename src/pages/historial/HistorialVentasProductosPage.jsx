@@ -35,6 +35,7 @@ import {
   Landmark,
   University,
   Wallet,
+  Smartphone,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -115,6 +116,7 @@ const getPaymentIcon = (paymentMethodName) => {
   if (!paymentMethodName) return Wallet
   const lowerCaseName = paymentMethodName.toLowerCase()
   if (lowerCaseName.includes("efectivo")) return Wallet
+  if (lowerCaseName.includes("viumi")) return Smartphone
   if (lowerCaseName.includes("tarjeta")) return CreditCard
   if (lowerCaseName.includes("transferencia")) return Landmark
   if (lowerCaseName.includes("cuenta corriente") || lowerCaseName.includes("cuenta")) return University

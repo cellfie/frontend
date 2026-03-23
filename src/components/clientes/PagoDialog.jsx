@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { useState, useEffect } from "react"
 import { getTiposPago } from "@/services/pagosService"
+import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
 import { NumericFormat } from "react-number-format"
 
 const PagoDialog = ({
@@ -98,9 +99,9 @@ const PagoDialog = ({
     return montoNumerico <= saldoCliente
   }
 
-  // Verificar si el tipo de pago es tarjeta de crédito
+  // Tarjeta de crédito o ViuMi: misma calculadora de cuotas/interés (solo informativo)
   const esTarjetaCredito = () => {
-    return formPago.tipo_pago && formPago.tipo_pago.toLowerCase().includes("tarjeta")
+    return formPago.tipo_pago && esMetodoPagoConCalculadoraFinanciacion(formPago.tipo_pago)
   }
 
   // Calcular monto con interés
@@ -229,12 +230,12 @@ const PagoDialog = ({
               </p>
             </div>
 
-            {/* Sección de cálculo para tarjeta de crédito */}
+            {/* Sección de cálculo para tarjeta / ViuMi */}
             {esTarjetaCredito() && formPago.monto && validarMonto(formPago.monto) && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Calculator className="h-5 w-5 text-orange-600" />
-                  <h3 className="font-medium text-orange-800">Calculadora de Tarjeta de Crédito</h3>
+                  <h3 className="font-medium text-orange-800">Calculadora (tarjeta / ViuMi)</h3>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -313,7 +314,7 @@ const PagoDialog = ({
                       {interesTarjeta > 0 && (
                         <div className="text-xs text-orange-700 bg-orange-100 p-2 rounded-md">
                           <strong>Nota:</strong> Este cálculo es solo informativo. El interés mostrado es el que se
-                          aplicaría si el cliente pagara con tarjeta de crédito en {cuotasTarjeta} cuota
+                          aplicaría con tarjeta de crédito o ViuMi en {cuotasTarjeta} cuota
                           {cuotasTarjeta > 1 ? "s" : ""}.
                         </div>
                       )}
