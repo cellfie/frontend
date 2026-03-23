@@ -1106,7 +1106,7 @@ const VentasProductos = () => {
                   <Receipt size={16} className="mr-1" /> Finalizar Venta
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg sm:max-w-2xl w-[calc(100vw-0.75rem)] gap-0 p-0 max-h-[min(96vh,920px)] flex flex-col overflow-hidden sm:rounded-xl">
+              <DialogContent className="max-w-lg sm:max-w-2xl lg:max-w-6xl xl:max-w-7xl w-[calc(100vw-0.75rem)] lg:w-[min(96vw,1280px)] gap-0 p-0 max-h-[min(96vh,920px)] lg:max-h-[min(92vh,900px)] flex flex-col overflow-hidden sm:rounded-xl">
                 <div className="shrink-0 px-4 pt-4 pb-2 border-b border-gray-100 bg-white">
                   <DialogHeader className="text-left space-y-1">
                     <DialogTitle className="text-lg sm:text-xl text-orange-600">Cobrar venta</DialogTitle>

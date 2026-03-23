@@ -82,80 +82,91 @@ export function VentaModalPagosUI({
   const addDisabled = !tipoSeleccionadoId || parseMontoFormatted(montoPago) <= 0
 
   return (
-    <div className="flex flex-col min-h-0 max-h-[min(82vh,760px)]">
-      {/* Barra de estado: siempre visible, ideal en celular */}
+    <div className="flex flex-col min-h-0 max-h-[min(82vh,760px)] lg:max-h-[min(86vh,820px)]">
+      {/* Barra de estado: siempre visible; en lg más compacta en una fila con la barra de progreso */}
       <div
         className={cn(
-          "shrink-0 rounded-xl px-3 py-3 sm:px-4 text-white shadow-sm",
+          "shrink-0 rounded-xl px-3 py-3 sm:px-4 lg:py-2.5 lg:px-5 text-white shadow-sm",
           listo ? "bg-gradient-to-r from-emerald-600 to-teal-600" : "bg-gradient-to-r from-orange-600 to-amber-600",
         )}
       >
-        <div className="flex flex-wrap items-end justify-between gap-2 gap-y-1">
-          <div>
-            <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wide text-white/90">Total venta</p>
-            <p className="text-xl sm:text-2xl font-bold tabular-nums leading-tight">{formatearMonedaARS(totalVenta)}</p>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
+          <div className="flex flex-wrap items-end justify-between gap-2 gap-y-1 lg:items-center lg:gap-8 lg:flex-1 lg:min-w-0">
+            <div>
+              <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wide text-white/90">Total venta</p>
+              <p className="text-xl sm:text-2xl lg:text-xl xl:text-2xl font-bold tabular-nums leading-tight">
+                {formatearMonedaARS(totalVenta)}
+              </p>
+            </div>
+            <div className="text-right lg:text-left">
+              <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wide text-white/90">
+                {hayVuelto ? "Vuelto" : falta ? "Falta cobrar" : listo ? "Listo" : "Pagado"}
+              </p>
+              <p
+                className={cn(
+                  "text-lg sm:text-xl lg:text-lg xl:text-xl font-bold tabular-nums",
+                  hayVuelto && "text-amber-100",
+                  falta && "text-white",
+                  listo && "text-emerald-100",
+                )}
+              >
+                {formatearMonedaARS(absRest)}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[11px] sm:text-xs font-medium uppercase tracking-wide text-white/90">
-              {hayVuelto ? "Vuelto" : falta ? "Falta cobrar" : listo ? "Listo" : "Pagado"}
-            </p>
-            <p
-              className={cn(
-                "text-lg sm:text-xl font-bold tabular-nums",
-                hayVuelto && "text-amber-100",
-                falta && "text-white",
-                listo && "text-emerald-100",
+          <div className="lg:flex-1 lg:max-w-xl xl:max-w-2xl lg:self-center w-full space-y-1.5">
+            <div className="h-2 rounded-full bg-black/20 overflow-hidden">
+              <div
+                className={cn("h-full rounded-full transition-all duration-300", listo ? "bg-emerald-200" : "bg-white/90")}
+                style={{ width: `${pctBarra}%` }}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-xs lg:text-[11px] text-white/90">
+              {listo ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Podés confirmar la venta.
+                </>
+              ) : falta ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Sumá pagos hasta cubrir el total.
+                </>
+              ) : pagos.length === 0 ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Agregá al menos un pago.
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Ajustá montos o eliminá un pago si pasaste del total.
+                </>
               )}
-            >
-              {formatearMonedaARS(absRest)}
-            </p>
+            </div>
           </div>
-        </div>
-        <div className="mt-2 h-2 rounded-full bg-black/20 overflow-hidden">
-          <div
-            className={cn("h-full rounded-full transition-all duration-300", listo ? "bg-emerald-200" : "bg-white/90")}
-            style={{ width: `${pctBarra}%` }}
-          />
-        </div>
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] sm:text-xs text-white/90">
-          {listo ? (
-            <>
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              Podés confirmar la venta.
-            </>
-          ) : falta ? (
-            <>
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              Sumá pagos hasta cubrir el total.
-            </>
-          ) : pagos.length === 0 ? (
-            <>
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              Agregá al menos un pago.
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              Ajustá montos o eliminá un pago si pasaste del total.
-            </>
-          )}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 sm:px-0 pt-3 sm:pt-4 space-y-4">
-        {/* Resumen pedido / equipo */}
-        <section className="rounded-xl border border-gray-200/80 bg-slate-50/80 p-3 sm:p-4 shadow-sm max-h-[38vh] sm:max-h-none overflow-y-auto">
-          {resumenSlot}
-        </section>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 sm:px-0 pt-3 sm:pt-4 lg:pt-3">
+        {/* Móvil / tablet: una columna. lg+: resumen a la izquierda; cobro + lista a la derecha en dos paneles */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:gap-5 lg:items-stretch lg:min-h-0">
+          {/* Columna resumen */}
+          <section className="rounded-xl border border-gray-200/80 bg-slate-50/80 p-3 sm:p-4 shadow-sm max-h-[38vh] sm:max-h-none overflow-y-auto lg:max-h-none lg:overflow-visible lg:w-[min(100%,320px)] xl:w-[360px] shrink-0">
+            {resumenSlot}
+            {extraBannerSlot ? <div className="mt-3 lg:mt-4 space-y-0">{extraBannerSlot}</div> : null}
+          </section>
 
-        <section className="space-y-3">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">{tituloMetodo}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{subtituloMetodo}</p>
-          </div>
+          {/* Columna principal: desde lg, cobro y lista en dos columnas (menos scroll) */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
+            <section className="space-y-3 min-w-0">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">{tituloMetodo}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{subtituloMetodo}</p>
+              </div>
 
-          {/* Métodos: rejilla táctil */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {/* Métodos: más columnas en pantallas anchas para una sola fila */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-2">
             {tiposPago.map((tipo) => {
               const disabled = cuentaCorrienteDeshabilitada(tipo, clienteId)
               const Icon = resolveTipoIcon(tipo)
@@ -225,7 +236,7 @@ export function VentaModalPagosUI({
         </section>
 
         {/* Pagos agregados */}
-        <section className="space-y-2 pb-1">
+        <section className="space-y-2 pb-1 min-w-0 lg:max-h-[min(58vh,520px)] lg:overflow-y-auto lg:pr-1">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">Pagos agregados</h3>
             <span className="text-xs text-gray-500">{pagos.length} ítem{pagos.length !== 1 ? "s" : ""}</span>
@@ -354,8 +365,8 @@ export function VentaModalPagosUI({
             </div>
           </div>
         </section>
-
-        {extraBannerSlot ? <div className="pb-2">{extraBannerSlot}</div> : null}
+          </div>
+        </div>
       </div>
     </div>
   )
