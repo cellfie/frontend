@@ -188,6 +188,7 @@ const ComprasProductos = () => {
       const productosAdaptados = result.data.map(adaptProductoToFrontend).map((prod) => ({
         ...prod,
         price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
+        costPrice: typeof prod.costPrice === "number" ? prod.costPrice : Number.parseFloat(prod.costPrice) || 0,
       }))
 
       setProductos(productosAdaptados)
@@ -220,7 +221,8 @@ const ComprasProductos = () => {
           name: prod.name,
           code: prod.code,
           cantidad: 1,
-          costo_unitario: prod.price,
+          costo_anterior: prod.costPrice ?? 0,
+          costo_unitario: prod.costPrice ?? 0,
         },
       ])
     }
@@ -583,7 +585,7 @@ const ComprasProductos = () => {
                       </div>
                       <div className="text-right flex flex-col items-end">
                         <p className="font-semibold text-orange-600">
-                          Precio referencia: {formatearMonedaARS(prod.price)}
+                          Costo actual: {formatearMonedaARS(prod.costPrice ?? 0)}
                         </p>
                       </div>
                     </div>
@@ -651,17 +653,28 @@ const ComprasProductos = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <NumericFormat
-                            value={item.costo_unitario}
-                            thousandSeparator="."
-                            decimalSeparator=","
-                            prefix="$ "
-                            decimalScale={2}
-                            fixedDecimalScale
-                            customInput={Input}
-                            className="w-28 text-right"
-                            onValueChange={(values) => cambiarCosto(item.id, values.formattedValue)}
-                          />
+                          <div className="flex flex-col items-end gap-1">
+                            <NumericFormat
+                              value={item.costo_unitario}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="$ "
+                              decimalScale={2}
+                              fixedDecimalScale
+                              customInput={Input}
+                              className="w-28 text-right"
+                              onValueChange={(values) => cambiarCosto(item.id, values.formattedValue)}
+                            />
+                            {Number(item.costo_anterior ?? 0) !== Number(item.costo_unitario ?? 0) ? (
+                              <div className="text-[11px] text-orange-800 bg-orange-50 border border-orange-200 rounded px-2 py-0.5">
+                                Antes: {formatearMonedaARS(item.costo_anterior ?? 0)}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-gray-500">
+                                Costo: {formatearMonedaARS(item.costo_unitario ?? 0)}
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center">
