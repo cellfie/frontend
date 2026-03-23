@@ -21,8 +21,6 @@ import {
   PercentCircle,
   Filter,
   UserPlus,
-  TrendingUp,
-  CalendarDays,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -59,6 +57,7 @@ import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { Link } from "react-router-dom"
 import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
+import { VentaModalPagosUI } from "@/components/ventas/VentaModalPagosUI"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -1107,256 +1106,116 @@ const VentasProductos = () => {
                   <Receipt size={16} className="mr-1" /> Finalizar Venta
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl">
-                {" "}
-                {/* Aumentado el ancho del modal */}
-                <DialogHeader>
-                  <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
-                  <DialogDescription>Agrega los métodos de pago para completar la venta.</DialogDescription>
-                </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                  {/* Columna de Resumen */}
-                  <div>
-                    <h3 className="font-semibold mb-3 text-gray-800">Resumen de la Venta</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Cliente:</span>
-                        <span className="font-medium text-right">{cliente.nombre}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Punto de venta:</span>
-                        <Badge
-                          variant="outline"
-                          className={`${
-                            getNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
-                              ? "border-orange-300 bg-orange-50 text-orange-700"
-                              : "border-indigo-300 bg-indigo-50 text-indigo-700"
-                          }`}
-                        >
-                          {getNombrePuntoVenta(puntoVentaSeleccionado)}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Subtotal:</span>
-                        <span>{formatearMonedaARS(calcularSubtotal())}</span>
-                      </div>
-                      {porcentajeDescuento > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
-                          <span className="text-green-600">-{formatearMonedaARS(calcularDescuento())}</span>
+              <DialogContent className="max-w-lg sm:max-w-2xl w-[calc(100vw-0.75rem)] gap-0 p-0 max-h-[min(96vh,920px)] flex flex-col overflow-hidden sm:rounded-xl">
+                <div className="shrink-0 px-4 pt-4 pb-2 border-b border-gray-100 bg-white">
+                  <DialogHeader className="text-left space-y-1">
+                    <DialogTitle className="text-lg sm:text-xl text-orange-600">Cobrar venta</DialogTitle>
+                    <DialogDescription className="text-xs sm:text-sm">
+                      Elegí método con un toque, cargá el monto y sumá pagos hasta cubrir el total.
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-3 sm:px-4">
+                  <VentaModalPagosUI
+                    resumenSlot={
+                      <>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">Resumen</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between gap-3">
+                            <span className="text-gray-600 shrink-0">Cliente</span>
+                            <span className="font-medium text-right truncate">{cliente.nombre}</span>
+                          </div>
+                          <div className="flex justify-between gap-3 items-center">
+                            <span className="text-gray-600">Punto</span>
+                            <Badge
+                              variant="outline"
+                              className={`shrink-0 ${
+                                getNombrePuntoVenta(puntoVentaSeleccionado) === "Tala"
+                                  ? "border-orange-300 bg-orange-50 text-orange-700"
+                                  : "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              }`}
+                            >
+                              {getNombrePuntoVenta(puntoVentaSeleccionado)}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-gray-600">Subtotal</span>
+                            <span className="tabular-nums">{formatearMonedaARS(calcularSubtotal())}</span>
+                          </div>
+                          {porcentajeDescuento > 0 && (
+                            <div className="flex justify-between gap-3">
+                              <span className="text-gray-600">Desc. ({porcentajeDescuento}%)</span>
+                              <span className="text-green-600 tabular-nums">-{formatearMonedaARS(calcularDescuento())}</span>
+                            </div>
+                          )}
+                          <Separator className="my-1" />
+                          <div className="flex justify-between gap-3 font-bold text-base text-orange-700">
+                            <span>Total</span>
+                            <span className="tabular-nums">{formatearMonedaARS(calcularTotal())}</span>
+                          </div>
                         </div>
-                      )}
-                      <Separator className="my-2" />
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>Total a cobrar:</span>
-                        <span className="text-orange-700">{formatearMonedaARS(calcularTotal())}</span>
-                      </div>
-                    </div>
-                    {cliente.id && cuentaCorrienteInfo && (
-                      <div className="mt-3 bg-blue-50 p-3 rounded-lg text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-blue-800">Cuenta Corriente</span>
-                          <span
-                            className={`font-bold ${Number(cuentaCorrienteInfo.saldo) > 0 ? "text-red-600" : "text-green-600"}`}
-                          >
-                            {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
-                          </span>
-                        </div>
-                        {cuentaCorrienteInfo.limite_credito > 0 && (
-                          <div className="flex justify-between items-center text-xs mt-1">
-                            <span className="text-gray-600">Límite:</span>
-                            <span>{formatearMonedaARS(cuentaCorrienteInfo.limite_credito)}</span>
+                        {cliente.id && cuentaCorrienteInfo && (
+                          <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/90 p-3 text-sm">
+                            <div className="flex justify-between items-center gap-2">
+                              <span className="font-medium text-blue-900">Cuenta corriente</span>
+                              <span
+                                className={`font-bold tabular-nums ${Number(cuentaCorrienteInfo.saldo) > 0 ? "text-red-600" : "text-green-700"}`}
+                              >
+                                {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
+                              </span>
+                            </div>
+                            {cuentaCorrienteInfo.limite_credito > 0 && (
+                              <div className="flex justify-between text-xs mt-1 text-blue-800/80">
+                                <span>Límite</span>
+                                <span className="tabular-nums">{formatearMonedaARS(cuentaCorrienteInfo.limite_credito)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Columna de Pagos */}
-                  <div>
-                    <h3 className="font-semibold mb-3 text-gray-800">Métodos de Pago</h3>
-                    <div className="bg-white rounded-lg border p-4 space-y-4">
-                      {/* Agregar Pago */}
-                      <div className="flex items-end gap-2">
-                        <div className="flex-grow">
-                          <Label htmlFor="monto-pago-modal">Monto</Label> {/* ID único para el modal */}
-                          <NumericFormat
-                            id="monto-pago-modal"
-                            value={montoPagoActual}
-                            onValueChange={(values) => setMontoPagoActual(values.formattedValue)} // Usar formattedValue para mantener el formato
-                            thousandSeparator="."
-                            decimalSeparator=","
-                            prefix="$ "
-                            decimalScale={2}
-                            fixedDecimalScale
-                            className="w-full mt-1"
-                            customInput={Input}
-                          />
-                        </div>
-                        <div className="flex-grow">
-                          <Label htmlFor="tipo-pago-modal">Tipo</Label> {/* ID único para el modal */}
-                          <Select value={tipoPagoActual} onValueChange={setTipoPagoActual}>
-                            <SelectTrigger id="tipo-pago-modal" className="mt-1">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {tiposPagoDisponibles.map((tipo) => (
-                                <SelectItem
-                                  key={tipo.id}
-                                  value={tipo.id.toString()}
-                                  disabled={tipo.nombre.toLowerCase().includes("cuenta") && !cliente.id}
-                                >
-                                  {tipo.nombre}{" "}
-                                  {tipo.nombre.toLowerCase().includes("cuenta") && !cliente.id && "(Req. Cliente)"}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button onClick={handleAddPago} size="sm" className="self-end h-9">
-                          {" "}
-                          {/* Ajustar altura */}
-                          <Plus size={16} />
-                        </Button>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-orange-600"
-                          onClick={() => {
-                            const restante = calcularRestante()
-                            setMontoPagoActual(restante > 0 ? restante.toFixed(2).replace(".", ",") : "")
-                          }}
-                          disabled={calcularRestante() <= 0}
-                        >
-                          Asignar restante ({formatearMonedaARS(calcularRestante())})
-                        </Button>
-                      </div>
-
-                      <Separator />
-
-                      {/* Pagos Agregados */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span>Total Pagado:</span>
-                          <span>{formatearMonedaARS(calcularTotalPagado())}</span>
-                        </div>
-                        <div
-                          className={`flex justify-between text-sm font-medium ${
-                            calcularRestante() > 0.009
-                              ? "text-red-600"
-                              : calcularRestante() < -0.009
-                                ? "text-blue-600"
-                                : "text-green-600" // Ajuste para mostrar si se pasó
-                          }`}
-                        >
-                          <span>{calcularRestante() < -0.009 ? "Vuelto:" : "Restante:"}</span>
-                          <span>{formatearMonedaARS(Math.abs(calcularRestante()))}</span>
-                        </div>
-                      </div>
-
-                      {pagos.length > 0 && (
-                        <ScrollArea className="h-[200px] pr-3 border-t pt-3 mt-3">
-                          {" "}
-                          {/* Ajuste de altura y padding */}
-                          <div className="space-y-3">
-                            {pagos.map((pago) => (
-                              <div key={pago.id} className="bg-gray-50 p-3 rounded-lg">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <p className="text-sm font-medium">{pago.tipo_pago_nombre}</p>
-                                    <p className="text-sm font-bold text-orange-700">
-                                      {formatearMonedaARS(pago.monto)}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-red-500 hover:bg-red-100"
-                                    onClick={() => handleRemovePago(pago.id)}
-                                  >
-                                    <Trash2 size={14} />
-                                  </Button>
-                                </div>
-                                {pago.esTarjeta && (
-                                  <div className="mt-3 space-y-3 border-t pt-3">
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex-1">
-                                        <Label className="text-xs flex items-center gap-1 mb-1">
-                                          <TrendingUp size={12} /> Interés %
-                                        </Label>
-                                        <NumericFormat
-                                          value={pago.interesTarjeta}
-                                          onValueChange={(values) =>
-                                            handlePagoTarjetaChange(pago.id, "interesTarjeta", Number(values.value))
-                                          }
-                                          suffix=" %"
-                                          decimalScale={2}
-                                          className="h-8 text-sm"
-                                          customInput={Input}
-                                        />
-                                      </div>
-                                      <div className="flex-1">
-                                        <Label className="text-xs flex items-center gap-1 mb-1">
-                                          <CalendarDays size={12} /> Cuotas
-                                        </Label>
-                                        <NumericFormat
-                                          value={pago.cuotasTarjeta}
-                                          onValueChange={
-                                            (values) =>
-                                              handlePagoTarjetaChange(
-                                                pago.id,
-                                                "cuotasTarjeta",
-                                                Number(values.value) || 1,
-                                              ) // Asegurar que cuotas sea al menos 1
-                                          }
-                                          allowDecimal={false}
-                                          className="h-8 text-sm"
-                                          customInput={Input}
-                                          isAllowed={(values) => {
-                                            const { floatValue } = values
-                                            return floatValue === undefined || floatValue >= 1
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                    {pago.interesTarjeta > 0 &&
-                                      pago.cuotasTarjeta > 0 && ( // Asegurar cuotas > 0
-                                        <div className="text-xs space-y-1 bg-orange-50 p-2 rounded-md">
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Monto c/interés:</span>
-                                            <span className="font-medium text-orange-800">
-                                              {formatearMonedaARS(pago.monto * (1 + pago.interesTarjeta / 100))}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">{pago.cuotasTarjeta} cuota(s) de:</span>
-                                            <span className="font-medium text-orange-800">
-                                              {formatearMonedaARS(
-                                                (pago.monto * (1 + pago.interesTarjeta / 100)) / pago.cuotasTarjeta,
-                                              )}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      )}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      )}
-                    </div>
-                  </div>
+                      </>
+                    }
+                    tiposPago={tiposPagoDisponibles}
+                    tipoSeleccionadoId={tipoPagoActual}
+                    onTipoChange={setTipoPagoActual}
+                    montoPago={montoPagoActual}
+                    onMontoChange={setMontoPagoActual}
+                    onAddPago={handleAddPago}
+                    onRellenarRestante={() => {
+                      const r = calcularRestante()
+                      if (r <= 0) return
+                      setMontoPagoActual(
+                        new Intl.NumberFormat("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(r),
+                      )
+                    }}
+                    restante={calcularRestante()}
+                    totalVenta={calcularTotal()}
+                    totalPagado={calcularTotalPagado()}
+                    pagos={pagos}
+                    onRemovePago={handleRemovePago}
+                    onPagoTarjetaChange={handlePagoTarjetaChange}
+                    clienteId={!!cliente.id}
+                    formatearMonedaARS={formatearMonedaARS}
+                    tituloMetodo="Forma de pago"
+                    subtituloMetodo="Tocá el método, ingresá el monto y agregá."
+                    montoInputId="monto-pago-modal-productos"
+                  />
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDialogFinalizarAbierto(false)}>
+                <DialogFooter className="shrink-0 flex flex-col-reverse sm:flex-row gap-2 px-3 sm:px-4 py-3 border-t border-gray-200 bg-slate-50/95 sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => setDialogFinalizarAbierto(false)}
+                  >
                     Cancelar
                   </Button>
                   <Button
+                    type="button"
                     onClick={finalizarVenta}
-                    className="gap-1 bg-orange-600 hover:bg-orange-700"
+                    className="w-full sm:w-auto gap-1 bg-orange-600 hover:bg-orange-700"
                     disabled={
                       cajaAbierta === false ||
                       Math.abs(calcularRestante()) > 0.01 ||
@@ -1387,7 +1246,7 @@ const VentasProductos = () => {
                       </>
                     ) : (
                       <>
-                        <Save size={16} /> Confirmar Venta
+                        <Save size={16} /> Confirmar venta
                       </>
                     )}
                   </Button>

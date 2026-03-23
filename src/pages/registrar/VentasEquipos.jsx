@@ -25,7 +25,6 @@ import {
   UserPlus,
   Barcode,
   AlertCircle,
-  PlusCircle,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -63,6 +62,7 @@ import { useAuth } from "@/context/AuthContext"
 import { DollarContext } from "@/context/DollarContext"
 import { Link } from "react-router-dom"
 import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
+import { VentaModalPagosUI } from "@/components/ventas/VentaModalPagosUI"
 
 // Importar componente de precios canjes
 import PreciosCanjes from "@/components/PreciosCanje"
@@ -1503,37 +1503,47 @@ const VentasEquipos = () => {
             <Dialog open={dialogFinalizarAbierto} onOpenChange={setDialogFinalizarAbierto}>
               <DialogTrigger asChild>
                 <Button
-                  onClick={() => setDialogFinalizarAbierto(true)}
+                  onClick={() => {
+                    setMontoPagoActual("")
+                    if (tiposPagoDisponibles.length > 0) {
+                      setTipoPagoSeleccionadoActual((prev) => prev || tiposPagoDisponibles[0].id.toString())
+                    }
+                    setDialogFinalizarAbierto(true)
+                  }}
                   disabled={!equipoSeleccionado || !cliente.id || cajaAbierta === false}
                   className="gap-1 bg-orange-600 hover:bg-orange-700"
                 >
                   <Receipt size={16} /> Finalizar Venta
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl">
-                <DialogHeader>
-                  <DialogTitle className="text-orange-600">Confirmar Venta</DialogTitle>
-                  <DialogDescription>Revisa los detalles y agrega los métodos de pago.</DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                    <div className="md:col-span-3">
-                      <div className="bg-gray-50 p-4 rounded-lg h-full">
-                        <h3 className="text-sm font-medium mb-3 text-gray-700">Detalles de la venta:</h3>
+              <DialogContent className="max-w-lg sm:max-w-2xl w-[calc(100vw-0.75rem)] gap-0 p-0 max-h-[min(96vh,920px)] flex flex-col overflow-hidden sm:rounded-xl">
+                <div className="shrink-0 px-4 pt-4 pb-2 border-b border-gray-100 bg-white">
+                  <DialogHeader className="text-left space-y-1">
+                    <DialogTitle className="text-lg sm:text-xl text-orange-600">Cobrar equipo</DialogTitle>
+                    <DialogDescription className="text-xs sm:text-sm">
+                      Revisá el total en ARS, sumá pagos con toques rápidos hasta cubrir el monto.
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-3 sm:px-4">
+                  <VentaModalPagosUI
+                    resumenSlot={
+                      <>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">Venta</p>
                         <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Cliente:</span>
-                            <span className="font-medium">{cliente.nombre}</span>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-gray-600 shrink-0">Cliente</span>
+                            <span className="font-medium text-right truncate">{cliente.nombre}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Equipo:</span>
-                            <span>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-gray-600 shrink-0">Equipo</span>
+                            <span className="font-medium text-right">
                               {equipoSeleccionado?.marca} {equipoSeleccionado?.modelo}
                             </span>
                           </div>
-                          <Separator className="my-2" />
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Precio bruto:</span>
+                          <Separator className="my-1" />
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Precio bruto</span>
                             <PrecioConARS
                               precio={precioBruto}
                               dollarPrice={dollarPrice}
@@ -1541,8 +1551,8 @@ const VentasEquipos = () => {
                             />
                           </div>
                           {canjeCompletado && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Descuento Canje:</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-600">Canje</span>
                               <PrecioConARS
                                 precio={-descuentoCanje}
                                 dollarPrice={dollarPrice}
@@ -1552,8 +1562,8 @@ const VentasEquipos = () => {
                             </div>
                           )}
                           {porcentajeDescuento > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-600">Desc. ({porcentajeDescuento}%)</span>
                               <PrecioConARS
                                 precio={-descuentoCalculado}
                                 dollarPrice={dollarPrice}
@@ -1562,224 +1572,88 @@ const VentasEquipos = () => {
                               />
                             </div>
                           )}
-                          <Separator className="my-2" />
-                          <div className="flex justify-between font-bold text-base">
-                            <span>Total a Pagar:</span>
+                          <Separator className="my-1" />
+                          <div className="flex justify-between gap-2 font-bold text-base text-orange-600">
+                            <span>Total a pagar</span>
                             <PrecioConARS
                               precio={totalVentaSinInteresTarjeta}
                               dollarPrice={dollarPrice}
-                              className="text-orange-600"
                               principalEnARS={equipoSeleccionado?.precioMoneda === "ARS"}
                             />
                           </div>
+                          <p className="text-[11px] text-gray-500 pt-1">
+                            Los cobros se registran en <strong>pesos (ARS)</strong> según el total mostrado.
+                          </p>
                         </div>
-                      </div>
-                    </div>
-                    <div className="md:col-span-2">
-                      <div className="bg-white rounded-lg border p-4 h-full flex flex-col">
-                        <h3 className="text-sm font-medium mb-3 text-gray-700">Métodos de pago:</h3>
-                        <div className="grid grid-cols-1 gap-2 border-b pb-4 mb-4">
-                          <Select value={tipoPagoSeleccionadoActual} onValueChange={setTipoPagoSeleccionadoActual}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccione método de pago" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {tiposPagoDisponibles.map((metodo) => {
-                                const esCuentaCorriente =
-                                  metodo.nombre.toLowerCase() === "cuenta corriente" ||
-                                  metodo.nombre.toLowerCase() === "cuenta"
-                                const disabled = esCuentaCorriente && !cliente.id
-                                return (
-                                  <SelectItem key={metodo.id} value={metodo.id.toString()} disabled={disabled}>
-                                    {metodo.nombre}
-                                  </SelectItem>
-                                )
-                              })}
-                            </SelectContent>
-                          </Select>
-                          <div className="relative">
-                            <NumericFormat
-                              value={montoPagoActual}
-                              onValueChange={(values) => setMontoPagoActual(values.formattedValue)} // Usar formattedValue
-                              thousandSeparator="."
-                              decimalSeparator=","
-                              prefix="$ "
-                              decimalScale={2}
-                              allowNegative={false}
-                              customInput={Input}
-                              placeholder="Monto en ARS"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 text-orange-600"
-                              onClick={() =>
-                                montoRestante > 0 &&
-                                setMontoPagoActual(
-                                  new Intl.NumberFormat("es-AR", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  }).format(montoRestante),
-                                )
-                              } // Formatear al setear MAX
-                            >
-                              MAX
-                            </Button>
+                      </>
+                    }
+                    tiposPago={tiposPagoDisponibles}
+                    tipoSeleccionadoId={tipoPagoSeleccionadoActual}
+                    onTipoChange={setTipoPagoSeleccionadoActual}
+                    montoPago={montoPagoActual}
+                    onMontoChange={setMontoPagoActual}
+                    onAddPago={handleAddPago}
+                    onRellenarRestante={() => {
+                      if (montoRestante <= 0) return
+                      setMontoPagoActual(
+                        new Intl.NumberFormat("es-AR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(montoRestante),
+                      )
+                    }}
+                    restante={montoRestante}
+                    totalVenta={totalARS}
+                    totalPagado={totalPagado}
+                    pagos={pagos}
+                    onRemovePago={handleRemovePago}
+                    onPagoTarjetaChange={handlePagoTarjetaChange}
+                    clienteId={!!cliente.id}
+                    formatearMonedaARS={formatearMonedaARS}
+                    tituloMetodo="Forma de pago"
+                    subtituloMetodo="Elegí método, monto en ARS y agregá."
+                    montoInputId="monto-pago-modal-equipos"
+                    extraBannerSlot={
+                      cliente.id && cuentaCorrienteInfo && pagosEnCuentaCorriente > 0 ? (
+                        <div className="rounded-xl border border-purple-200 bg-purple-50/90 p-3 text-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="flex items-center gap-2 text-purple-900 font-medium">
+                            <BookOpen className="h-4 w-4 shrink-0" />
+                            <span>Cuenta corriente</span>
                           </div>
-                          <Button onClick={handleAddPago} disabled={!tipoPagoSeleccionadoActual || !montoPagoActual}>
-                            <PlusCircle className="h-4 w-4 mr-2" />
-                            Agregar Pago
-                          </Button>
-                        </div>
-                        <ScrollArea className="max-h-[200px] pr-2">
-                          {pagos.length === 0 ? (
-                            <p className="text-center text-sm text-gray-500 py-4">No hay pagos agregados.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {pagos.map((pago) => {
-                                const montoConInteres = pago.esTarjeta
-                                  ? pago.monto * (1 + pago.interesTarjeta / 100)
-                                  : pago.monto
-                                const valorCuota =
-                                  pago.esTarjeta && pago.cuotasTarjeta > 0 ? montoConInteres / pago.cuotasTarjeta : 0
-
-                                return (
-                                  <div key={pago.id} className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2">
-                                        <pago.icono className="h-4 w-4 text-gray-600" />
-                                        <span className="text-sm font-medium">{pago.tipo_pago_nombre}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm">{formatearMonedaARS(pago.monto)}</span>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 text-red-500 hover:bg-red-100"
-                                          onClick={() => handleRemovePago(pago.id)}
-                                        >
-                                          <Trash2 size={14} />
-                                        </Button>
-                                      </div>
-                                    </div>
-
-                                    {/* MODIFICACIÓN: Campos de interés y cuotas para tarjeta */}
-                                    {pago.esTarjeta && (
-                                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
-                                        <div className="grid grid-cols-2 gap-2 items-end">
-                                          <div>
-                                            <Label htmlFor={`interes-${pago.id}`} className="text-xs">
-                                              Interés tarjeta / ViuMi (%)
-                                            </Label>
-                                            <NumericFormat
-                                              id={`interes-${pago.id}`}
-                                              value={pago.interesTarjeta}
-                                              onValueChange={(values) =>
-                                                handlePagoTarjetaChange(pago.id, "interesTarjeta", values.value)
-                                              }
-                                              suffix=" %"
-                                              decimalScale={2}
-                                              customInput={Input}
-                                              className="h-8 text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <Label htmlFor={`cuotas-${pago.id}`} className="text-xs">
-                                              Cuotas
-                                            </Label>
-                                            <NumericFormat
-                                              id={`cuotas-${pago.id}`}
-                                              value={pago.cuotasTarjeta}
-                                              onValueChange={(values) =>
-                                                handlePagoTarjetaChange(pago.id, "cuotasTarjeta", values.value)
-                                              }
-                                              allowNegative={false}
-                                              decimalScale={0}
-                                              customInput={Input}
-                                              className="h-8 text-sm"
-                                            />
-                                          </div>
-                                        </div>
-                                        {pago.interesTarjeta > 0 && (
-                                          <div className="text-xs space-y-0.5 mt-1">
-                                            <div className="flex justify-between">
-                                              <span className="text-gray-600">Monto c/interés:</span>
-                                              <span className="font-medium text-blue-600">
-                                                {formatearMonedaARS(montoConInteres)}
-                                              </span>
-                                            </div>
-                                            {pago.cuotasTarjeta > 0 && (
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-600">{pago.cuotasTarjeta} cuota(s) de:</span>
-                                                <span className="font-medium text-blue-600">
-                                                  {formatearMonedaARS(valorCuota)}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })}
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm">
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-600">Saldo actual</span>
+                              <span
+                                className={`font-semibold tabular-nums ${cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-700"}`}
+                              >
+                                {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
+                              </span>
                             </div>
-                          )}
-                        </ScrollArea>
-                        <div className="mt-4 border-t pt-4 space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Total Pagado:</span>
-                            <span className="font-medium">{formatearMonedaARS(totalPagado)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Restante:</span>
-                            <span
-                              className={`font-medium ${montoRestante > 0.01 ? "text-red-600" : montoRestante < -0.01 ? "text-yellow-600" : "text-green-600"}`}
-                            >
-                              {formatearMonedaARS(montoRestante)}
-                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-600">Tras la venta</span>
+                              <span className={`font-semibold tabular-nums ${nuevoSaldoCalc > 0 ? "text-red-600" : "text-green-700"}`}>
+                                {formatearMonedaARS(nuevoSaldoCalc)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
+                      ) : null
+                    }
+                  />
                 </div>
-                {cliente.id && cuentaCorrienteInfo && pagosEnCuentaCorriente > 0 && (
-                  <div className="flex items-center justify-between gap-2 mt-3 bg-gray-50 rounded-md p-2 text-sm">
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="h-3.5 w-3.5 text-gray-500" />
-                      <span className="text-gray-600">Cuenta corriente:</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-600">Actual:</span>
-                        <span
-                          className={`font-medium ${cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-600"}`}
-                        >
-                          {formatearMonedaARS(cuentaCorrienteInfo.saldo)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-600">Nuevo Saldo:</span>
-                        <span className={`font-medium ${nuevoSaldoCalc > 0 ? "text-red-600" : "text-green-600"}`}>
-                          {formatearMonedaARS(nuevoSaldoCalc)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <DialogFooter>
+                <DialogFooter className="shrink-0 flex flex-col-reverse sm:flex-row gap-2 px-3 sm:px-4 py-3 border-t border-gray-200 bg-slate-50/95 sm:justify-end">
                   <Button
+                    type="button"
                     variant="outline"
+                    className="w-full sm:w-auto border-gray-300"
                     onClick={() => setDialogFinalizarAbierto(false)}
-                    className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
                   >
                     Cancelar
                   </Button>
                   <Button
+                    type="button"
                     onClick={finalizarVenta}
-                    className="gap-1 bg-orange-600 hover:bg-orange-700"
+                    className="w-full sm:w-auto gap-1 bg-orange-600 hover:bg-orange-700"
                     disabled={
                       cajaAbierta === false ||
                       Math.abs(montoRestante) > 0.01 ||
@@ -1810,7 +1684,7 @@ const VentasEquipos = () => {
                       </>
                     ) : (
                       <>
-                        <Save size={16} /> Confirmar Venta
+                        <Save size={16} /> Confirmar venta
                       </>
                     )}
                   </Button>
