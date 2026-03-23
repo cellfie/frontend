@@ -16,6 +16,7 @@ import { DateRangePicker } from "@/lib/DatePickerWithRange"
 import { getSesionesCaja, getSesionCajaPorId } from "@/services/cajaService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getComprasPaginadas } from "@/services/comprasService"
+import { getMetodosPagoVentas } from "@/services/ventasService"
 
 const formatearMonedaARS = (valor) => {
   const numero = Number(valor) || 0
@@ -60,18 +61,44 @@ const sumarTotales = (rows = []) => rows.reduce((acc, r) => acc + (Number(r.tota
 
 const sumarTotalesVentasEquipos = (rows = []) => rows.reduce((acc, r) => acc + (Number(r.total) || 0), 0)
 
-const construirResumenSesion = (detalle) => {
+/** Normaliza etiquetas de método (ventas "Tarjeta de crédito" vs reparación "tarjeta", cuentaCorriente, etc.) */
+const sinDiacriticos = (s) => String(s).normalize("NFD").replace(/\u0300-\u036f/g, "")
+
+const comparableMetodoPagoKey = (raw) => {
+  const t = String(raw ?? "").trim()
+  if (!t) return ""
+  if (t === "cuentaCorriente") return "cuenta corriente"
+  const n = sinDiacriticos(t).toLowerCase().replace(/\s+/g, " ").trim()
+  if (n === "tarjeta") return "tarjeta de credito"
+  return n
+}
+
+const filaCoincideMetodo = (tipoPagoFila, filtroMetodo) => {
+  if (!filtroMetodo || filtroMetodo === "todos") return true
+  return comparableMetodoPagoKey(tipoPagoFila) === comparableMetodoPagoKey(filtroMetodo)
+}
+
+const sumarTotalesFiltrado = (rows = [], filtroMetodo) => {
+  if (!filtroMetodo || filtroMetodo === "todos") return sumarTotales(rows)
+  return (rows || []).reduce((acc, r) => acc + (filaCoincideMetodo(r.tipo_pago, filtroMetodo) ? Number(r.total) || 0 : 0), 0)
+}
+
+/**
+ * @param {object} detalle - respuesta getSesionCajaPorId
+ * @param {string} metodoFiltro - "todos" o nombre exacto del combo (ej. "ViuMi")
+ */
+const construirResumenSesion = (detalle, metodoFiltro = "todos") => {
   const tot = detalle?.totales || {}
-  const ventasProductos = sumarTotales(tot.ventas_productos)
-  const ventasEquipos = sumarTotalesVentasEquipos(tot.ventas_equipos)
-  const reparaciones = sumarTotales(tot.reparaciones)
+  const filtrar = metodoFiltro || "todos"
+  const ventasProductos = sumarTotalesFiltrado(tot.ventas_productos, filtrar)
+  const ventasEquipos = sumarTotalesFiltrado(tot.ventas_equipos, filtrar)
+  const reparaciones = sumarTotalesFiltrado(tot.reparaciones, filtrar)
+  const cobrosCuentaCorriente = sumarTotalesFiltrado(tot.pagos_cuenta_corriente, filtrar)
 
-  const movIngresos = Number(tot.movimientos?.ingresos) || 0
-  const movEgresos = Number(tot.movimientos?.egresos) || 0
+  const movIngresos = filtrar === "todos" ? Number(tot.movimientos?.ingresos) || 0 : 0
+  const movEgresos = filtrar === "todos" ? Number(tot.movimientos?.egresos) || 0 : 0
 
-  const ingresos = ventasProductos + ventasEquipos + reparaciones + movIngresos
-  // Importante: las COMPRAS se consideran egreso global del rango (no por sesión).
-  // Para balance perfecto de la sesión, usamos solo egresos propios de caja_movimientos.
+  const ingresos = ventasProductos + ventasEquipos + reparaciones + cobrosCuentaCorriente + movIngresos
   const egresos = movEgresos
   const neto = ingresos - egresos
 
@@ -79,6 +106,7 @@ const construirResumenSesion = (detalle) => {
     ventasProductos,
     ventasEquipos,
     reparaciones,
+    cobrosCuentaCorriente,
     movIngresos,
     movEgresos,
     ingresos,
@@ -94,6 +122,8 @@ export default function ReportesPage() {
   const [puntosVenta, setPuntosVenta] = useState([])
   const [selectedPuntoVenta, setSelectedPuntoVenta] = useState("todos")
   const [estadoSesion, setEstadoSesion] = useState("cerrada") // cerrada | abierta | todos
+  const [metodosPago, setMetodosPago] = useState([])
+  const [selectedMetodoPago, setSelectedMetodoPago] = useState("todos")
 
   const [loading, setLoading] = useState(true)
   const [sesiones, setSesiones] = useState([])
@@ -110,6 +140,18 @@ export default function ReportesPage() {
       }
     }
     cargarPV()
+  }, [])
+
+  useEffect(() => {
+    const cargarMetodos = async () => {
+      try {
+        const list = await getMetodosPagoVentas()
+        setMetodosPago(Array.isArray(list) ? list : [])
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    cargarMetodos()
   }, [])
 
   useEffect(() => {
@@ -180,6 +222,7 @@ export default function ReportesPage() {
       ventasProductos: 0,
       ventasEquipos: 0,
       reparaciones: 0,
+      cobrosCuentaCorriente: 0,
       movIngresos: 0,
       movEgresos: 0,
       ingresos: 0,
@@ -191,28 +234,31 @@ export default function ReportesPage() {
     base.sesiones = ids.length
     ids.forEach((id) => {
       const det = detallesPorSesion[id]
-      const r = construirResumenSesion(det)
+      const r = construirResumenSesion(det, selectedMetodoPago)
       Object.keys(r).forEach((k) => {
         base[k] += r[k]
       })
     })
 
-    // Egreso global por compras del rango
     const totalCompras = (compras || []).reduce((acc, c) => acc + (Number(c.total) || 0), 0)
-    base.egresos = totalCompras
-    // Neto global = suma de netos de sesiones - compras del rango
-    base.neto = base.neto - totalCompras
+    if (selectedMetodoPago === "todos") {
+      base.egresos = totalCompras
+      base.neto = base.neto - totalCompras
+    } else {
+      // Las compras no se asignan a un método de cobro de ventas: no restan en vistas filtradas
+      base.egresos = 0
+    }
 
     return base
-  }, [detallesPorSesion, compras])
+  }, [detallesPorSesion, compras, selectedMetodoPago])
 
   const sesionesConResumen = useMemo(() => {
     return sesiones.map((s) => {
       const det = detallesPorSesion[s.id]
-      const r = det ? construirResumenSesion(det) : null
+      const r = det ? construirResumenSesion(det, selectedMetodoPago) : null
       return { ...s, _resumen: r }
     })
-  }, [sesiones, detallesPorSesion])
+  }, [sesiones, detallesPorSesion, selectedMetodoPago])
 
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
@@ -281,7 +327,7 @@ export default function ReportesPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
             <div>
               <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
                 <Calendar className="h-3 w-3" /> Rango de fechas
@@ -321,7 +367,31 @@ export default function ReportesPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">Método de pago</div>
+              <Select value={selectedMetodoPago} onValueChange={setSelectedMetodoPago}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todos los métodos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los métodos</SelectItem>
+                  {metodosPago.map((m) => (
+                    <SelectItem key={m.id} value={m.nombre}>
+                      {m.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {selectedMetodoPago !== "todos" ? (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              Estás viendo solo ingresos cobrados con <strong>{selectedMetodoPago}</strong>. Los movimientos manuales de caja y las{" "}
+              <strong>compras</strong> no se filtran por método (en esta vista el egreso por compras se muestra en $0).
+            </p>
+          ) : null}
 
           <div className="flex justify-end">
             <Button variant="outline" size="sm" onClick={cargar} disabled={loading}>
@@ -339,7 +409,11 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-8 w-40" /> : <div className="text-2xl font-bold text-green-700">{formatearMonedaARS(resumenGlobal.ingresos)}</div>}
-            <p className="text-xs text-gray-500 mt-1">Ventas + Reparaciones + Ingresos de caja</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {selectedMetodoPago === "todos"
+                ? "Productos + equipos + reparaciones + cobros CC + ingresos de caja"
+                : `Solo montos con método: ${selectedMetodoPago}`}
+            </p>
           </CardContent>
         </Card>
 
@@ -349,7 +423,9 @@ export default function ReportesPage() {
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-8 w-40" /> : <div className="text-2xl font-bold text-red-700">{formatearMonedaARS(resumenGlobal.egresos)}</div>}
-            <p className="text-xs text-gray-500 mt-1">Compras realizadas en el rango</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {selectedMetodoPago === "todos" ? "Compras realizadas en el rango" : "No aplica al filtrar por método de cobro"}
+            </p>
           </CardContent>
         </Card>
 
@@ -365,7 +441,9 @@ export default function ReportesPage() {
                 {formatearMonedaARS(resumenGlobal.neto)}
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">Sumatoria sesiones - compras del rango</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {selectedMetodoPago === "todos" ? "Sumatoria sesiones − compras del rango" : "Suma de netos por sesión (sin restar compras)"}
+            </p>
           </CardContent>
         </Card>
 
@@ -459,7 +537,7 @@ export default function ReportesPage() {
 
                   <Separator className="my-3" />
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-sm">
                     <div>
                       <div className="text-xs text-gray-500">Ventas productos</div>
                       <div className="font-semibold">{formatearMonedaARS(s._resumen?.ventasProductos || 0)}</div>
@@ -471,6 +549,10 @@ export default function ReportesPage() {
                     <div>
                       <div className="text-xs text-gray-500">Reparaciones</div>
                       <div className="font-semibold">{formatearMonedaARS(s._resumen?.reparaciones || 0)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Cobros cuenta corriente</div>
+                      <div className="font-semibold">{formatearMonedaARS(s._resumen?.cobrosCuentaCorriente || 0)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Egresos (sesión)</div>
