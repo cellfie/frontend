@@ -34,7 +34,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -49,6 +48,7 @@ import { createCompra } from "@/services/comprasService"
 import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { Link } from "react-router-dom"
+import { VentaModalPagosUI } from "@/components/ventas/VentaModalPagosUI"
 
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value)
@@ -293,7 +293,9 @@ const ComprasProductos = () => {
     const nuevoPago = {
       id: Date.now(),
       tipo_pago: tipoPago.nombre,
+      tipo_pago_nombre: tipoPago.nombre,
       monto: montoNumerico,
+      esTarjeta: false,
     }
 
     setPagos((prev) => [...prev, nuevoPago])
@@ -805,145 +807,81 @@ const ComprasProductos = () => {
                   <Receipt size={16} className="mr-1" /> Finalizar Compra
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                  <DialogTitle className="text-orange-600">Confirmar Compra</DialogTitle>
-                  <DialogDescription>Agrega los métodos de pago para completar la compra.</DialogDescription>
+              <DialogContent className="max-w-lg sm:max-w-2xl lg:max-w-6xl xl:max-w-7xl w-[calc(100vw-0.75rem)] lg:w-[min(96vw,1280px)] gap-0 p-0 max-h-[min(96vh,920px)] lg:max-h-[min(92vh,900px)] flex flex-col overflow-hidden sm:rounded-xl">
+                <DialogHeader className="px-4 sm:px-6 py-4 sm:py-5 bg-[#131321] text-white border-b">
+                  <DialogTitle className="text-orange-600 text-lg sm:text-xl">Confirmar Compra</DialogTitle>
+                  <DialogDescription className="text-gray-300">
+                    Mantené el mismo flujo visual de cobro que en ventas. En compras, los pagos son opcionales.
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                  <div>
-                    <h3 className="font-semibold mb-3 text-gray-800">Resumen de la Compra</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Proveedor:</span>
-                        <span className="font-medium text-right">
-                          {proveedores.find((p) => p.id.toString() === proveedorSeleccionado)?.nombre || "-"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Punto de venta:</span>
-                        <Badge variant="outline" className="border-orange-300 bg-orange-50 text-orange-700">
-                          {getNombrePuntoVenta(puntoVentaSeleccionado)}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Subtotal:</span>
-                        <span>{formatearMonedaARS(calcularSubtotal())}</span>
-                      </div>
-                      {porcentajeDescuento > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Descuento ({porcentajeDescuento}%):</span>
-                          <span className="text-green-600">-{formatearMonedaARS(calcularDescuento())}</span>
-                        </div>
-                      )}
-                      <Separator className="my-2" />
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>Total:</span>
-                        <span className="text-orange-700">{formatearMonedaARS(calcularTotal())}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold mb-3 text-gray-800">Métodos de Pago (opcional)</h3>
-                    <div className="bg-white rounded-lg border p-4 space-y-4">
-                      <div className="flex items-end gap-2">
-                        <div className="flex-grow">
-                          <Label htmlFor="monto-pago-compra">Monto</Label>
-                          <NumericFormat
-                            id="monto-pago-compra"
-                            value={montoPagoActual}
-                            onValueChange={(values) => setMontoPagoActual(values.formattedValue)}
-                            thousandSeparator="."
-                            decimalSeparator=","
-                            prefix="$ "
-                            decimalScale={2}
-                            fixedDecimalScale
-                            className="w-full mt-1"
-                            customInput={Input}
-                          />
-                        </div>
-                        <div className="flex-grow">
-                          <Label htmlFor="tipo-pago-compra">Tipo</Label>
-                          <Select value={tipoPagoActual} onValueChange={setTipoPagoActual}>
-                            <SelectTrigger id="tipo-pago-compra" className="mt-1">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {tiposPagoDisponibles.map((tipo) => (
-                                <SelectItem key={tipo.id} value={tipo.id.toString()}>
-                                  {tipo.nombre}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button onClick={handleAddPago} size="sm" className="self-end h-9">
-                          <Plus size={16} />
-                        </Button>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-orange-600"
-                          onClick={() => {
-                            const restante = calcularRestante()
-                            setMontoPagoActual(restante > 0 ? restante.toFixed(2).replace(".", ",") : "")
-                          }}
-                          disabled={calcularRestante() <= 0}
-                        >
-                          Asignar restante ({formatearMonedaARS(calcularRestante())})
-                        </Button>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span>Total Pagado:</span>
-                          <span>{formatearMonedaARS(calcularTotalPagado())}</span>
-                        </div>
-                        <div
-                          className={`flex justify-between text-sm font-medium ${
-                            calcularRestante() > 0.009
-                              ? "text-red-600"
-                              : calcularRestante() < -0.009
-                                ? "text-blue-600"
-                                : "text-green-600"
-                          }`}
-                        >
-                          <span>{calcularRestante() < -0.009 ? "Vuelto:" : "Restante:"}</span>
-                          <span>{formatearMonedaARS(Math.abs(calcularRestante()))}</span>
-                        </div>
-                      </div>
-
-                      {pagos.length > 0 && (
-                        <ScrollArea className="h-[180px] pr-3 border-t pt-3 mt-3">
-                          <div className="space-y-3">
-                            {pagos.map((pago) => (
-                              <div key={pago.id} className="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
-                                <div>
-                                  <p className="text-sm font-medium">{pago.tipo_pago}</p>
-                                  <p className="text-sm font-bold text-orange-700">
-                                    {formatearMonedaARS(pago.monto)}
-                                  </p>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-red-500 hover:bg-red-100"
-                                  onClick={() => handleRemovePago(pago.id)}
-                                >
-                                  <Trash2 size={14} />
-                                </Button>
-                              </div>
-                            ))}
+                <div className="px-3 sm:px-5 py-3 sm:py-4">
+                  <VentaModalPagosUI
+                    resumenSlot={
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-900">Resumen de la compra</h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Proveedor</span>
+                            <span className="font-medium text-right">
+                              {proveedores.find((p) => p.id.toString() === proveedorSeleccionado)?.nombre || "-"}
+                            </span>
                           </div>
-                        </ScrollArea>
-                      )}
-                    </div>
-                  </div>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Punto de venta</span>
+                            <Badge variant="outline" className="border-orange-300 bg-orange-50 text-orange-700">
+                              {getNombrePuntoVenta(puntoVentaSeleccionado)}
+                            </Badge>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Productos</span>
+                            <span className="font-medium">{itemsCompra.length}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Subtotal</span>
+                            <span className="font-medium">{formatearMonedaARS(calcularSubtotal())}</span>
+                          </div>
+                          {porcentajeDescuento > 0 && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-gray-600">Descuento ({porcentajeDescuento}%)</span>
+                              <span className="font-medium text-green-700">-{formatearMonedaARS(calcularDescuento())}</span>
+                            </div>
+                          )}
+                          <Separator className="my-1" />
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-700 font-semibold">Total</span>
+                            <span className="text-orange-700 font-bold">{formatearMonedaARS(calcularTotal())}</span>
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    tiposPago={tiposPagoDisponibles}
+                    tipoSeleccionadoId={tipoPagoActual}
+                    onTipoChange={setTipoPagoActual}
+                    montoPago={montoPagoActual}
+                    onMontoChange={setMontoPagoActual}
+                    onAddPago={handleAddPago}
+                    onRellenarRestante={() => {
+                      const restante = calcularRestante()
+                      setMontoPagoActual(restante > 0 ? restante.toFixed(2).replace(".", ",") : "")
+                    }}
+                    restante={calcularRestante()}
+                    totalVenta={calcularTotal()}
+                    totalPagado={calcularTotalPagado()}
+                    pagos={pagos}
+                    onRemovePago={handleRemovePago}
+                    onPagoTarjetaChange={() => {}}
+                    clienteId={null}
+                    formatearMonedaARS={formatearMonedaARS}
+                    tituloMetodo="Registrar pagos de compra"
+                    subtituloMetodo="Podés agregar pagos ahora o confirmar sin pagos."
+                    montoInputId="monto-pago-compra"
+                    requireAtLeastOnePago={false}
+                    extraBannerSlot={
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 text-blue-800 p-2.5 text-xs">
+                        Los pagos son opcionales. Si no cargás ninguno, la compra se registra igual.
+                      </div>
+                    }
+                  />
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDialogFinalizarAbierto(false)}>

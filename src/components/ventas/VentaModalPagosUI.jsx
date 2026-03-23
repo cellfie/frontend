@@ -71,9 +71,10 @@ export function VentaModalPagosUI({
   tituloMetodo = "Cobrar",
   subtituloMetodo = "Elegí método, monto y tocá agregar.",
   montoInputId = "venta-modal-monto",
+  requireAtLeastOnePago = true,
 }) {
   const absRest = Math.abs(restante)
-  const listo = absRest <= 0.01 && pagos.length > 0
+  const listo = absRest <= 0.01 && (requireAtLeastOnePago ? pagos.length > 0 : true)
   const falta = restante > 0.009
   const hayVuelto = restante < -0.009
   const pctBarra = totalVenta > 0 ? Math.min(100, (totalPagado / totalVenta) * 100) : 0
@@ -132,7 +133,7 @@ export function VentaModalPagosUI({
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                   Sumá pagos hasta cubrir el total.
                 </>
-              ) : pagos.length === 0 ? (
+              ) : requireAtLeastOnePago && pagos.length === 0 ? (
                 <>
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                   Agregá al menos un pago.
