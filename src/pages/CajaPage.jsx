@@ -424,7 +424,11 @@ const CajaPage = () => {
     try {
       const desglose_cierre = {
         monto_apertura_declarado: Number(cajaActual?.monto_apertura || 0),
-        monto_inicial: { ...cierreSecciones.monto_inicial },
+        monto_inicial: {
+          efectivo: num(cierreSecciones.monto_inicial.efectivo),
+          transferencia: 0,
+          tarjeta: 0,
+        },
         ventas_productos: { ...cierreSecciones.ventas_productos },
         ventas_equipos: { ...cierreSecciones.ventas_equipos },
         reparaciones: { ...cierreSecciones.reparaciones },
@@ -1108,8 +1112,9 @@ const CajaPage = () => {
         onOpenChange={(open) => {
           setDialogCierreAbierto(open)
           if (open) {
+            const apertura = Number(cajaActual?.monto_apertura ?? 0)
             setCierreSecciones({
-              monto_inicial: { efectivo: "", transferencia: "", tarjeta: "" },
+              monto_inicial: { efectivo: Number.isFinite(apertura) ? apertura : "", transferencia: "", tarjeta: "" },
               ventas_productos: { efectivo: "", transferencia: "", tarjeta: "" },
               ventas_equipos: { efectivo: "", transferencia: "", tarjeta: "" },
               reparaciones: { efectivo: "", transferencia: "", tarjeta: "" },
@@ -1125,65 +1130,48 @@ const CajaPage = () => {
               Cerrar caja
             </DialogTitle>
             <DialogDescription>
-              Cierre de sesión para <strong>{puntoVentaNombre}</strong>. Contá por separado el{" "}
-              <strong>monto inicial</strong> (fondo al abrir) y luego cada rubro de ventas — así el total coincide con el
-              balance esperado.
+              Cierre para <strong>{puntoVentaNombre}</strong>. El <strong>monto inicial</strong> viene cargado en
+              efectivo (lo declarado al abrir); completá el resto por rubro.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            {/* Monto inicial: fondo al abrir (no es venta del día) */}
-            <div className="rounded-xl border-2 border-sky-300 bg-sky-50/80 p-4 space-y-3 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-sky-200 pb-2">
-                <div>
-                  <h3 className="text-sm font-semibold text-sky-900">Monto inicial (fondo al abrir caja)</h3>
-                  <p className="text-xs text-sky-800/90 mt-1">
-                    Es el dinero que dejaste en caja al abrir la sesión. No lo sumes en ventas de productos, equipos ni
-                    reparaciones: va <strong>solo acá</strong>, para que el arqueo cuadre con el sistema.
-                  </p>
-                </div>
-                <div className="rounded-lg bg-white px-3 py-2 text-center border border-sky-200 shrink-0">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Declarado al abrir</p>
-                  <p className="text-base font-bold text-sky-950">
-                    {formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}
-                  </p>
-                </div>
+            {/* Monto inicial: solo efectivo, compacto, prellenado con declarado al abrir */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border border-sky-200 bg-sky-50/60 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-sky-900">Monto inicial (solo efectivo)</p>
+                <p className="text-[11px] text-gray-600 mt-0.5 leading-snug">
+                  Fondo al abrir la caja (no mezclar con ventas). Declarado:{" "}
+                  <strong>{formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}</strong>.
+                </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {["efectivo", "transferencia", "tarjeta"].map((metodo) => (
-                  <div key={metodo} className="space-y-1">
-                    <label className="block text-xs font-medium text-sky-900 capitalize">
-                      {metodo === "tarjeta" ? "Tarjeta de crédito" : metodo}{" "}
-                      <span className="text-xs font-normal text-gray-500">(contado)</span>
-                    </label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0"
-                      className="h-9 bg-white"
-                      value={
-                        cierreSecciones.monto_inicial[metodo] === "" ||
-                        cierreSecciones.monto_inicial[metodo] === undefined
-                          ? ""
-                          : formatearNumeroInputARS(Number(cierreSecciones.monto_inicial[metodo]))
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (v === "") {
-                          setCierreSeccionValor("monto_inicial", metodo, "")
-                          return
-                        }
-                        const n = parsearInputMoneda(v)
-                        setCierreSeccionValor("monto_inicial", metodo, Number.isNaN(n) ? "" : n)
-                      }}
-                    />
-                  </div>
-                ))}
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto sm:max-w-[200px]">
+                <label htmlFor="cierre-monto-inicial-efectivo" className="text-xs text-gray-600 whitespace-nowrap">
+                  Efectivo contado
+                </label>
+                <Input
+                  id="cierre-monto-inicial-efectivo"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="h-9 flex-1 sm:min-w-[140px]"
+                  value={
+                    cierreSecciones.monto_inicial.efectivo === "" ||
+                    cierreSecciones.monto_inicial.efectivo === undefined
+                      ? ""
+                      : formatearNumeroInputARS(Number(cierreSecciones.monto_inicial.efectivo))
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === "") {
+                      setCierreSeccionValor("monto_inicial", "efectivo", "")
+                      return
+                    }
+                    const n = parsearInputMoneda(v)
+                    setCierreSeccionValor("monto_inicial", "efectivo", Number.isNaN(n) ? "" : n)
+                  }}
+                />
               </div>
-              <p className="text-[11px] text-sky-900/80 italic">
-                Normalmente el monto inicial está solo en efectivo. La suma de todas las columnas de esta fila debe
-                reflejar lo que contás del fondo de apertura (no de las ventas).
-              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">

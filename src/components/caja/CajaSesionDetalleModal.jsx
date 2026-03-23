@@ -337,14 +337,15 @@ export function CajaSesionDetalleModal({
                       key: "mi",
                       label: "Monto inicial (fondo al abrir caja)",
                       sub: d.monto_apertura_declarado != null
-                        ? `Declarado al abrir: ${formatearMonedaARS(Number(d.monto_apertura_declarado))}`
-                        : null,
+                        ? `Declarado al abrir: ${formatearMonedaARS(Number(d.monto_apertura_declarado))} · solo efectivo`
+                        : "Solo efectivo",
                       sec: d.monto_inicial,
+                      soloEfectivo: true,
                     },
-                    { key: "vp", label: "Ventas productos", sub: null, sec: d.ventas_productos },
-                    { key: "ve", label: "Ventas equipos", sub: null, sec: d.ventas_equipos },
-                    { key: "rep", label: "Reparaciones", sub: null, sec: d.reparaciones },
-                    { key: "pcc", label: "Pagos cuenta corriente", sub: null, sec: d.pagos_cuenta_corriente },
+                    { key: "vp", label: "Ventas productos", sub: null, sec: d.ventas_productos, soloEfectivo: false },
+                    { key: "ve", label: "Ventas equipos", sub: null, sec: d.ventas_equipos, soloEfectivo: false },
+                    { key: "rep", label: "Reparaciones", sub: null, sec: d.reparaciones, soloEfectivo: false },
+                    { key: "pcc", label: "Pagos cuenta corriente", sub: null, sec: d.pagos_cuenta_corriente, soloEfectivo: false },
                   ]
                   const tot = d.totales || {}
                   return (
@@ -381,11 +382,11 @@ export function CajaSesionDetalleModal({
                                   <td className="py-2 px-1 text-right tabular-nums">
                                     {formatearMonedaARS(n(row.sec?.efectivo))}
                                   </td>
-                                  <td className="py-2 px-1 text-right tabular-nums">
-                                    {formatearMonedaARS(n(row.sec?.transferencia))}
+                                  <td className="py-2 px-1 text-right text-gray-400 text-xs">
+                                    {row.soloEfectivo ? "—" : formatearMonedaARS(n(row.sec?.transferencia))}
                                   </td>
-                                  <td className="py-2 px-1 text-right tabular-nums">
-                                    {formatearMonedaARS(n(row.sec?.tarjeta))}
+                                  <td className="py-2 px-1 text-right text-gray-400 text-xs">
+                                    {row.soloEfectivo ? "—" : formatearMonedaARS(n(row.sec?.tarjeta))}
                                   </td>
                                   <td className="py-2 pl-2 text-right font-medium tabular-nums">
                                     {formatearMonedaARS(sub)}
