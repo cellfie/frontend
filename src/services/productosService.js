@@ -17,6 +17,12 @@ const parseFormattedPrice = (price) => {
   return Number.parseFloat(cleanPrice)
 }
 
+const parseNonNegativePrice = (price) => {
+  const parsed = parseFormattedPrice(price)
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed)) return 0
+  return parsed < 0 ? 0 : parsed
+}
+
 // NUEVA FUNCIÓN: Obtener productos con paginación
 export const getProductosPaginados = async (page = 1, limit = 50, filters = {}) => {
   try {
@@ -160,6 +166,7 @@ export const createProducto = async (productoData) => {
       nombre: productoData.name,
       descripcion: productoData.description || "",
       precio: parseFormattedPrice(productoData.price),
+      precio_costo: parseNonNegativePrice(productoData.costPrice),
       categoria_id: productoData.categoria_id === "0" ? null : Number(productoData.categoria_id),
       punto_venta_id: Number(productoData.punto_venta_id),
       stock: productoData.stock,
@@ -204,10 +211,16 @@ export const updateProducto = async (id, productoData) => {
 
     // Manejar el precio correctamente
     let precio
+    let precioCosto
     if (typeof productoData.price === "number") {
       precio = productoData.price
     } else {
       precio = parseFormattedPrice(productoData.price)
+    }
+    if (typeof productoData.costPrice === "number") {
+      precioCosto = productoData.costPrice
+    } else {
+      precioCosto = parseNonNegativePrice(productoData.costPrice)
     }
 
     // Adaptar los datos del frontend al formato que espera el backend
@@ -216,6 +229,7 @@ export const updateProducto = async (id, productoData) => {
       nombre: productoData.name,
       descripcion: productoData.description || "",
       precio: precio,
+      precio_costo: precioCosto,
       categoria_id: categoria_id,
       punto_venta_id: productoActual.punto_venta_id,
       stock: productoData.stock,
@@ -276,6 +290,7 @@ export const adaptProductoToFrontend = (producto) => {
     code: producto.codigo,
     description: producto.descripcion,
     price: producto.precio,
+    costPrice: producto.precio_costo ?? 0,
     category: producto.categoria,
     categoria_id: producto.categoria_id,
     stock: producto.stock || 0,

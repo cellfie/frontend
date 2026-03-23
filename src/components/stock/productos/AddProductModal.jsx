@@ -16,6 +16,7 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
     code: "",
     description: "",
     price: "",
+    costPrice: 0,
     stock: "",
     punto_venta_id: "",
     categoria_id: "0",
@@ -55,6 +56,7 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
           code: product.code || "",
           description: product.description || "",
           price: product.price, // Guardamos el precio como número
+          costPrice: product.costPrice ?? 0,
           stock: product.stock?.toString() || "",
           punto_venta_id: punto_venta_id,
           categoria_id: categoria_id,
@@ -74,6 +76,7 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
           code: "",
           description: "",
           price: "",
+          costPrice: 0,
           stock: "",
           punto_venta_id: defaultPuntoVenta.toString(),
           categoria_id: "0",
@@ -101,12 +104,18 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
 
     // Validar que el precio sea un número positivo y no exceda el límite
     const price = formData.price
+    const costPrice = Number(formData.costPrice)
     const PRECIO_MAXIMO = 99999999.99
 
     if (isNaN(price) || price <= 0) {
       newErrors.price = "El precio debe ser un número positivo"
     } else if (price > PRECIO_MAXIMO) {
       newErrors.price = `El precio no puede ser mayor a $99.999.999,99`
+    }
+    if (isNaN(costPrice) || costPrice < 0) {
+      newErrors.costPrice = "El precio de costo debe ser un número no negativo"
+    } else if (costPrice > PRECIO_MAXIMO) {
+      newErrors.costPrice = `El precio de costo no puede ser mayor a $99.999.999,99`
     }
 
     const stock = Number.parseInt(formData.stock)
@@ -132,6 +141,7 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
         ...formData,
         // El precio ya está como número gracias al onValueChange del NumericFormat
         price: formData.price,
+        costPrice: formData.costPrice,
         stock: Number.parseInt(formData.stock),
         id: product?.id,
         // Convertir "0" a null para la categoría
@@ -281,6 +291,39 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
                   }}
                   className={`w-full h-9 px-3 py-2 border rounded-md ${
                     errors.price ? "border-red-500 focus-visible:ring-red-500" : "border-orange-200"
+                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="costPrice" className="text-sm">
+                  Precio de costo ($)
+                </Label>
+                <NumericFormat
+                  id="costPrice"
+                  name="costPrice"
+                  value={formData.costPrice}
+                  onValueChange={(values) => {
+                    const { floatValue } = values
+                    const PRECIO_MAXIMO = 99999999.99
+                    setFormData((prev) => ({ ...prev, costPrice: floatValue ?? 0 }))
+                    if ((floatValue ?? 0) > PRECIO_MAXIMO) {
+                      setErrors((prev) => ({ ...prev, costPrice: `El precio de costo no puede ser mayor a $99.999.999,99` }))
+                    } else if (errors.costPrice) {
+                      setErrors((prev) => ({ ...prev, costPrice: "" }))
+                    }
+                  }}
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  prefix="$ "
+                  decimalScale={2}
+                  allowNegative={false}
+                  isAllowed={(values) => {
+                    const { floatValue } = values
+                    return floatValue === undefined || floatValue <= 99999999.99
+                  }}
+                  className={`w-full h-9 px-3 py-2 border rounded-md ${
+                    errors.costPrice ? "border-red-500 focus-visible:ring-red-500" : "border-orange-200"
                   } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2`}
                 />
               </div>

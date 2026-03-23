@@ -245,6 +245,7 @@ export const ProductosPrincipal = () => {
         name: updatedProduct.name,
         description: updatedProduct.description,
         price: updatedProduct.price,
+        costPrice: updatedProduct.costPrice,
         categoria_id: updatedProduct.categoria_id === "0" ? null : Number(updatedProduct.categoria_id),
         stock: Number(updatedProduct.stock),
       })

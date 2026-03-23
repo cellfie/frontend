@@ -76,6 +76,7 @@ export const ProductTable = ({
               <TableHead className="bg-white">Nombre / Código</TableHead>
               <TableHead className="hidden md:table-cell bg-white">Descripción</TableHead>
               <TableHead className="bg-white">Precio</TableHead>
+              <TableHead className="bg-white">Costo</TableHead>
               <TableHead className="bg-white">Stock</TableHead>
               <TableHead className="bg-white">Punto de Venta</TableHead>
               <TableHead className="bg-white">Fecha Creación</TableHead>
@@ -129,6 +130,7 @@ export const ProductTable = ({
                         <span className="text-orange-600">{formatPrice(product.price)}</span>
                       )}
                     </TableCell>
+                    <TableCell className="font-medium text-slate-700">{formatPrice(product.costPrice ?? 0)}</TableCell>
                     <TableCell>
                       <span className={product.stock < 3 ? "text-red-600 font-medium" : "text-green-600 font-medium"}>
                         {product.stock}
@@ -218,7 +220,7 @@ export const ProductTable = ({
                   <AnimatePresence>
                     {showDetails === product.id && (
                       <TableRow>
-                        <TableCell colSpan={7} className="p-0 border-0">
+                        <TableCell colSpan={8} className="p-0 border-0">
                           <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
@@ -296,6 +298,15 @@ export const ProductTable = ({
                                               {formatPrice(product.price)}
                                             </div>
                                           )}
+                                        </div>
+
+                                        <Separator className="bg-[#131321]/10" />
+
+                                        <div>
+                                          <div className="text-gray-500 text-sm">Precio de costo</div>
+                                          <div className="text-lg font-semibold text-slate-700">
+                                            {formatPrice(product.costPrice ?? 0)}
+                                          </div>
                                         </div>
 
                                         <Separator className="bg-[#131321]/10" />
