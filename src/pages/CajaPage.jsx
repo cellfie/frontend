@@ -1252,7 +1252,51 @@ const CajaPage = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_minmax(260px,320px)] gap-4 items-start">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-sm font-semibold text-slate-900">Movimientos manuales (ingresos/egresos)</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    Este bloque explica el ajuste manual de la sesión y su impacto en el balance total esperado.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white p-3 border border-slate-100 space-y-2">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Impacto en balance total</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Ingresos</span>
+                    <span className="font-semibold text-gray-900 tabular-nums">
+                      {formatearMonedaARS(ingresosManuales)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Egresos</span>
+                    <span className="font-semibold text-gray-900 tabular-nums">
+                      {formatearMonedaARS(egresosManuales)}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-sm font-medium text-gray-700">Neto</span>
+                    <span
+                      className={`font-bold text-base tabular-nums ${
+                        ingresosManuales - egresosManuales === 0
+                          ? "text-green-700"
+                          : ingresosManuales - egresosManuales > 0
+                            ? "text-blue-700"
+                            : "text-red-700"
+                      }`}
+                    >
+                      {formatearMonedaARS(ingresosManuales - egresosManuales)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-600 leading-relaxed pt-1">
+                    Estos movimientos ya están incluidos en el <strong>monto esperado</strong> del balance total.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {/* 1. Ventas productos */}
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
@@ -1477,47 +1521,7 @@ const CajaPage = () => {
               ))}
             </div>
 
-            {/* 5. Movimientos manuales (impactan el balance total) */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-2">
-                Movimientos manuales
-              </h3>
-              <div className="rounded-lg bg-white p-3 border border-slate-100 space-y-2">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Impacto en balance total</p>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Ingresos</span>
-                  <span className="font-semibold text-gray-900 tabular-nums">
-                    {formatearMonedaARS(ingresosManuales)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Egresos</span>
-                  <span className="font-semibold text-gray-900 tabular-nums">
-                    {formatearMonedaARS(egresosManuales)}
-                  </span>
-                </div>
-                <Separator />
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-sm font-medium text-gray-700">Neto</span>
-                  <span
-                    className={`font-bold text-base tabular-nums ${
-                      ingresosManuales - egresosManuales === 0
-                        ? "text-green-700"
-                        : ingresosManuales - egresosManuales > 0
-                          ? "text-blue-700"
-                          : "text-red-700"
-                    }`}
-                  >
-                    {formatearMonedaARS(ingresosManuales - egresosManuales)}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-600 leading-relaxed pt-1">
-                  Estos movimientos ya están incluidos en el <strong>monto esperado</strong> del balance total.
-                </p>
-              </div>
-            </div>
-
-            {/* 6. General - resultado */}
+            {/* 5. General - resultado */}
             <div className="rounded-xl border-2 border-orange-200 bg-orange-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-orange-800 border-b border-orange-200 pb-2">
                 General
