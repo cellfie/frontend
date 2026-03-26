@@ -442,12 +442,37 @@ const CajaPage = () => {
   const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
   const totalSeccionCierre = (s) =>
     num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta) + num(s?.viumi)
+
+  const resumenDiferencia = (d) => {
+    const diff = Number(d) || 0
+    const color =
+      diff === 0 ? "text-green-700" : diff > 0 ? "text-blue-700" : "text-red-700"
+    const label = diff === 0 ? "Cuadra" : diff > 0 ? "Sobrante" : "Faltante"
+    return { diff, color, label }
+  }
+
+  const totalMontoInicial = totalSeccionCierre(cierreSecciones.monto_inicial)
+  const esperadoMontoInicial = Number(cajaActual?.monto_apertura || 0) || 0
+  const diffMontoInicial = resumenDiferencia(totalMontoInicial - esperadoMontoInicial)
+
+  const totalVentasProductosContado = totalSeccionCierre(cierreSecciones.ventas_productos)
+  const diffVentasProductos = resumenDiferencia(totalVentasProductosContado - totalVentasProductos)
+
+  const totalVentasEquiposContado = totalSeccionCierre(cierreSecciones.ventas_equipos)
+  const diffVentasEquipos = resumenDiferencia(totalVentasEquiposContado - totalVentasEquipos)
+
+  const totalReparacionesContado = totalSeccionCierre(cierreSecciones.reparaciones)
+  const diffReparaciones = resumenDiferencia(totalReparacionesContado - totalReparaciones)
+
+  const totalPagosCCContado = totalSeccionCierre(cierreSecciones.pagos_cuenta_corriente)
+  const diffPagosCC = resumenDiferencia(totalPagosCCContado - totalPagosCuentaCorriente)
+
   const totalIngresadoCierre =
-    totalSeccionCierre(cierreSecciones.monto_inicial) +
-    totalSeccionCierre(cierreSecciones.ventas_productos) +
-    totalSeccionCierre(cierreSecciones.ventas_equipos) +
-    totalSeccionCierre(cierreSecciones.reparaciones) +
-    totalSeccionCierre(cierreSecciones.pagos_cuenta_corriente)
+    totalMontoInicial +
+    totalVentasProductosContado +
+    totalVentasEquiposContado +
+    totalReparacionesContado +
+    totalPagosCCContado
   const diferenciaCierre = totalIngresadoCierre - saldoEsperadoCierre
 
   const handleCerrarCaja = async (montoTotal) => {
@@ -1176,6 +1201,23 @@ const CajaPage = () => {
                     </strong>
                     .
                   </p>
+                  <div className="mt-2 rounded-md bg-white/70 border border-sky-100 px-3 py-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">Total contado</span>
+                      <span className="font-semibold text-gray-900 tabular-nums">
+                        {formatearMonedaARS(totalMontoInicial)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs mt-1">
+                      <span className="text-gray-600">Diferencia</span>
+                      <span className={`font-bold tabular-nums ${diffMontoInicial.color}`}>
+                        {formatearMonedaARS(diffMontoInicial.diff)}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] font-medium text-center mt-1 ${diffMontoInicial.color}`}>
+                      {diffMontoInicial.label}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex w-full flex-col gap-1.5 sm:pt-0.5">
                   <label
@@ -1210,7 +1252,7 @@ const CajaPage = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {/* 1. Ventas productos */}
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-gray-800 border-b border-gray-200 pb-2">
@@ -1219,6 +1261,23 @@ const CajaPage = () => {
               <div className="rounded-lg bg-white p-2 text-center border border-gray-100">
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalVentasProductos)}</p>
+              </div>
+              <div className="rounded-lg bg-white p-2 border border-gray-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Total contado</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(totalVentasProductosContado)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1">
+                  <span className="text-gray-600">Diferencia</span>
+                  <span className={`font-bold tabular-nums ${diffVentasProductos.color}`}>
+                    {formatearMonedaARS(diffVentasProductos.diff)}
+                  </span>
+                </div>
+                <p className={`text-[11px] font-medium text-center mt-1 ${diffVentasProductos.color}`}>
+                  {diffVentasProductos.label}
+                </p>
               </div>
               {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
@@ -1259,6 +1318,23 @@ const CajaPage = () => {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalVentasEquipos)}</p>
               </div>
+              <div className="rounded-lg bg-white p-2 border border-gray-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Total contado</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(totalVentasEquiposContado)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1">
+                  <span className="text-gray-600">Diferencia</span>
+                  <span className={`font-bold tabular-nums ${diffVentasEquipos.color}`}>
+                    {formatearMonedaARS(diffVentasEquipos.diff)}
+                  </span>
+                </div>
+                <p className={`text-[11px] font-medium text-center mt-1 ${diffVentasEquipos.color}`}>
+                  {diffVentasEquipos.label}
+                </p>
+              </div>
               {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
                   <label className="block text-xs font-medium text-gray-700 capitalize">
@@ -1297,6 +1373,23 @@ const CajaPage = () => {
               <div className="rounded-lg bg-white p-2 text-center border border-gray-100">
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalReparaciones)}</p>
+              </div>
+              <div className="rounded-lg bg-white p-2 border border-gray-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Total contado</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(totalReparacionesContado)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1">
+                  <span className="text-gray-600">Diferencia</span>
+                  <span className={`font-bold tabular-nums ${diffReparaciones.color}`}>
+                    {formatearMonedaARS(diffReparaciones.diff)}
+                  </span>
+                </div>
+                <p className={`text-[11px] font-medium text-center mt-1 ${diffReparaciones.color}`}>
+                  {diffReparaciones.label}
+                </p>
               </div>
               {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
@@ -1337,6 +1430,23 @@ const CajaPage = () => {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado</p>
                 <p className="text-base font-bold text-gray-900">{formatearMonedaARS(totalPagosCuentaCorriente)}</p>
               </div>
+              <div className="rounded-lg bg-white p-2 border border-violet-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Total contado</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(totalPagosCCContado)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1">
+                  <span className="text-gray-600">Diferencia</span>
+                  <span className={`font-bold tabular-nums ${diffPagosCC.color}`}>
+                    {formatearMonedaARS(diffPagosCC.diff)}
+                  </span>
+                </div>
+                <p className={`text-[11px] font-medium text-center mt-1 ${diffPagosCC.color}`}>
+                  {diffPagosCC.label}
+                </p>
+              </div>
               {METODOS_CIERRE_ORDEN.map((metodo) => (
                 <div key={metodo} className="space-y-1">
                   <label className="block text-xs font-medium text-gray-700 capitalize">
@@ -1367,7 +1477,47 @@ const CajaPage = () => {
               ))}
             </div>
 
-            {/* 5. General - resultado */}
+            {/* 5. Movimientos manuales (impactan el balance total) */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-2">
+                Movimientos manuales
+              </h3>
+              <div className="rounded-lg bg-white p-3 border border-slate-100 space-y-2">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Impacto en balance total</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Ingresos</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(ingresosManuales)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Egresos</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(egresosManuales)}
+                  </span>
+                </div>
+                <Separator />
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-sm font-medium text-gray-700">Neto</span>
+                  <span
+                    className={`font-bold text-base tabular-nums ${
+                      ingresosManuales - egresosManuales === 0
+                        ? "text-green-700"
+                        : ingresosManuales - egresosManuales > 0
+                          ? "text-blue-700"
+                          : "text-red-700"
+                    }`}
+                  >
+                    {formatearMonedaARS(ingresosManuales - egresosManuales)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-600 leading-relaxed pt-1">
+                  Estos movimientos ya están incluidos en el <strong>monto esperado</strong> del balance total.
+                </p>
+              </div>
+            </div>
+
+            {/* 6. General - resultado */}
             <div className="rounded-xl border-2 border-orange-200 bg-orange-50/50 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-orange-800 border-b border-orange-200 pb-2">
                 General
