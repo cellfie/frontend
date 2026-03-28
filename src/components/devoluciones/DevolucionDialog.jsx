@@ -19,6 +19,7 @@ import {
   Calendar,
   Tag,
   Trash,
+  Loader2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,7 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 
-import { adaptProductoToFrontend, getProductosByPuntoVenta } from "@/services/productosService"
+import { adaptProductoToFrontend, getProductosPaginados } from "@/services/productosService"
 import { getTiposPago } from "@/services/pagosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { createDevolucion, getDevolucionesByVenta } from "@/services/devolucionesService"
@@ -69,10 +70,10 @@ const DevolucionDialog = ({
   const [productosADevolver, setProductosADevolver] = useState([])
   const [tipoDevolucion, setTipoDevolucion] = useState("normal") // "normal" o "defectuoso"
   const [productosReemplazo, setProductosReemplazo] = useState([])
-  const [productos, setProductos] = useState([])
   const [productosFiltrados, setProductosFiltrados] = useState([])
   const [busqueda, setBusqueda] = useState("")
   const [cargando, setCargando] = useState(false)
+  const [buscandoReemplazo, setBuscandoReemplazo] = useState(false)
   const [tipoPagoSeleccionado, setTipoPagoSeleccionado] = useState("")
   const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
   const [puntosVenta, setPuntosVenta] = useState([])
@@ -109,6 +110,7 @@ const DevolucionDialog = ({
       setTipoDevolucion("normal")
       setProductosReemplazo([])
       setBusqueda("")
+      setBuscandoReemplazo(false)
       setTipoPagoSeleccionado("")
       setEstadoDevolucion({ exito: false, error: false, mensaje: "" })
       setDevolucionesExistentes([])
@@ -260,9 +262,6 @@ const DevolucionDialog = ({
           productosMap.set(key, cantidadActual + producto.cantidad)
         })
       })
-        .finally(() => {
-          setCreandoCliente(false)
-        })
 
       setProductosDevueltos(productosMap)
     } catch (error) {
@@ -270,35 +269,53 @@ const DevolucionDialog = ({
     }
   }
 
-  // Cargar productos cuando cambia la búsqueda
+  // Paso 2: búsqueda de reemplazos en servidor (misma lógica que stock; evita el límite de 1000 en memoria)
   useEffect(() => {
-    if (productos.length > 0) {
-      const filtered = productos.filter((p) => {
-        return (
-          !busqueda.trim() ||
-          p.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-          p.code.toLowerCase().includes(busqueda.toLowerCase()) ||
-          (p.description && p.description.toLowerCase().includes(busqueda.toLowerCase()))
-        )
-      })
-      setProductosFiltrados(filtered)
+    if (!open || !venta?.puntoVenta?.id || paso !== 2) return
+
+    const q = busqueda.trim()
+    if (q.length < 1) {
+      setProductosFiltrados([])
+      setBuscandoReemplazo(false)
+      return
     }
-  }, [busqueda, productos])
+
+    let cancelled = false
+    setBuscandoReemplazo(true)
+    const t = setTimeout(async () => {
+      try {
+        const result = await getProductosPaginados(1, 100, {
+          punto_venta_id: venta.puntoVenta.id,
+          search: q,
+        })
+        if (cancelled) return
+        const adapted = (result.data || []).map(adaptProductoToFrontend).map((prod) => ({
+          ...prod,
+          price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
+        }))
+        setProductosFiltrados(adapted)
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error al buscar productos de reemplazo:", error)
+          toast.error("Error al buscar productos")
+          setProductosFiltrados([])
+        }
+      } finally {
+        if (!cancelled) setBuscandoReemplazo(false)
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [open, venta, paso, busqueda])
 
   const cargarDatosIniciales = async () => {
     setCargando(true)
     try {
-      // Obtener el punto de venta de la venta
-      const puntoVentaId = venta.puntoVenta.id
-
-      // Cargar productos filtrados por punto de venta
-      const productosData = await getProductosByPuntoVenta(puntoVentaId)
-      const productosAdaptados = productosData.map(adaptProductoToFrontend).map((prod) => ({
-        ...prod,
-        price: typeof prod.price === "number" ? prod.price : Number.parseFloat(prod.price) || 0,
-      }))
-      setProductos(productosAdaptados)
-      setProductosFiltrados(productosAdaptados)
+      // Reemplazos: se buscan en el paso 2 vía API (no precargar miles de productos en memoria)
+      setProductosFiltrados([])
 
       // Cargar tipos de pago
       const tipos = await getTiposPago()
@@ -373,9 +390,12 @@ const DevolucionDialog = ({
   const cambiarCantidadReemplazo = (id, nuevaCantidad) => {
     if (nuevaCantidad < 1) return
 
-    const producto = productos.find((p) => p.id === id)
-    if (nuevaCantidad > producto.stock) {
-      toast.error(`Solo hay ${producto.stock} unidades disponibles`, {
+    const enLista = productosReemplazo.find((p) => p.id === id)
+    const enBusqueda = productosFiltrados.find((p) => p.id === id)
+    const producto = enLista || enBusqueda
+    const stock = producto?.stock ?? 0
+    if (nuevaCantidad > stock) {
+      toast.error(`Solo hay ${stock} unidades disponibles`, {
         position: "bottom-right",
       })
       return
@@ -1007,7 +1027,20 @@ const DevolucionDialog = ({
                       <TabsContent value="productos">
                         <ScrollArea className="h-[250px] border rounded-md">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2">
-                            {productosFiltrados.length > 0 ? (
+                            {buscandoReemplazo ? (
+                              <div className="col-span-2 flex flex-col items-center justify-center py-10 text-gray-500">
+                                <Loader2 className="h-8 w-8 animate-spin text-orange-500 mb-2" />
+                                <p className="text-sm">Buscando productos…</p>
+                              </div>
+                            ) : !busqueda.trim() ? (
+                              <div className="col-span-2 text-center py-10 px-4 text-gray-500">
+                                <Search className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                                <p className="text-sm">
+                                  Escribí nombre, código o descripción para buscar (igual que en stock, filtrado al
+                                  punto de venta de esta venta).
+                                </p>
+                              </div>
+                            ) : productosFiltrados.length > 0 ? (
                               productosFiltrados.map((producto) => {
                                 // Calcular el precio con descuento si existe
                                 const precioConDescuento =
@@ -1050,9 +1083,9 @@ const DevolucionDialog = ({
                                 )
                               })
                             ) : (
-                              <div className="col-span-2 text-center py-8 text-gray-500">
+                              <div className="col-span-2 text-center py-10 text-gray-500">
                                 <Search className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                                <p>No se encontraron productos</p>
+                                <p className="text-sm">No se encontraron productos con ese criterio.</p>
                               </div>
                             )}
                           </div>
