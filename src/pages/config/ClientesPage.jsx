@@ -22,7 +22,9 @@ import {
   createOrUpdateCuentaCorriente,
   adaptCuentaCorrienteToFrontend,
   registrarAjuste,
+  registrarPago,
 } from "@/services/cuentasCorrientesService"
+import { getPuntosVenta } from "@/services/puntosVentaService"
 import { useAuth } from "@/context/AuthContext"
 
 import ClientesList from "../../components/clientes/ClientesList"
@@ -83,6 +85,33 @@ const ClientesPage = () => {
   })
   const [mostrarSoloConCuenta, setMostrarSoloConCuenta] = useState(false)
   const [guardandoCliente, setGuardandoCliente] = useState(false)
+  const [puntosVentaPago, setPuntosVentaPago] = useState([])
+  const [puntoVentaPagoId, setPuntoVentaPagoId] = useState("")
+
+  // Puntos de venta para registrar pagos a CC en la caja correcta (admin y empleados)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const puntos = await getPuntosVenta()
+        if (cancelled) return
+        setPuntosVentaPago(puntos)
+        if (puntos.length > 0) {
+          const puntoDefecto =
+            currentUser?.id === 7
+              ? puntos.find((p) => p.nombre.toLowerCase() === "tala")
+              : puntos.find((p) => p.nombre.toLowerCase() === "trancas")
+          const idPreferida = (puntoDefecto || puntos[0]).id.toString()
+          setPuntoVentaPagoId((prev) => (prev && puntos.some((p) => p.id.toString() === prev) ? prev : idPreferida))
+        }
+      } catch (e) {
+        console.error("Error al cargar puntos de venta para pagos:", e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser?.id])
 
   // Cargar clientes al iniciar solo si es admin
   useEffect(() => {
@@ -472,9 +501,9 @@ const ClientesPage = () => {
     }
   }
 
-  // CORREGIDO: Registrar pago en cuenta corriente usando el servicio de ajustes
+  // Cobro de cuenta corriente: debe usar /cuentas-corrientes/pago (tabla `pagos` + caja_sesion_id).
+  // registrarAjuste solo escribe movimientos_cc y no impacta el arqueo de caja.
   const registrarPagoEnCuenta = async () => {
-    // Convertir el monto formateado a un número
     const montoString = formPago.monto.toString().replace(/\./g, "").replace(",", ".").replace(/\$ /g, "")
     const montoNumerico = Number.parseFloat(montoString)
 
@@ -483,61 +512,67 @@ const ClientesPage = () => {
       return
     }
 
+    if (puntosVentaPago.length > 0 && !puntoVentaPagoId) {
+      toast.error("Seleccioná el punto de venta donde ingresa el cobro")
+      return
+    }
+
+    const pvId = puntosVentaPago.length > 0 ? Number.parseInt(puntoVentaPagoId, 10) : 1
+    if (!Number.isFinite(pvId) || pvId < 1) {
+      toast.error("Punto de venta inválido")
+      return
+    }
+
     setProcesandoPago(true)
     setEstadoPago({ exito: false, error: false, mensaje: "" })
 
     try {
-      // CORREGIDO: Usar el servicio de ajustes en lugar del servicio de pagos
-      const ajusteData = {
+      await registrarPago({
         cliente_id: clienteSeleccionado.id,
         monto: montoNumerico,
-        tipo_ajuste: "pago", // Especificar que es un pago
-        motivo: formPago.notas || `Pago registrado con ${formPago.tipo_pago}`,
-        punto_venta_id: 1, // Punto de venta por defecto
-      }
+        tipo_pago: formPago.tipo_pago || "Efectivo",
+        punto_venta_id: pvId,
+        notas: formPago.notas || `Pago registrado con ${formPago.tipo_pago || "Efectivo"}`,
+      })
 
-      // Registrar el pago usando el servicio de ajustes
-      const resultadoPago = await registrarAjuste(ajusteData)
+      const cuentaData = await getCuentaCorrienteByCliente(clienteSeleccionado.id)
+      const adaptada = adaptCuentaCorrienteToFrontend(cuentaData)
+      setCuentaCorriente(adaptada)
+      setMovimientosCuenta(cuentaData.movimientos || [])
 
-      // Recargar la cuenta corriente para obtener el saldo actualizado
-      await cargarCuentaCorriente(clienteSeleccionado.id)
-
-      // Actualizar el cliente seleccionado con el nuevo saldo
-      if (clienteSeleccionado && clienteSeleccionado.cuentaCorriente) {
-        const nuevoSaldo = clienteSeleccionado.cuentaCorriente.saldo - montoNumerico
-
-        setClienteSeleccionado({
-          ...clienteSeleccionado,
-          cuentaCorriente: {
-            ...clienteSeleccionado.cuentaCorriente,
-            saldo: nuevoSaldo,
-          },
-        })
-
-        // Actualizar la lista de clientes
-        setClientes((prevClientes) =>
-          prevClientes.map((c) => {
-            if (c.id === clienteSeleccionado.id && c.cuentaCorriente) {
-              return {
-                ...c,
-                cuentaCorriente: {
-                  ...c.cuentaCorriente,
-                  saldo: nuevoSaldo,
-                },
-              }
+      const nuevoSaldo = Number.parseFloat(cuentaData.saldo)
+      setClienteSeleccionado((prev) =>
+        prev && prev.id === clienteSeleccionado.id
+          ? {
+              ...prev,
+              cuentaCorriente: prev.cuentaCorriente
+                ? { ...prev.cuentaCorriente, saldo: nuevoSaldo }
+                : prev.cuentaCorriente,
             }
-            return c
-          }),
-        )
-      }
+          : prev,
+      )
+
+      setClientes((prevClientes) =>
+        prevClientes.map((c) => {
+          if (c.id === clienteSeleccionado.id && c.cuentaCorriente) {
+            return {
+              ...c,
+              cuentaCorriente: {
+                ...c.cuentaCorriente,
+                saldo: nuevoSaldo,
+              },
+            }
+          }
+          return c
+        }),
+      )
 
       setEstadoPago({
         exito: true,
         error: false,
-        mensaje: `Pago de ${formatearPrecio(montoNumerico)} registrado correctamente`,
+        mensaje: `Pago de ${formatearPrecio(montoNumerico)} registrado correctamente (impacta en caja del punto seleccionado)`,
       })
 
-      // Cerrar el diálogo después de 2 segundos
       setTimeout(() => {
         setDialogPagoAbierto(false)
         toast.success("Pago registrado correctamente")
@@ -850,6 +885,9 @@ const ClientesPage = () => {
         procesandoPago={procesandoPago}
         estadoPago={estadoPago}
         formatearPrecio={formatearPrecio}
+        puntosVenta={puntosVentaPago}
+        puntoVentaId={puntoVentaPagoId}
+        setPuntoVentaId={setPuntoVentaPagoId}
       />
 
       <AjusteDialog

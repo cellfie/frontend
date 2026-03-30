@@ -1,5 +1,5 @@
 "use client"
-import { DollarSign, CheckCircle, XCircle, TrendingUp, CalendarDays, Calculator } from "lucide-react"
+import { DollarSign, CheckCircle, XCircle, TrendingUp, CalendarDays, Calculator, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -28,6 +28,9 @@ const PagoDialog = ({
   procesandoPago,
   estadoPago,
   formatearPrecio,
+  puntosVenta = [],
+  puntoVentaId = "",
+  setPuntoVentaId,
 }) => {
   const [tiposPago, setTiposPago] = useState([])
   const [cargandoTipos, setCargandoTipos] = useState(false)
@@ -205,6 +208,35 @@ const PagoDialog = ({
               </p>
             </div>
 
+            {puntosVenta.length > 0 && typeof setPuntoVentaId === "function" && (
+              <div className="grid gap-2">
+                <Label htmlFor="punto_venta_pago" className="flex items-center gap-1.5">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  Punto de venta (caja)
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={puntoVentaId || undefined}
+                  onValueChange={setPuntoVentaId}
+                  disabled={estadoPago.exito || procesandoPago}
+                >
+                  <SelectTrigger id="punto_venta_pago">
+                    <SelectValue placeholder="Seleccioná dónde ingresa el dinero" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {puntosVenta.map((pv) => (
+                      <SelectItem key={pv.id} value={pv.id.toString()}>
+                        {pv.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  El pago se asocia a la caja abierta de este punto. Debe coincidir con donde cobrás físicamente.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="tipo_pago">
                 Tipo de pago <span className="text-red-500">*</span>
@@ -344,7 +376,11 @@ const PagoDialog = ({
           {!estadoPago.exito && (
             <Button
               onClick={registrarPagoEnCuenta}
-              disabled={!validarMonto(formPago.monto) || procesandoPago}
+              disabled={
+                !validarMonto(formPago.monto) ||
+                procesandoPago ||
+                (puntosVenta.length > 0 && !puntoVentaId)
+              }
               className="bg-green-600 hover:bg-green-700"
             >
               {procesandoPago ? (
