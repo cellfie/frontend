@@ -74,6 +74,7 @@ export const createCompra = async (compraData) => {
       id: Number(p.id),
       cantidad: Number(p.cantidad),
       costo_unitario: Number(p.costo_unitario),
+      precio_venta: Number(p.precio_venta),
     })),
     pagos: Array.isArray(compraData.pagos)
       ? compraData.pagos.map((p) => ({

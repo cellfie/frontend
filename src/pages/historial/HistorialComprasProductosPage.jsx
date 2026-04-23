@@ -618,6 +618,7 @@ export default function HistorialComprasProductosPage() {
                           <TableHead className="text-xs">Producto</TableHead>
                           <TableHead className="text-xs text-center">Cant.</TableHead>
                           <TableHead className="text-xs text-right">Costo unit.</TableHead>
+                          <TableHead className="text-xs text-right">Precio venta aplicado</TableHead>
                           <TableHead className="text-xs text-right">Subtotal</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -635,6 +636,11 @@ export default function HistorialComprasProductosPage() {
                             <TableCell className="text-center text-sm">{det.cantidad}</TableCell>
                             <TableCell className="text-right text-sm">
                               {formatearMonedaARS(det.costo_unitario)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {det.precio_venta_unitario == null || det.precio_venta_unitario === ""
+                                ? "—"
+                                : formatearMonedaARS(det.precio_venta_unitario)}
                             </TableCell>
                             <TableCell className="text-right text-sm">
                               {formatearMonedaARS(det.subtotal)}

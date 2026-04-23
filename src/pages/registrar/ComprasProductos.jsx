@@ -225,6 +225,8 @@ const ComprasProductos = () => {
           cantidad: 1,
           costo_anterior: prod.costPrice ?? 0,
           costo_unitario: prod.costPrice ?? 0,
+          precio_venta_anterior: prod.price ?? 0,
+          precio_venta: prod.price ?? 0,
         },
       ])
     }
@@ -241,6 +243,16 @@ const ComprasProductos = () => {
     )
     if (Number.isNaN(valorNumerico) || valorNumerico < 0) return
     setItemsCompra((prev) => prev.map((i) => (i.id === id ? { ...i, costo_unitario: valorNumerico } : i)))
+  }
+
+  const cambiarPrecioVenta = (id, nuevoPrecioVenta) => {
+    const valorNumerico = Number.parseFloat(
+      typeof nuevoPrecioVenta === "string"
+        ? nuevoPrecioVenta.replace(/\$\s?/g, "").replace(/\./g, "").replace(",", ".")
+        : nuevoPrecioVenta,
+    )
+    if (Number.isNaN(valorNumerico) || valorNumerico < 0) return
+    setItemsCompra((prev) => prev.map((i) => (i.id === id ? { ...i, precio_venta: valorNumerico } : i)))
   }
 
   const eliminarProducto = (id) => {
@@ -340,6 +352,7 @@ const ComprasProductos = () => {
           id: p.id,
           cantidad: p.cantidad,
           costo_unitario: p.costo_unitario,
+          precio_venta: p.precio_venta,
         })),
         pagos: pagos.map((p) => ({
           tipo_pago: p.tipo_pago,
@@ -688,6 +701,7 @@ const ComprasProductos = () => {
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="text-orange-600">Producto</TableHead>
                       <TableHead className="text-right text-orange-600">Costo unitario</TableHead>
+                      <TableHead className="text-right text-orange-600">Precio venta</TableHead>
                       <TableHead className="text-orange-600 text-center">Cantidad</TableHead>
                       <TableHead className="text-orange-600 text-right">Subtotal</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
@@ -722,6 +736,30 @@ const ComprasProductos = () => {
                             ) : (
                               <div className="text-[11px] text-gray-500">
                                 Costo: {formatearMonedaARS(item.costo_unitario ?? 0)}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <NumericFormat
+                              value={item.precio_venta}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="$ "
+                              decimalScale={2}
+                              fixedDecimalScale
+                              customInput={Input}
+                              className="w-28 text-right"
+                              onValueChange={(values) => cambiarPrecioVenta(item.id, values.formattedValue)}
+                            />
+                            {Number(item.precio_venta_anterior ?? 0) !== Number(item.precio_venta ?? 0) ? (
+                              <div className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                                Antes: {formatearMonedaARS(item.precio_venta_anterior ?? 0)}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-gray-500">
+                                Venta: {formatearMonedaARS(item.precio_venta ?? 0)}
                               </div>
                             )}
                           </div>
