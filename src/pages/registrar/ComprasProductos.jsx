@@ -38,8 +38,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { AddProductModal } from "@/components/stock/productos/AddProductModal"
 
-import { getProductosPaginados, adaptProductoToFrontend } from "@/services/productosService"
+import { getProductosPaginados, adaptProductoToFrontend, createProducto, getProductoById } from "@/services/productosService"
 import { getPuntosVenta } from "@/services/puntosVentaService"
 import { getCategorias } from "@/services/categoriasService"
 import { getProveedores } from "@/services/proveedoresService"
@@ -100,6 +101,7 @@ const ComprasProductos = () => {
   const [descuentoInputValue, setDescuentoInputValue] = useState("0")
 
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false)
+  const [dialogNuevoProductoAbierto, setDialogNuevoProductoAbierto] = useState(false)
   const [procesandoCompra, setProcesandoCompra] = useState(false)
   const [cajaAbierta, setCajaAbierta] = useState(null)
 
@@ -363,6 +365,42 @@ const ComprasProductos = () => {
     }
   }
 
+  const handleCrearProductoDesdeCompra = async (nuevoProducto) => {
+    if (!puntoVentaSeleccionado) {
+      toast.error("Debe seleccionar un punto de venta antes de crear el producto.")
+      throw new Error("Punto de venta no seleccionado")
+    }
+
+    if (Number(nuevoProducto.punto_venta_id) !== Number(puntoVentaSeleccionado)) {
+      toast.error("El nuevo producto debe crearse en el mismo punto de venta de la compra.")
+      throw new Error("Punto de venta inválido para la compra")
+    }
+
+    const creado = await createProducto(nuevoProducto)
+    const productoCreadoRaw = await getProductoById(creado.id)
+    const productoCreado = {
+      ...adaptProductoToFrontend(productoCreadoRaw),
+      price:
+        typeof productoCreadoRaw.precio === "number"
+          ? productoCreadoRaw.precio
+          : Number.parseFloat(productoCreadoRaw.precio) || 0,
+      costPrice:
+        typeof productoCreadoRaw.precio_costo === "number"
+          ? productoCreadoRaw.precio_costo
+          : Number.parseFloat(productoCreadoRaw.precio_costo) || 0,
+    }
+
+    agregarProducto(productoCreado)
+    setBusqueda(productoCreado.code || productoCreado.name || "")
+    toast.success(`Producto "${productoCreado.name}" creado y agregado a la compra`)
+
+    if (debouncedSearchTerm) {
+      await buscarProductos()
+    }
+
+    return creado
+  }
+
   const getNombrePuntoVenta = (id) => puntosVenta.find((p) => p.id.toString() === id)?.nombre || ""
 
   const renderSkeletons = () =>
@@ -559,6 +597,16 @@ const ComprasProductos = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 bg-orange-600 hover:bg-orange-700"
+                onClick={() => setDialogNuevoProductoAbierto(true)}
+                disabled={!puntoVentaSeleccionado}
+              >
+                <Plus size={14} className="mr-1" />
+                Nuevo
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -925,6 +973,19 @@ const ComprasProductos = () => {
           </CardFooter>
         </Card>
       </div>
+
+      <AddProductModal
+        isOpen={dialogNuevoProductoAbierto}
+        onClose={() => setDialogNuevoProductoAbierto(false)}
+        onSave={handleCrearProductoDesdeCompra}
+        product={null}
+        puntosVenta={
+          puntoVentaSeleccionado
+            ? puntosVenta.filter((pv) => pv.id.toString() === puntoVentaSeleccionado)
+            : puntosVenta
+        }
+        defaultPuntoVentaId={puntoVentaSeleccionado ? Number(puntoVentaSeleccionado) : null}
+      />
     </div>
   )
 }
