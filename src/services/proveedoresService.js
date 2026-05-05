@@ -137,9 +137,15 @@ export const deleteProveedor = async (id) => {
 }
 
 // Obtener cuenta corriente de proveedor
-export const getCuentaCorrienteProveedor = async (id) => {
+export const getCuentaCorrienteProveedor = async (id, filters = {}) => {
   try {
-    const response = await fetch(`${API_URL}/proveedores/${id}/cuenta-corriente`, {
+    const params = new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ""),
+      ),
+    )
+
+    const response = await fetch(`${API_URL}/proveedores/${id}/cuenta-corriente?${params.toString()}`, {
       method: "GET",
       credentials: "include",
     })

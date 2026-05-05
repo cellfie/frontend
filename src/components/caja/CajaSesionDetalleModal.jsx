@@ -41,6 +41,10 @@ export function CajaSesionDetalleModal({
   setHistorialTabDesglose,
   cargarHistorialMovimientos,
 }) {
+  const esPagoProveedorCC = (mov) =>
+    String(mov?.tipo || "").toLowerCase() === "egreso" &&
+    String(mov?.concepto || "").toLowerCase().includes("pago a proveedor por compra")
+
   return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent hideCloseButton className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
@@ -682,6 +686,11 @@ export function CajaSesionDetalleModal({
                                       {mov.usuario_nombre && <span>Usuario: {mov.usuario_nombre}</span>}
                                       {mov.tipo === "venta" && (
                                         <span className="bg-blue-100 text-blue-800 px-1 rounded text-[10px]">Venta</span>
+                                      )}
+                                      {esPagoProveedorCC(mov) && (
+                                        <span className="bg-amber-100 text-amber-800 px-1 rounded text-[10px]">
+                                          Pago proveedor C/C
+                                        </span>
                                       )}
                                     </div>
                                   </div>

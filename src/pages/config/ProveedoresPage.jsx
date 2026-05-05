@@ -14,11 +14,17 @@ import {
   updateProveedor,
   deleteProveedor,
   searchProveedores,
+  getCuentaCorrienteProveedor,
+  registrarPagoCuentaCorrienteProveedor,
 } from "@/services/proveedoresService"
+import { getPuntosVenta } from "@/services/puntosVentaService"
+import { getTiposPago } from "@/services/pagosService"
+import { getComprasPaginadas } from "@/services/comprasService"
 import { useAuth } from "@/context/AuthContext"
 
 import ProveedoresList from "@/components/proveedores/ProveedoresList"
 import ProveedorFormDialog from "@/components/proveedores/ProveedorFormDialog"
+import ProveedorCuentaCorrienteDialog from "@/components/proveedores/ProveedorCuentaCorrienteDialog"
 
 const ProveedoresPage = () => {
   const { currentUser } = useAuth()
@@ -33,6 +39,22 @@ const ProveedoresPage = () => {
   const [dialogEliminarAbierto, setDialogEliminarAbierto] = useState(false)
   const [modoEdicion, setModoEdicion] = useState(false)
   const [proveedorEnEdicion, setProveedorEnEdicion] = useState(null)
+  const [dialogCuentaCorrienteAbierto, setDialogCuentaCorrienteAbierto] = useState(false)
+  const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
+  const [cuentaCorrienteProveedor, setCuentaCorrienteProveedor] = useState(null)
+  const [comprasProveedor, setComprasProveedor] = useState([])
+  const [puntosVentaPago, setPuntosVentaPago] = useState([])
+  const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
+  const [procesandoPagoProveedor, setProcesandoPagoProveedor] = useState(false)
+  const [fechaInicioMovs, setFechaInicioMovs] = useState("")
+  const [fechaFinMovs, setFechaFinMovs] = useState("")
+  const [formPagoProveedor, setFormPagoProveedor] = useState({
+    compra_id: "",
+    monto: "",
+    tipo_pago: "Efectivo",
+    punto_venta_id: "",
+    notas: "",
+  })
   const [formProveedor, setFormProveedor] = useState({
     nombre: "",
     telefono: "",
@@ -57,12 +79,45 @@ const ProveedoresPage = () => {
     filtrarProveedores()
   }, [busqueda, proveedores])
 
+  useEffect(() => {
+    const cargarDatos = async () => {
+      try {
+        const [puntos, tipos] = await Promise.all([getPuntosVenta(), getTiposPago()])
+        setPuntosVentaPago(puntos)
+        const tiposSinCuenta = tipos.filter((t) => t.nombre.toLowerCase() !== "cuenta corriente")
+        setTiposPagoDisponibles(tiposSinCuenta)
+        setFormPagoProveedor((prev) => ({
+          ...prev,
+          punto_venta_id: puntos[0]?.id?.toString() || "",
+          tipo_pago: tiposSinCuenta[0]?.nombre || "Efectivo",
+        }))
+      } catch (error) {
+        console.error("Error al cargar datos para cuenta corriente de proveedores:", error)
+      }
+    }
+    cargarDatos()
+  }, [])
+
   const cargarProveedores = async () => {
     setCargando(true)
     try {
       const data = await getProveedores()
-      setProveedores(data)
-      setProveedoresFiltrados(data)
+      const proveedoresConSaldo = await Promise.all(
+        data.map(async (prov) => {
+          try {
+            const cc = await getCuentaCorrienteProveedor(prov.id)
+            return {
+              ...prov,
+              saldo_cc_proveedor: Number(cc?.cuenta_corriente?.saldo || 0),
+            }
+          } catch {
+            return { ...prov, saldo_cc_proveedor: 0 }
+          }
+        }),
+      )
+
+      setProveedores(proveedoresConSaldo)
+      setProveedoresFiltrados(proveedoresConSaldo)
     } catch (error) {
       console.error("Error al cargar proveedores:", error)
       toast.error("Error al cargar proveedores")
@@ -84,7 +139,13 @@ const ProveedoresPage = () => {
     setCargando(true)
     try {
       const data = await searchProveedores(busqueda.trim())
-      setProveedoresFiltrados(data)
+      const saldoById = new Map(proveedores.map((p) => [p.id, p.saldo_cc_proveedor || 0]))
+      setProveedoresFiltrados(
+        data.map((p) => ({
+          ...p,
+          saldo_cc_proveedor: saldoById.get(p.id) || 0,
+        })),
+      )
     } catch (error) {
       console.error("Error al buscar proveedores:", error)
       toast.error("Error al buscar proveedores")
@@ -200,6 +261,85 @@ const ProveedoresPage = () => {
     buscarProveedoresServidor()
   }
 
+  const cargarCuentaCorrienteYComprasProveedor = async (proveedorId, filters = {}) => {
+    setCargandoCuentaCorriente(true)
+    try {
+      const [ccData, comprasData] = await Promise.all([
+        getCuentaCorrienteProveedor(proveedorId, filters),
+        getComprasPaginadas(1, 200, { proveedor_id: proveedorId, anuladas: "false" }),
+      ])
+      setCuentaCorrienteProveedor(ccData)
+      setComprasProveedor(comprasData.compras || [])
+      setFormPagoProveedor((prev) => ({
+        ...prev,
+        compra_id: prev.compra_id || comprasData.compras?.[0]?.id?.toString() || "",
+      }))
+    } catch (error) {
+      console.error("Error al cargar cuenta corriente del proveedor:", error)
+      toast.error(error.message || "Error al cargar cuenta corriente")
+    } finally {
+      setCargandoCuentaCorriente(false)
+    }
+  }
+
+  const abrirDialogCuentaCorriente = async (proveedor) => {
+    setProveedorSeleccionado(proveedor)
+    setDialogCuentaCorrienteAbierto(true)
+    setFechaInicioMovs("")
+    setFechaFinMovs("")
+    await cargarCuentaCorrienteYComprasProveedor(proveedor.id)
+  }
+
+  const filtrarMovimientosCuenta = async () => {
+    if (!proveedorSeleccionado?.id) return
+    await cargarCuentaCorrienteYComprasProveedor(proveedorSeleccionado.id, {
+      fecha_inicio: fechaInicioMovs || undefined,
+      fecha_fin: fechaFinMovs || undefined,
+    })
+  }
+
+  const registrarPagoProveedor = async () => {
+    if (!proveedorSeleccionado?.id) return
+
+    const monto = Number(formPagoProveedor.monto)
+    if (!Number.isFinite(monto) || monto <= 0) {
+      toast.error("El monto debe ser mayor a cero")
+      return
+    }
+    if (!formPagoProveedor.compra_id) {
+      toast.error("Debes seleccionar una compra a imputar")
+      return
+    }
+    if (!formPagoProveedor.punto_venta_id) {
+      toast.error("Debes seleccionar un punto de venta")
+      return
+    }
+
+    setProcesandoPagoProveedor(true)
+    try {
+      await registrarPagoCuentaCorrienteProveedor(proveedorSeleccionado.id, {
+        compra_id: Number(formPagoProveedor.compra_id),
+        monto,
+        tipo_pago: formPagoProveedor.tipo_pago,
+        punto_venta_id: Number(formPagoProveedor.punto_venta_id),
+        notas: formPagoProveedor.notas,
+      })
+
+      toast.success("Pago registrado. Impactó caja como egreso.")
+      await cargarCuentaCorrienteYComprasProveedor(proveedorSeleccionado.id, {
+        fecha_inicio: fechaInicioMovs || undefined,
+        fecha_fin: fechaFinMovs || undefined,
+      })
+      await cargarProveedores()
+      setFormPagoProveedor((prev) => ({ ...prev, monto: "", notas: "" }))
+    } catch (error) {
+      console.error("Error al registrar pago al proveedor:", error)
+      toast.error(error.message || "Error al registrar pago")
+    } finally {
+      setProcesandoPagoProveedor(false)
+    }
+  }
+
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       {/* Header */}
@@ -252,6 +392,7 @@ const ProveedoresPage = () => {
         cargando={cargando}
         busqueda={busqueda}
         abrirDialogProveedor={abrirDialogProveedor}
+        abrirDialogCuentaCorriente={abrirDialogCuentaCorriente}
         setProveedorSeleccionado={setProveedorSeleccionado}
         setDialogEliminarAbierto={setDialogEliminarAbierto}
       />
@@ -268,6 +409,26 @@ const ProveedoresPage = () => {
         dialogEliminarAbierto={dialogEliminarAbierto}
         setDialogEliminarAbierto={setDialogEliminarAbierto}
         eliminarProveedor={eliminarProveedor}
+      />
+
+      <ProveedorCuentaCorrienteDialog
+        open={dialogCuentaCorrienteAbierto}
+        onOpenChange={setDialogCuentaCorrienteAbierto}
+        proveedor={proveedorSeleccionado}
+        cuentaData={cuentaCorrienteProveedor}
+        loading={cargandoCuentaCorriente}
+        fechaInicio={fechaInicioMovs}
+        setFechaInicio={setFechaInicioMovs}
+        fechaFin={fechaFinMovs}
+        setFechaFin={setFechaFinMovs}
+        onFiltrarMovimientos={filtrarMovimientosCuenta}
+        comprasProveedor={comprasProveedor}
+        puntosVenta={puntosVentaPago}
+        tiposPago={tiposPagoDisponibles}
+        formPago={formPagoProveedor}
+        setFormPago={setFormPagoProveedor}
+        onRegistrarPago={registrarPagoProveedor}
+        procesandoPago={procesandoPagoProveedor}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Users, Edit, Trash2, Phone, Mail, FileText } from "lucide-react"
+import { Users, Edit, Trash2, Phone, Mail, FileText, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -29,7 +29,18 @@ const renderSkeletons = () =>
     </TableRow>
   ))
 
-const ProveedoresList = ({ proveedores, cargando, busqueda, abrirDialogProveedor, setProveedorSeleccionado, setDialogEliminarAbierto }) => {
+const formatearMonedaARS = (valor) =>
+  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(Number(valor) || 0)
+
+const ProveedoresList = ({
+  proveedores,
+  cargando,
+  busqueda,
+  abrirDialogProveedor,
+  abrirDialogCuentaCorriente,
+  setProveedorSeleccionado,
+  setDialogEliminarAbierto,
+}) => {
   return (
     <Card className="border-0 shadow-md">
       <CardHeader className="bg-[#131321] pb-3">
@@ -51,6 +62,7 @@ const ProveedoresList = ({ proveedores, cargando, busqueda, abrirDialogProveedor
                 <TableHead className="bg-white">Teléfono</TableHead>
                 <TableHead className="bg-white">Email</TableHead>
                 <TableHead className="bg-white">Contacto</TableHead>
+                <TableHead className="bg-white">Saldo C/C</TableHead>
                 <TableHead className="bg-white text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -59,7 +71,7 @@ const ProveedoresList = ({ proveedores, cargando, busqueda, abrirDialogProveedor
                 renderSkeletons()
               ) : proveedores.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <FileText className="h-12 w-12 text-gray-300" />
                       <h3 className="text-lg font-medium text-gray-500">No hay proveedores disponibles</h3>
@@ -107,8 +119,28 @@ const ProveedoresList = ({ proveedores, cargando, busqueda, abrirDialogProveedor
                         )}
                       </TableCell>
                       <TableCell>{proveedor.contacto || "-"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            Number(proveedor.saldo_cc_proveedor || 0) > 0
+                              ? "bg-red-100 text-red-800 border-red-300"
+                              : "bg-green-100 text-green-800 border-green-300"
+                          }
+                        >
+                          {formatearMonedaARS(proveedor.saldo_cc_proveedor || 0)}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => abrirDialogCuentaCorriente(proveedor)}
+                            className="hover:bg-orange-50 hover:text-orange-600"
+                            title="Cuenta corriente"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"

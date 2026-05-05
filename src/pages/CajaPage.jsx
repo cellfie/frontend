@@ -127,6 +127,9 @@ const CajaPage = () => {
   const [dialogCierreAbierto, setDialogCierreAbierto] = useState(false)
   const [tiposPago, setTiposPago] = useState([])
   const prevDialogCierreAbierto = useRef(false)
+  const esPagoProveedorCC = (mov) =>
+    String(mov?.tipo || "").toLowerCase() === "egreso" &&
+    String(mov?.concepto || "").toLowerCase().includes("pago a proveedor por compra")
 
   // Al abrir "Cerrar caja" (también si solo se hace setDialogCierreAbierto(true)), precargar y efectivo = monto apertura
   useEffect(() => {
@@ -985,6 +988,11 @@ const CajaPage = () => {
                                     {mov.usuario_nombre && <span>Usuario: {mov.usuario_nombre}</span>}
                                     {mov.tipo === "venta" && (
                                       <span className="bg-blue-100 text-blue-800 px-1 rounded text-[10px]">Venta</span>
+                                    )}
+                                    {esPagoProveedorCC(mov) && (
+                                      <span className="bg-amber-100 text-amber-800 px-1 rounded text-[10px]">
+                                        Pago proveedor C/C
+                                      </span>
                                     )}
                                   </div>
                                 </div>
