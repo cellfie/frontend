@@ -10,7 +10,15 @@ import { getCategorias } from "../../../services/categoriasService"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { NumericFormat } from "react-number-format"
 
-export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta = [], defaultPuntoVentaId = null }) => {
+export const AddProductModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  product,
+  puntosVenta = [],
+  defaultPuntoVentaId = null,
+  stockDefinidoPorCompra = false,
+}) => {
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -118,9 +126,11 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
       newErrors.costPrice = `El precio de costo no puede ser mayor a $99.999.999,99`
     }
 
-    const stock = Number.parseInt(formData.stock)
-    if (isNaN(stock) || stock < 0) {
-      newErrors.stock = "El stock debe ser un número no negativo"
+    if (!(stockDefinidoPorCompra && !product)) {
+      const stock = Number.parseInt(formData.stock)
+      if (isNaN(stock) || stock < 0) {
+        newErrors.stock = "El stock debe ser un número no negativo"
+      }
     }
     if (!formData.punto_venta_id) {
       newErrors.punto_venta_id = "El punto de venta es requerido"
@@ -142,7 +152,7 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
         // El precio ya está como número gracias al onValueChange del NumericFormat
         price: formData.price,
         costPrice: formData.costPrice,
-        stock: Number.parseInt(formData.stock),
+        stock: stockDefinidoPorCompra && !product ? 0 : Number.parseInt(formData.stock),
         id: product?.id,
         // Convertir "0" a null para la categoría
         categoria_id: formData.categoria_id === "0" ? null : Number(formData.categoria_id),
@@ -338,15 +348,21 @@ export const AddProductModal = ({ isOpen, onClose, onSave, product, puntosVenta 
                   type="number"
                   min="0"
                   step="1"
-                  value={formData.stock}
+                  value={stockDefinidoPorCompra && !product ? "0" : formData.stock}
                   onChange={handleChange}
                   placeholder="0"
+                  disabled={stockDefinidoPorCompra && !product}
                   className={
                     errors.stock
                       ? "border-red-500 focus-visible:ring-red-500"
                       : "border-orange-200 focus-visible:ring-orange-500"
                   }
                 />
+                {stockDefinidoPorCompra && !product && (
+                  <p className="text-xs text-blue-700">
+                    El stock se define por la compra. Este producto se crea con stock 0.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">

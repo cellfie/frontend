@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css"
 import { History, FolderOpen, Wallet, MapPin } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +35,8 @@ const HistorialCajaPage = () => {
     itemsPerPage: 20,
   })
   const [loadingSesiones, setLoadingSesiones] = useState(false)
+  const [fechaInicioFiltro, setFechaInicioFiltro] = useState("")
+  const [fechaFinFiltro, setFechaFinFiltro] = useState("")
 
   const [sesionDetalle, setSesionDetalle] = useState(null)
   const [dialogDetalleSesionAbierto, setDialogDetalleSesionAbierto] = useState(false)
@@ -72,12 +75,21 @@ const HistorialCajaPage = () => {
     cargarPV()
   }, [currentUser])
 
-  const cargarSesiones = async (page = 1) => {
+  const cargarSesiones = async (page = 1, filtrosOverride = null) => {
     if (!puntoVentaSeleccionado) return
+    const fechaInicioActiva = filtrosOverride ? filtrosOverride.fecha_inicio : fechaInicioFiltro
+    const fechaFinActiva = filtrosOverride ? filtrosOverride.fecha_fin : fechaFinFiltro
+
+    if (fechaInicioActiva && fechaFinActiva && fechaInicioActiva > fechaFinActiva) {
+      toast.error("La fecha desde no puede ser mayor que la fecha hasta.")
+      return
+    }
     setLoadingSesiones(true)
     try {
       const data = await getSesionesCaja(page, sesionesPagination.itemsPerPage, {
         punto_venta_id: puntoVentaSeleccionado || undefined,
+        fecha_inicio: fechaInicioActiva || undefined,
+        fecha_fin: fechaFinActiva || undefined,
       })
       setSesiones(data.sesiones)
       setSesionesPagination((prev) => ({ ...prev, ...data.pagination }))
@@ -196,29 +208,68 @@ const HistorialCajaPage = () => {
 
       <Card className="border-0 shadow-md mb-6">
         <CardHeader className="bg-[#131321] pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <CardTitle className="text-orange-500 flex items-center gap-2 text-lg">
-                <MapPin className="h-5 w-5" />
-                Filtro por punto de venta
-              </CardTitle>
-              <CardDescription className="text-gray-300 mt-1">
-                Listado de sesiones de apertura y cierre de caja para{" "}
-                <span className="font-semibold text-orange-400">{puntoVentaNombre}</span>
-              </CardDescription>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="text-orange-500 flex items-center gap-2 text-lg">
+                  <MapPin className="h-5 w-5" />
+                  Filtro por punto de venta
+                </CardTitle>
+                <CardDescription className="text-gray-300 mt-1">
+                  Listado de sesiones de apertura y cierre de caja para{" "}
+                  <span className="font-semibold text-orange-400">{puntoVentaNombre}</span>
+                </CardDescription>
+              </div>
+              <Select value={puntoVentaSeleccionado} onValueChange={setPuntoVentaSeleccionado}>
+                <SelectTrigger className="w-full sm:w-[240px] h-10 bg-white shadow-sm">
+                  <SelectValue placeholder="Punto de venta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {puntosVenta.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      {p.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={puntoVentaSeleccionado} onValueChange={setPuntoVentaSeleccionado}>
-              <SelectTrigger className="w-full sm:w-[240px] h-10 bg-white shadow-sm">
-                <SelectValue placeholder="Punto de venta" />
-              </SelectTrigger>
-              <SelectContent>
-                {puntosVenta.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    {p.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              <Input
+                type="date"
+                value={fechaInicioFiltro}
+                onChange={(e) => setFechaInicioFiltro(e.target.value)}
+                className="bg-white"
+              />
+              <Input
+                type="date"
+                value={fechaFinFiltro}
+                onChange={(e) => setFechaFinFiltro(e.target.value)}
+                className="bg-white"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-white hover:bg-orange-50 border-orange-200"
+                onClick={() => cargarSesiones(1)}
+                disabled={loadingSesiones || !puntoVentaSeleccionado}
+              >
+                Aplicar fechas
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-white hover:bg-gray-100"
+                onClick={() => {
+                  setFechaInicioFiltro("")
+                  setFechaFinFiltro("")
+                  cargarSesiones(1, { fecha_inicio: "", fecha_fin: "" })
+                }}
+                disabled={loadingSesiones || (!fechaInicioFiltro && !fechaFinFiltro)}
+              >
+                Limpiar fechas
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">

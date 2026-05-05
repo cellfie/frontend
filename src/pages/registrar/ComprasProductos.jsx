@@ -389,7 +389,14 @@ const ComprasProductos = () => {
       throw new Error("Punto de venta inválido para la compra")
     }
 
-    const creado = await createProducto(nuevoProducto)
+    // En compras, el stock inicial del alta debe quedar en 0 para evitar doble suma:
+    // 1) alta del producto y 2) registro de la compra.
+    const productoParaCrear = {
+      ...nuevoProducto,
+      stock: 0,
+    }
+
+    const creado = await createProducto(productoParaCrear)
     const productoCreadoRaw = await getProductoById(creado.id)
     const productoCreado = {
       ...adaptProductoToFrontend(productoCreadoRaw),
@@ -1017,6 +1024,7 @@ const ComprasProductos = () => {
         onClose={() => setDialogNuevoProductoAbierto(false)}
         onSave={handleCrearProductoDesdeCompra}
         product={null}
+        stockDefinidoPorCompra={true}
         puntosVenta={
           puntoVentaSeleccionado
             ? puntosVenta.filter((pv) => pv.id.toString() === puntoVentaSeleccionado)
