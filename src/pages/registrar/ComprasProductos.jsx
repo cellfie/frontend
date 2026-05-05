@@ -153,9 +153,17 @@ const ComprasProductos = () => {
         }
 
         const tipos = await getTiposPago()
-        setTiposPagoDisponibles(tipos)
-        if (tipos.length > 0) {
-          setTipoPagoActual(tipos[0].id.toString())
+        const tiposCompra = [
+          ...tipos.filter((t) => t.nombre.toLowerCase() !== "cuenta corriente"),
+          {
+            id: 999,
+            nombre: "Cuenta corriente proveedor",
+            descripcion: "Compra a cuenta corriente del proveedor",
+          },
+        ]
+        setTiposPagoDisponibles(tiposCompra)
+        if (tiposCompra.length > 0) {
+          setTipoPagoActual(tiposCompra[0].id.toString())
         }
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)

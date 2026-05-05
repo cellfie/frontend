@@ -136,3 +136,43 @@ export const deleteProveedor = async (id) => {
   }
 }
 
+// Obtener cuenta corriente de proveedor
+export const getCuentaCorrienteProveedor = async (id) => {
+  try {
+    const response = await fetch(`${API_URL}/proveedores/${id}/cuenta-corriente`, {
+      method: "GET",
+      credentials: "include",
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Error al obtener cuenta corriente del proveedor" }))
+      throw new Error(errorData.message || "Error al obtener cuenta corriente del proveedor")
+    }
+    return await response.json()
+  } catch (error) {
+    console.error("Error en getCuentaCorrienteProveedor:", error)
+    throw error
+  }
+}
+
+// Registrar pago de deuda a proveedor
+export const registrarPagoCuentaCorrienteProveedor = async (id, payload) => {
+  try {
+    const response = await fetch(`${API_URL}/proveedores/${id}/cuenta-corriente/pagos`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "Error al registrar pago de cuenta corriente" }))
+      throw new Error(errorData.message || "Error al registrar pago de cuenta corriente")
+    }
+    return await response.json()
+  } catch (error) {
+    console.error("Error en registrarPagoCuentaCorrienteProveedor:", error)
+    throw error
+  }
+}
+
