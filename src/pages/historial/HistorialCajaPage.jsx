@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { CajaSesionDetalleModal } from "@/components/caja/CajaSesionDetalleModal"
 
 import { getPuntosVenta } from "@/services/puntosVentaService"
@@ -293,7 +292,7 @@ const HistorialCajaPage = () => {
             </div>
           ) : (
             <>
-              <ScrollArea className="max-h-[min(520px,60vh)] sm:max-h-[560px]">
+              <div>
                 <div className="divide-y divide-gray-100">
                   {sesiones.map((s) => (
                     <button
@@ -339,7 +338,7 @@ const HistorialCajaPage = () => {
                     </button>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
               {sesionesPagination.totalPages > 1 && (
                 <div className="p-4 border-t bg-gray-50/80">
                   <PaginationControls
