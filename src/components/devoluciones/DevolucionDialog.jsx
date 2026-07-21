@@ -26,7 +26,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -42,6 +41,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { NumericFormat } from "react-number-format"
+import { cn } from "@/lib/utils"
 
 import { adaptProductoToFrontend, getProductosPaginados } from "@/services/productosService"
 import { getTiposPago } from "@/services/pagosService"
@@ -76,6 +77,9 @@ const DevolucionDialog = ({
   const [buscandoReemplazo, setBuscandoReemplazo] = useState(false)
   const [tipoPagoSeleccionado, setTipoPagoSeleccionado] = useState("")
   const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
+  // Cobro de la diferencia con múltiples métodos de pago (igual que en ventas)
+  const [montoPagoActual, setMontoPagoActual] = useState("")
+  const [pagosDiferencia, setPagosDiferencia] = useState([])
   const [puntosVenta, setPuntosVenta] = useState([])
   const [procesandoDevolucion, setProcesandoDevolucion] = useState(false)
   const [estadoDevolucion, setEstadoDevolucion] = useState({
@@ -112,6 +116,8 @@ const DevolucionDialog = ({
       setBusqueda("")
       setBuscandoReemplazo(false)
       setTipoPagoSeleccionado("")
+      setMontoPagoActual("")
+      setPagosDiferencia([])
       setEstadoDevolucion({ exito: false, error: false, mensaje: "" })
       setDevolucionesExistentes([])
       setProductosDevueltos(new Map())
@@ -439,6 +445,86 @@ const DevolucionDialog = ({
     return calcularTotalReemplazo() - calcularTotalDevolucion()
   }
 
+  // ===== Cobro de la diferencia con múltiples métodos de pago (como en ventas) =====
+  const parseMontoPago = (str) => {
+    const s =
+      typeof str === "string"
+        ? str.replace(/\$\s?/g, "").replace(/\./g, "").replace(",", ".").trim()
+        : str
+    const n = Number.parseFloat(s)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  const calcularTotalPagadoDiferencia = () =>
+    pagosDiferencia.reduce((total, pago) => total + Number(pago.monto || 0), 0)
+
+  const calcularRestanteDiferencia = () => calcularDiferencia() - calcularTotalPagadoDiferencia()
+
+  const hayPagoCuentaCorriente = pagosDiferencia.some((p) =>
+    (p.tipo_pago_nombre || "").toLowerCase().includes("cuenta"),
+  )
+
+  const montoCuentaCorrienteDiferencia = pagosDiferencia
+    .filter((p) => (p.tipo_pago_nombre || "").toLowerCase().includes("cuenta"))
+    .reduce((total, p) => total + Number(p.monto || 0), 0)
+
+  const clienteActualDevolucion = typeof setCliente === "function" ? cliente : clienteLocal
+
+  const agregarPagoDiferencia = () => {
+    const monto = parseMontoPago(montoPagoActual)
+    if (!tipoPagoSeleccionado) {
+      toast.error("Seleccione un método de pago")
+      return
+    }
+    const tipo = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
+    if (!tipo) {
+      toast.error("Método de pago inválido")
+      return
+    }
+    if (!Number.isFinite(monto) || monto <= 0) {
+      toast.error("Ingrese un monto válido")
+      return
+    }
+    const esCuenta = (tipo.nombre || "").toLowerCase().includes("cuenta")
+    if (esCuenta && !clienteActualDevolucion?.id) {
+      toast.error("Debe seleccionar un cliente para usar cuenta corriente")
+      return
+    }
+    const restante = calcularRestanteDiferencia()
+    if (monto - restante > 0.01) {
+      toast.error("El monto supera la diferencia a pagar")
+      return
+    }
+
+    setPagosDiferencia((prev) => [
+      ...prev,
+      {
+        id: `${tipo.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        tipo_pago_id: tipo.id,
+        tipo_pago_nombre: tipo.nombre,
+        monto,
+      },
+    ])
+    setMontoPagoActual("")
+    setTipoPagoSeleccionado("")
+  }
+
+  const eliminarPagoDiferencia = (id) => {
+    setPagosDiferencia((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  const rellenarRestanteDiferencia = () => {
+    const restante = calcularRestanteDiferencia()
+    if (restante > 0) setMontoPagoActual(restante.toFixed(2).replace(".", ","))
+  }
+
+  // Si cambian los productos (y por ende la diferencia), reiniciar los pagos cargados
+  useEffect(() => {
+    setPagosDiferencia([])
+    setMontoPagoActual("")
+    setTipoPagoSeleccionado("")
+  }, [productosADevolver, productosReemplazo])
+
   // Función para asegurar que el cliente tenga una cuenta corriente
   const asegurarCuentaCorrienteCliente = async (clienteId) => {
     if (!clienteId) return null
@@ -492,37 +578,29 @@ const DevolucionDialog = ({
         }
       }
 
-      // Si hay diferencia a pagar, validar que se haya seleccionado un tipo de pago
+      // Si hay diferencia a pagar, validar que los pagos cubran el total de la diferencia
       const diferencia = calcularDiferencia()
-      if (diferencia > 0 && !tipoPagoSeleccionado) {
-        toast.error("Debe seleccionar un método de pago para la diferencia")
-        return
-      }
-
-      // Si el tipo de pago es cuenta corriente, validar que el cliente tenga cuenta
-      if (diferencia > 0 && tipoPagoSeleccionado) {
-        const tipoPago = tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-        const esCuentaCorriente =
-          tipoPago &&
-          (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta")
-
-        const clienteActual = typeof setCliente === "function" ? cliente : clienteLocal
-
-        if (esCuentaCorriente && !clienteActual?.id) {
-          toast.error("Debe seleccionar un cliente con cuenta corriente para este método de pago")
+      if (diferencia > 0) {
+        if (pagosDiferencia.length === 0) {
+          toast.error("Debe registrar al menos un método de pago para la diferencia")
+          return
+        }
+        if (Math.abs(calcularRestanteDiferencia()) > 0.01) {
+          toast.error("Los pagos no cubren el total de la diferencia a pagar")
           return
         }
 
-        // Si es cuenta corriente y hay un cliente seleccionado, asegurarse de que tenga cuenta
-        if (esCuentaCorriente && clienteActual?.id) {
+        const clienteActual = typeof setCliente === "function" ? cliente : clienteLocal
+
+        // Si alguno de los pagos es cuenta corriente, validar/crear la cuenta del cliente
+        if (hayPagoCuentaCorriente) {
+          if (!clienteActual?.id) {
+            toast.error("Debe seleccionar un cliente para pagar con cuenta corriente")
+            return
+          }
           try {
-            // Mostrar un indicador de carga
             setCargandoCuentaCorriente(true)
-
-            // Asegurar que el cliente tenga una cuenta corriente
             const cuenta = await asegurarCuentaCorrienteCliente(clienteActual.id)
-
-            // Actualizar la información de la cuenta
             if (cuenta) {
               setCuentaCorrienteInfo(cuenta)
             }
@@ -587,15 +665,22 @@ const DevolucionDialog = ({
 
       // Verificar si se requiere un cliente para la devolución
       const diferencia = calcularDiferencia()
-      const tipoPago = tipoPagoSeleccionado
-        ? tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-        : null
 
-      const esCuentaCorriente =
-        tipoPago && (tipoPago.nombre.toLowerCase() === "cuenta corriente" || tipoPago.nombre.toLowerCase() === "cuenta")
+      // ¿Alguno de los pagos de la diferencia usa cuenta corriente?
+      const esCuentaCorriente = hayPagoCuentaCorriente
 
       // Determinar qué cliente usar (el prop o el local)
       const clienteActual = typeof setCliente === "function" ? cliente : clienteLocal
+
+      // Validar que los pagos cubran la diferencia a pagar
+      if (diferencia > 0) {
+        if (pagosDiferencia.length === 0) {
+          throw new Error("Debe registrar al menos un método de pago para la diferencia")
+        }
+        if (Math.abs(calcularRestanteDiferencia()) > 0.01) {
+          throw new Error("Los pagos no cubren el total de la diferencia a pagar")
+        }
+      }
 
       // Si es cuenta corriente o hay diferencia a favor del cliente, verificar que haya un cliente seleccionado
       if ((esCuentaCorriente || diferencia < 0) && (!clienteActual || !clienteActual.id)) {
@@ -613,13 +698,13 @@ const DevolucionDialog = ({
         }
       }
 
-      // Si es cuenta corriente y hay diferencia a pagar, verificar límite de crédito
+      // Si se usa cuenta corriente, verificar límite de crédito solo por la parte imputada a cuenta corriente
       if (
         esCuentaCorriente &&
         diferencia > 0 &&
         cuentaCorrienteInfo &&
         cuentaCorrienteInfo.limite_credito > 0 &&
-        cuentaCorrienteInfo.saldo + diferencia > cuentaCorrienteInfo.limite_credito
+        Number(cuentaCorrienteInfo.saldo) + montoCuentaCorrienteDiferencia > cuentaCorrienteInfo.limite_credito
       ) {
         throw new Error(`La operación excede el límite de crédito del cliente (${cuentaCorrienteInfo.limite_credito})`)
       }
@@ -645,9 +730,16 @@ const DevolucionDialog = ({
           }
         }),
         diferencia: calcularDiferencia(),
-        tipo_pago: tipoPagoSeleccionado
-          ? tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)?.nombre
-          : null,
+        // Múltiples métodos de pago para cubrir la diferencia (como en ventas)
+        pagos:
+          diferencia > 0
+            ? pagosDiferencia.map((p) => ({
+                tipo_pago: p.tipo_pago_nombre,
+                monto: Number(p.monto),
+              }))
+            : [],
+        // Compatibilidad: primer método (o null) por si algún consumidor legacy lo usa
+        tipo_pago: diferencia > 0 && pagosDiferencia.length > 0 ? pagosDiferencia[0].tipo_pago_nombre : null,
         cliente_id: clienteActual?.id || null,
       }
 
@@ -1216,117 +1308,240 @@ const DevolucionDialog = ({
                       <CardHeader className="py-3 px-4 bg-gray-50">
                         <CardTitle className="text-base font-medium flex items-center gap-2">
                           <DollarSign className="h-5 w-5 text-orange-600" />
-                          {calcularDiferencia() > 0 ? "Método de pago" : "Información de crédito"}
+                          {calcularDiferencia() > 0 ? "Métodos de pago" : "Información de crédito"}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4">
                         {calcularDiferencia() > 0 && (
-                          <>
-                            <Select value={tipoPagoSeleccionado} onValueChange={setTipoPagoSeleccionado}>
-                              <SelectTrigger className="w-full text-sm">
-                                <SelectValue placeholder="Seleccione método de pago" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {tiposPagoDisponibles.map((tipo) => (
-                                  <SelectItem key={tipo.id} value={tipo.id.toString()}>
-                                    {tipo.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className="space-y-3">
+                            {/* Selector de cliente (necesario para habilitar cuenta corriente) */}
+                            {tiposPagoDisponibles.some((t) =>
+                              (t.nombre || "").toLowerCase().includes("cuenta"),
+                            ) && (
+                              <div className="flex justify-between items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2">
+                                <span className="text-xs text-gray-600">Cliente (para cuenta corriente):</span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => setDialogClienteAbierto(true)}
+                                >
+                                  {clienteActualDevolucion?.id ? clienteActualDevolucion.nombre : "Seleccionar"}
+                                </Button>
+                              </div>
+                            )}
 
-                            {tipoPagoSeleccionado && (
-                              <div className="mt-3 p-3 rounded-md border text-sm">
-                                {tiposPagoDisponibles
-                                  .find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-                                  ?.nombre.toLowerCase()
-                                  .includes("cuenta") ? (
-                                  <div>
-                                    <div className="flex justify-between items-center mb-2">
-                                      <span className="text-gray-600">Cliente:</span>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-xs"
-                                        onClick={() => setDialogClienteAbierto(true)}
-                                      >
-                                        {(typeof setCliente === "function" ? cliente?.id : clienteLocal?.id)
-                                          ? typeof setCliente === "function"
-                                            ? cliente.nombre
-                                            : clienteLocal.nombre
-                                          : "Seleccionar cliente"}
-                                      </Button>
-                                    </div>
-                                    {(typeof setCliente === "function" ? cliente?.id : clienteLocal?.id) ? (
-                                      cargandoCuentaCorriente ? (
-                                        <div className="text-center py-1">
-                                          <span className="text-xs text-gray-500">Cargando información...</span>
-                                        </div>
-                                      ) : cuentaCorrienteInfo ? (
-                                        <div className="text-xs space-y-1">
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Cliente:</span>
-                                            <span className="font-medium">
-                                              {typeof setCliente === "function" ? cliente.nombre : clienteLocal.nombre}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">Saldo actual:</span>
-                                            <span
-                                              className={
-                                                cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-600"
-                                              }
-                                            >
-                                              {formatearPrecio(cuentaCorrienteInfo.saldo)}
-                                            </span>
-                                          </div>
-                                          {cuentaCorrienteInfo.limite_credito > 0 && (
-                                            <div className="flex justify-between">
-                                              <span className="text-gray-600">Límite de crédito:</span>
-                                              <span>{formatearPrecio(cuentaCorrienteInfo.limite_credito)}</span>
-                                            </div>
-                                          )}
-                                          <div className="flex justify-between font-medium">
-                                            <span className="text-gray-600">Nuevo saldo:</span>
-                                            <span
-                                              className={
-                                                Number(cuentaCorrienteInfo.saldo) + Number(calcularDiferencia()) > 0
-                                                  ? "text-red-600"
-                                                  : "text-green-600"
-                                              }
-                                            >
-                                              {formatearPrecio(
-                                                Number(cuentaCorrienteInfo.saldo) + Number(calcularDiferencia()),
-                                              )}
-                                            </span>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-1 text-yellow-600">
-                                          <AlertTriangle className="h-4 w-4" />
-                                          <span>El cliente no tiene cuenta corriente activa</span>
-                                        </div>
-                                      )
-                                    ) : (
-                                      <div className="flex items-center gap-1 text-red-600">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        <span>Debe seleccionar un cliente con cuenta corriente</span>
+                            {/* Selección del método de pago (permite combinar varios) */}
+                            <div>
+                              <Label className="text-xs text-gray-600">Método de pago</Label>
+                              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                                {tiposPagoDisponibles.map((tipo) => {
+                                  const esCuenta = (tipo.nombre || "").toLowerCase().includes("cuenta")
+                                  const disabled = esCuenta && !clienteActualDevolucion?.id
+                                  const selected = tipoPagoSeleccionado === tipo.id.toString()
+                                  return (
+                                    <button
+                                      key={tipo.id}
+                                      type="button"
+                                      disabled={disabled}
+                                      onClick={() => setTipoPagoSeleccionado(tipo.id.toString())}
+                                      className={cn(
+                                        "rounded-lg border-2 px-2 py-2 text-xs font-medium text-center transition-all",
+                                        disabled && "opacity-40 cursor-not-allowed border-gray-100 bg-gray-50",
+                                        !disabled &&
+                                          selected &&
+                                          "border-orange-500 bg-orange-50 text-orange-800 ring-2 ring-orange-200",
+                                        !disabled &&
+                                          !selected &&
+                                          "border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50/40",
+                                      )}
+                                    >
+                                      {tipo.nombre}
+                                      {disabled && <span className="block text-[9px] text-red-600">Requiere cliente</span>}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Monto y acciones */}
+                            <div className="space-y-2">
+                              <Label htmlFor="monto-pago-devolucion" className="text-xs text-gray-600">
+                                Monto de este pago
+                              </Label>
+                              <NumericFormat
+                                id="monto-pago-devolucion"
+                                value={montoPagoActual}
+                                onValueChange={(values) => setMontoPagoActual(values.formattedValue)}
+                                thousandSeparator="."
+                                decimalSeparator=","
+                                prefix="$ "
+                                decimalScale={2}
+                                fixedDecimalScale
+                                allowNegative={false}
+                                className="w-full text-sm font-semibold h-10 rounded-lg border border-input px-3"
+                                customInput={Input}
+                                placeholder="$ 0,00"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 border-orange-200 text-orange-700 hover:bg-orange-50"
+                                  onClick={rellenarRestanteDiferencia}
+                                  disabled={calcularRestanteDiferencia() <= 0.009}
+                                >
+                                  Usar restante
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+                                  onClick={agregarPagoDiferencia}
+                                  disabled={!tipoPagoSeleccionado || parseMontoPago(montoPagoActual) <= 0}
+                                >
+                                  <Plus className="h-3.5 w-3.5 mr-1" />
+                                  Agregar
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Pagos agregados */}
+                            <div className="space-y-2">
+                              {pagosDiferencia.length === 0 ? (
+                                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50/50 py-4 px-3 text-center text-xs text-gray-500">
+                                  Agregá uno o más pagos hasta cubrir la diferencia.
+                                </div>
+                              ) : (
+                                <ul className="space-y-1.5">
+                                  {pagosDiferencia.map((pago) => (
+                                    <li
+                                      key={pago.id}
+                                      className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-semibold text-gray-900 truncate">
+                                          {pago.tipo_pago_nombre}
+                                        </p>
+                                        <p className="text-sm font-bold text-orange-700">
+                                          {formatearPrecio(pago.monto)}
+                                        </p>
                                       </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1 text-green-600">
-                                    <CheckCircle className="h-4 w-4" />
-                                    Método de pago:{" "}
-                                    {
-                                      tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-                                        ?.nombre
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                        onClick={() => eliminarPagoDiferencia(pago.id)}
+                                        aria-label="Quitar pago"
+                                      >
+                                        <Trash className="h-4 w-4" />
+                                      </Button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              <div className="rounded-lg bg-slate-100/80 border border-slate-200 p-2.5 space-y-1 text-xs">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Pagado</span>
+                                  <span className="font-semibold">
+                                    {formatearPrecio(calcularTotalPagadoDiferencia())}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between font-medium">
+                                  <span
+                                    className={
+                                      calcularRestanteDiferencia() > 0.009 ? "text-red-700" : "text-emerald-700"
                                     }
+                                  >
+                                    {calcularRestanteDiferencia() > 0.009 ? "Falta cobrar" : "Cubierto"}
+                                  </span>
+                                  <span
+                                    className={
+                                      calcularRestanteDiferencia() > 0.009 ? "text-red-700" : "text-emerald-700"
+                                    }
+                                  >
+                                    {formatearPrecio(Math.abs(calcularRestanteDiferencia()))}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Información de cuenta corriente si alguno de los pagos la utiliza */}
+                            {hayPagoCuentaCorriente && (
+                              <div className="p-3 rounded-md border text-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-gray-600">Cliente:</span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => setDialogClienteAbierto(true)}
+                                  >
+                                    {clienteActualDevolucion?.id
+                                      ? clienteActualDevolucion.nombre
+                                      : "Seleccionar cliente"}
+                                  </Button>
+                                </div>
+                                {clienteActualDevolucion?.id ? (
+                                  cargandoCuentaCorriente ? (
+                                    <div className="text-center py-1">
+                                      <span className="text-xs text-gray-500">Cargando información...</span>
+                                    </div>
+                                  ) : cuentaCorrienteInfo ? (
+                                    <div className="text-xs space-y-1">
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Imputado a cuenta corriente:</span>
+                                        <span className="font-medium">
+                                          {formatearPrecio(montoCuentaCorrienteDiferencia)}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">Saldo actual:</span>
+                                        <span
+                                          className={cuentaCorrienteInfo.saldo > 0 ? "text-red-600" : "text-green-600"}
+                                        >
+                                          {formatearPrecio(cuentaCorrienteInfo.saldo)}
+                                        </span>
+                                      </div>
+                                      {cuentaCorrienteInfo.limite_credito > 0 && (
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">Límite de crédito:</span>
+                                          <span>{formatearPrecio(cuentaCorrienteInfo.limite_credito)}</span>
+                                        </div>
+                                      )}
+                                      <div className="flex justify-between font-medium">
+                                        <span className="text-gray-600">Nuevo saldo:</span>
+                                        <span
+                                          className={
+                                            Number(cuentaCorrienteInfo.saldo) + montoCuentaCorrienteDiferencia > 0
+                                              ? "text-red-600"
+                                              : "text-green-600"
+                                          }
+                                        >
+                                          {formatearPrecio(
+                                            Number(cuentaCorrienteInfo.saldo) + montoCuentaCorrienteDiferencia,
+                                          )}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1 text-yellow-600">
+                                      <AlertTriangle className="h-4 w-4" />
+                                      <span>El cliente no tiene cuenta corriente activa</span>
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="flex items-center gap-1 text-red-600">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <span>Debe seleccionar un cliente con cuenta corriente</span>
                                   </div>
                                 )}
                               </div>
                             )}
-                          </>
+                          </div>
                         )}
 
                         {calcularDiferencia() < 0 && (
@@ -1577,10 +1792,12 @@ const DevolucionDialog = ({
                     <div className="flex justify-between items-center">
                       {calcularDiferencia() > 0 ? (
                         <>
-                          <div className="text-xs text-gray-600">Método de pago:</div>
-                          <div className="font-medium">
-                            {tipoPagoSeleccionado
-                              ? tiposPagoDisponibles.find((tp) => tp.id.toString() === tipoPagoSeleccionado)?.nombre
+                          <div className="text-xs text-gray-600">Métodos de pago:</div>
+                          <div className="font-medium text-right">
+                            {pagosDiferencia.length > 0
+                              ? pagosDiferencia
+                                  .map((p) => `${p.tipo_pago_nombre} (${formatearPrecio(p.monto)})`)
+                                  .join(" · ")
                               : "No seleccionado"}
                           </div>
                         </>
@@ -1599,13 +1816,7 @@ const DevolucionDialog = ({
                     </div>
 
                     {/* Mostrar información de cuenta corriente si aplica */}
-                    {((calcularDiferencia() > 0 &&
-                      tipoPagoSeleccionado &&
-                      tiposPagoDisponibles
-                        .find((tp) => tp.id.toString() === tipoPagoSeleccionado)
-                        ?.nombre.toLowerCase()
-                        .includes("cuenta")) ||
-                      calcularDiferencia() < 0) &&
+                    {((calcularDiferencia() > 0 && hayPagoCuentaCorriente) || calcularDiferencia() < 0) &&
                       (typeof setCliente === "function" ? cliente?.id : clienteLocal?.id) && (
                         <div className="mt-2 pt-2 border-t border-gray-200">
                           <div className="text-xs space-y-1">
