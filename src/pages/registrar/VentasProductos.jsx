@@ -577,9 +577,9 @@ const VentasProductos = () => {
               </Badge>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
             <Select value={puntoVentaSeleccionado} onValueChange={setPuntoVentaSeleccionado}>
-              <SelectTrigger className="w-[180px] h-9 bg-white shadow-sm">
+              <SelectTrigger className="w-full sm:w-[180px] h-9 bg-white shadow-sm">
                 <SelectValue placeholder="Cambiar punto de venta" />
               </SelectTrigger>
               <SelectContent>
@@ -592,12 +592,17 @@ const VentasProductos = () => {
             </Select>
             <Dialog open={dialogClienteAbierto} onOpenChange={setDialogClienteAbierto}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 bg-white shadow-sm flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-full sm:w-auto bg-white shadow-sm flex items-center gap-1"
+                >
                   <User size={14} />
-                  <span className="hidden sm:inline">Cliente:</span> {cliente.nombre}
+                  <span className="hidden sm:inline">Cliente:</span>{" "}
+                  <span className="truncate">{cliente.nombre}</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg rounded-lg">
                 <DialogHeader>
                   <DialogTitle className="text-orange-600">Datos del Cliente</DialogTitle>
                   <DialogDescription>Busca un cliente existente o crea uno nuevo</DialogDescription>
@@ -689,7 +694,7 @@ const VentasProductos = () => {
 
             {/* Dialog para crear nuevo cliente */}
             <Dialog open={dialogNuevoClienteAbierto} onOpenChange={setDialogNuevoClienteAbierto}>
-              <DialogContent>
+              <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg rounded-lg">
                 <DialogHeader>
                   <DialogTitle className="text-orange-600">Nuevo Cliente</DialogTitle>
                   <DialogDescription>Ingresa los datos del nuevo cliente</DialogDescription>
@@ -926,6 +931,8 @@ const VentasProductos = () => {
           <CardContent className="p-0">
             {productosSeleccionados.length > 0 ? (
               <div className="p-4">
+                {/* Tabla para escritorio/tablet (sin cambios) */}
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -1015,6 +1022,92 @@ const VentasProductos = () => {
                     </AnimatePresence>
                   </TableBody>
                 </Table>
+                </div>
+
+                {/* Tarjetas para móvil */}
+                <div className="md:hidden space-y-3">
+                  <AnimatePresence>
+                    {productosSeleccionados.map((prod) => {
+                      const tieneDescuento = prod.discount && new Date(prod.discount.endDate) > new Date()
+                      return (
+                        <motion.div
+                          key={prod.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.2 }}
+                          className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                        >
+                          <div className="flex justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-900 text-sm leading-tight">{prod.name}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">Código: {prod.code}</p>
+                              {tieneDescuento && (
+                                <Badge className="mt-1 bg-orange-100 text-orange-800 border-orange-300 text-[10px]">
+                                  <PercentCircle className="h-3 w-3 mr-1" />
+                                  {prod.discount.percentage}% OFF
+                                </Badge>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => eliminarProducto(prod.id)}
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <div className="text-sm">
+                              {tieneDescuento ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="text-orange-600 font-medium">
+                                    {formatearMonedaARS(calcularPrecioConDescuento(prod))}
+                                  </span>
+                                  <span className="text-gray-400 text-xs line-through">
+                                    {formatearMonedaARS(prod.price)}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-gray-700">{formatearMonedaARS(prod.price)}</span>
+                              )}
+                              <span className="text-xs text-gray-500"> c/u</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full bg-transparent"
+                                onClick={() => cambiarCantidad(prod.id, prod.cantidad - 1)}
+                                disabled={prod.cantidad <= 1}
+                              >
+                                <Minus size={14} />
+                              </Button>
+                              <span className="w-8 text-center text-sm font-medium">{prod.cantidad}</span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full bg-transparent"
+                                onClick={() => cambiarCantidad(prod.id, prod.cantidad + 1)}
+                              >
+                                <Plus size={14} />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 flex justify-between items-center border-t border-gray-100 pt-2">
+                            <span className="text-xs text-gray-500">Subtotal</span>
+                            <span className="font-semibold text-gray-900">
+                              {formatearMonedaARS(calcularPrecioConDescuento(prod) * prod.cantidad)}
+                            </span>
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </AnimatePresence>
+                </div>
               </div>
             ) : (
               <div className="text-center py-16 px-4 text-gray-500 border-b">
@@ -1075,7 +1168,7 @@ const VentasProductos = () => {
             )}
           </CardContent>
 
-          <CardFooter className="flex justify-end gap-2 py-4 border-t">
+          <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2 py-4 border-t">
             <Button
               variant="outline"
               onClick={() => {
@@ -1083,7 +1176,7 @@ const VentasProductos = () => {
                 setPagos([]) // Limpiar pagos también al cancelar
               }}
               disabled={!productosSeleccionados.length}
-              className="bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
+              className="w-full sm:w-auto bg-gray-600 hover:bg-red-800 text-gray-100 hover:text-gray-100"
             >
               <X size={16} className="mr-1" /> Cancelar
             </Button>
@@ -1101,7 +1194,7 @@ const VentasProductos = () => {
                     setDialogFinalizarAbierto(true)
                   }}
                   disabled={!productosSeleccionados.length || cajaAbierta === false}
-                  className="bg-orange-600 hover:bg-orange-700"
+                  className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700"
                 >
                   <Receipt size={16} className="mr-1" /> Finalizar Venta
                 </Button>

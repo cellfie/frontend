@@ -182,7 +182,7 @@ const MobileNavItem = ({ title, to, icon: Icon, children, hidden = false }) => {
 }
 
 // Componente para el botón móvil con control de visibilidad
-const MobileNavButton = ({ to, icon, title, hidden = false, onClick }) => {
+const MobileNavButton = ({ to, icon: Icon, title, hidden = false, onClick }) => {
   // Si el elemento está oculto, no renderizarlo
   if (hidden) return null
 
@@ -194,7 +194,7 @@ const MobileNavButton = ({ to, icon, title, hidden = false, onClick }) => {
         onClick={onClick}
       >
         <div className="flex items-center gap-2">
-          {icon && <icon.type {...icon.props} />}
+          {Icon && <Icon className="h-4 w-4" />}
           <span>{title}</span>
         </div>
       </Button>
@@ -207,8 +207,8 @@ const MobileNavButton = ({ to, icon, title, hidden = false, onClick }) => {
       className="justify-start h-9 text-gray-200 hover:bg-transparent hover:text-orange-600"
       asChild
     >
-          <Link to={to} className="flex items-center gap-2">
-          {icon && <icon.type {...icon.props} />}
+      <Link to={to} className="flex items-center gap-2">
+        {Icon && <Icon className="h-4 w-4" />}
         <span>{title}</span>
       </Link>
     </Button>
@@ -399,7 +399,10 @@ export const NavBar = () => {
               <span className="sr-only">Abrir menú</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[280px] sm:w-[350px] bg-[#131321] text-gray-200 border-[#131321]">
+          <SheetContent
+            side="right"
+            className="w-[280px] sm:w-[350px] bg-[#131321] text-gray-200 border-[#131321] overflow-y-auto"
+          >
             <div className="flex flex-col gap-6 py-4">
               <div className="flex items-center justify-between pl-2">
                 <Link to="/" className="flex items-center gap-2">
