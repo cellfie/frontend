@@ -696,9 +696,6 @@ export default function Home() {
 
       if (isNaN(fecha.getTime())) return ""
 
-      // SOLUCIÓN: Sumar 3 horas para corregir el desfase
-      fecha.setHours(fecha.getHours() + 3)
-
       return fecha.toLocaleString("es-AR", {
         day: "2-digit",
         month: "2-digit",

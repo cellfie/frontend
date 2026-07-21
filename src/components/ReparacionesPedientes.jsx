@@ -496,13 +496,13 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     })
   }
 
-  // Formatear fecha y hora con corrección de 3 horas
+  // Formatear fecha y hora (el backend ya envía la hora argentina con offset -03:00)
   const formatearFechaHora = (fechaString) => {
     if (!fechaString) return ""
     const fecha = new Date(fechaString)
     if (isNaN(fecha.getTime())) return ""
-    fecha.setHours(fecha.getHours() + 3)
     return fecha.toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",

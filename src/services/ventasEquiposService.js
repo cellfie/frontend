@@ -19,9 +19,6 @@ const formatearFechaArgentina = (fechaString) => {
 
     if (isNaN(fecha.getTime())) return ""
 
-    // Sumar 3 horas para corregir el desfase
-    fecha.setHours(fecha.getHours() + 3)
-
     return fecha.toLocaleString("es-AR", {
       timeZone: "America/Argentina/Buenos_Aires",
       day: "2-digit",

@@ -207,8 +207,8 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
                       {eq.fechaCreacion
                         ? (() => {
                             const fecha = new Date(eq.fechaCreacion)
-                            fecha.setHours(fecha.getHours() + 3) // Agregar 3 horas
                             return fecha.toLocaleString("es-ES", {
+                              timeZone: "America/Argentina/Buenos_Aires",
                               year: "numeric",
                               month: "2-digit",
                               day: "2-digit",
@@ -477,8 +477,8 @@ export const EquipmentTable = ({ equipments, isLoading, onEdit, onDelete, showDe
                                             {eq.fechaCreacion
                                               ? (() => {
                                                   const fecha = new Date(eq.fechaCreacion)
-                                                  fecha.setHours(fecha.getHours() + 3) // Agregar 3 horas
                                                   return fecha.toLocaleString("es-ES", {
+                                                    timeZone: "America/Argentina/Buenos_Aires",
                                                     year: "numeric",
                                                     month: "long",
                                                     day: "numeric",
