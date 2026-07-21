@@ -298,6 +298,7 @@ export const adaptProductoToFrontend = (producto) => {
     punto_venta_id: producto.punto_venta_id,
     fechaCreacion: producto.fecha_creacion,
     fechaActualizacion: producto.fecha_actualizacion,
+    fechaUltimaCompra: producto.fecha_ultima_compra || null,
     discount:
       producto.descuento_id && producto.descuento_porcentaje
         ? {

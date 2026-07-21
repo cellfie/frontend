@@ -15,6 +15,7 @@ import {
   MapPin,
   PercentCircle,
   Clock,
+  ArrowUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Table, TableHeader, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table"
@@ -31,6 +32,9 @@ export const ProductTable = ({
   showDetails,
   toggleDetails,
   onAddDiscount,
+  sortBy,
+  sortOrder,
+  onSort,
 }) => {
   // Función para formatear precio en formato de moneda argentina
   const formatPrice = (price) => {
@@ -79,7 +83,29 @@ export const ProductTable = ({
               <TableHead className="bg-white">Costo</TableHead>
               <TableHead className="bg-white">Stock</TableHead>
               <TableHead className="bg-white">Punto de Venta</TableHead>
-              <TableHead className="bg-white">Fecha Creación</TableHead>
+              <TableHead className="bg-white">
+                {onSort ? (
+                  <button
+                    type="button"
+                    onClick={() => onSort("fecha_ultima_compra")}
+                    className="flex items-center gap-1 font-medium hover:text-orange-600 transition-colors"
+                    title="Ordenar por última compra"
+                  >
+                    Última compra
+                    {sortBy === "fecha_ultima_compra" ? (
+                      sortOrder === "DESC" ? (
+                        <ChevronDown className="h-3.5 w-3.5 text-orange-600" />
+                      ) : (
+                        <ChevronUp className="h-3.5 w-3.5 text-orange-600" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />
+                    )}
+                  </button>
+                ) : (
+                  "Última compra"
+                )}
+              </TableHead>
               <TableHead className="text-right bg-white">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -146,29 +172,27 @@ export const ProductTable = ({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">
-                        {product.fechaCreacion
-                          ? new Date(product.fechaCreacion).toLocaleDateString("es-AR", {
+                      {product.fechaUltimaCompra ? (
+                        <>
+                          <div className="text-sm">
+                            {new Date(product.fechaUltimaCompra).toLocaleDateString("es-AR", {
                               day: "2-digit",
                               month: "2-digit",
                               year: "numeric",
-                            })
-                          : "N/A"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {product.fechaCreacion
-                          ? (() => {
-                              const fecha = new Date(product.fechaCreacion)
-
-                              return fecha.toLocaleTimeString("es-AR", {
-                                timeZone: "America/Argentina/Buenos_Aires",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: false,
-                              })
-                            })()
-                          : ""}
-                      </div>
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(product.fechaUltimaCompra).toLocaleTimeString("es-AR", {
+                              timeZone: "America/Argentina/Buenos_Aires",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-gray-400">Sin compras</div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -256,6 +280,38 @@ export const ProductTable = ({
                                           >
                                             {product.pointOfSale || "No asignado"}
                                           </Badge>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-gray-500">Fecha de creación</div>
+                                        <div className="font-medium">
+                                          {product.fechaCreacion
+                                            ? new Date(product.fechaCreacion).toLocaleString("es-AR", {
+                                                timeZone: "America/Argentina/Buenos_Aires",
+                                                day: "2-digit",
+                                                month: "2-digit",
+                                                year: "numeric",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                                hour12: false,
+                                              })
+                                            : "N/A"}
+                                        </div>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="text-gray-500">Última compra</div>
+                                        <div className="font-medium">
+                                          {product.fechaUltimaCompra
+                                            ? new Date(product.fechaUltimaCompra).toLocaleString("es-AR", {
+                                                timeZone: "America/Argentina/Buenos_Aires",
+                                                day: "2-digit",
+                                                month: "2-digit",
+                                                year: "numeric",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                                hour12: false,
+                                              })
+                                            : "Sin compras registradas"}
                                         </div>
                                       </div>
                                       <div className="col-span-2 space-y-1">

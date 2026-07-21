@@ -71,6 +71,10 @@ export const ProductosPrincipal = () => {
     to: null,
   })
 
+  // Estado de ordenamiento (por defecto, igual que antes: fecha de creación, más nuevas primero)
+  const [sortBy, setSortBy] = useState("fecha_creacion")
+  const [sortOrder, setSortOrder] = useState("DESC")
+
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(50)
@@ -153,6 +157,10 @@ export const ProductosPrincipal = () => {
       filters.fecha_fin = fechaFin + " 23:59:59"
     }
 
+    // Ordenamiento
+    filters.sort_by = sortBy
+    filters.sort_order = sortOrder
+
     return filters
   }, [
     debouncedSearchTerm,
@@ -163,6 +171,8 @@ export const ProductosPrincipal = () => {
     puntosVenta,
     maxStockAvailable,
     dateRange,
+    sortBy,
+    sortOrder,
   ])
 
   // Cargar productos con paginación
@@ -207,7 +217,19 @@ export const ProductosPrincipal = () => {
   // Efecto para cargar productos cuando cambian los filtros
   useEffect(() => {
     fetchProducts(1, true)
-  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, itemsPerPage, dateRange])
+  }, [debouncedSearchTerm, selectedCategory, pointOfSale, stockRange, itemsPerPage, dateRange, sortBy, sortOrder])
+
+  // Alternar el ordenamiento por columna. Para fechas arranca en DESC (lo más reciente arriba)
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "DESC" ? "ASC" : "DESC"))
+    } else {
+      setSortBy(column)
+      setSortOrder("DESC")
+    }
+    setCurrentPage(1)
+    setShowDetails(null)
+  }
 
   // Efecto para cargar productos cuando cambia la página
   useEffect(() => {
@@ -414,6 +436,9 @@ export const ProductosPrincipal = () => {
         showDetails={showDetails}
         toggleDetails={toggleDetails}
         onAddDiscount={openDiscountModal}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSort={handleSort}
       />
 
       <PaginationControls
