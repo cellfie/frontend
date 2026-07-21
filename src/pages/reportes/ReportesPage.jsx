@@ -383,7 +383,10 @@ export default function ReportesPage() {
       })
     })
 
-    const totalCompras = (compras || []).reduce((acc, c) => acc + (Number(c.total) || 0), 0)
+    // Las compras anuladas no deben contarse como egreso en el neto.
+    const totalCompras = (compras || [])
+      .filter((c) => Number(c.anulada) !== 1 && c.anulada !== true)
+      .reduce((acc, c) => acc + (Number(c.total) || 0), 0)
     const aplicarCompras =
       selectedMetodoPago === "todos" &&
       contemplarEgresoCompras &&

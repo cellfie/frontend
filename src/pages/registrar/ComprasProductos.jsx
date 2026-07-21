@@ -341,7 +341,11 @@ const ComprasProductos = () => {
       toast.error("Debe agregar al menos un producto.")
       return
     }
-    if (pagos.length > 0 && Math.abs(calcularRestante()) > 0.01) {
+    if (pagos.length === 0) {
+      toast.error("Debe registrar al menos una forma de pago para la compra.")
+      return
+    }
+    if (Math.abs(calcularRestante()) > 0.01) {
       toast.error("El total pagado no coincide con el total de la compra.")
       return
     }
@@ -912,7 +916,7 @@ const ComprasProductos = () => {
                 <DialogHeader className="px-4 sm:px-6 py-4 sm:py-5 bg-[#131321] text-white border-b">
                   <DialogTitle className="text-orange-600 text-lg sm:text-xl">Confirmar Compra</DialogTitle>
                   <DialogDescription className="text-gray-300">
-                    Mantené el mismo flujo visual de cobro que en ventas. En compras, los pagos son opcionales.
+                    Mantené el mismo flujo visual de cobro que en ventas. Debés registrar una forma de pago que cubra el total.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="px-3 sm:px-5 pb-3 sm:pb-4">
@@ -974,12 +978,12 @@ const ComprasProductos = () => {
                     clienteId={null}
                     formatearMonedaARS={formatearMonedaARS}
                     tituloMetodo="Registrar pagos de compra"
-                    subtituloMetodo="Podés agregar pagos ahora o confirmar sin pagos."
+                    subtituloMetodo="Seleccioná una forma de pago para registrar la compra."
                     montoInputId="monto-pago-compra"
-                    requireAtLeastOnePago={false}
+                    requireAtLeastOnePago={true}
                     extraBannerSlot={
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 text-blue-800 p-2.5 text-xs">
-                        Los pagos son opcionales. Si no cargás ninguno, la compra se registra igual.
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 p-2.5 text-xs">
+                        La forma de pago es obligatoria: cargá uno o más pagos hasta cubrir el total de la compra.
                       </div>
                     }
                   />
@@ -991,7 +995,12 @@ const ComprasProductos = () => {
                   <Button
                     onClick={finalizarCompra}
                     className="gap-1 bg-orange-600 hover:bg-orange-700"
-                    disabled={procesandoCompra || cajaAbierta === false}
+                    disabled={
+                      procesandoCompra ||
+                      cajaAbierta === false ||
+                      pagos.length === 0 ||
+                      Math.abs(calcularRestante()) > 0.01
+                    }
                   >
                     {procesandoCompra ? (
                       <>
