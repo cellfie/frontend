@@ -222,10 +222,14 @@ const ComprasProductos = () => {
 
     const existe = itemsCompra.find((i) => i.id === prod.id)
     if (existe) {
-      setItemsCompra((prev) => prev.map((i) => (i.id === prod.id ? { ...i, cantidad: i.cantidad + 1 } : i)))
+      // Incrementar cantidad y llevar el ítem arriba (último agregado)
+      setItemsCompra((prev) => {
+        const actualizado = { ...existe, cantidad: existe.cantidad + 1 }
+        return [actualizado, ...prev.filter((i) => i.id !== prod.id)]
+      })
     } else {
+      // Productos nuevos van arriba
       setItemsCompra((prev) => [
-        ...prev,
         {
           id: prod.id,
           name: prod.name,
@@ -236,6 +240,7 @@ const ComprasProductos = () => {
           precio_venta_anterior: prod.price ?? 0,
           precio_venta: prod.price ?? 0,
         },
+        ...prev,
       ])
     }
   }
