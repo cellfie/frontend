@@ -12,6 +12,7 @@ export const getReparaciones = async (params = {}) => {
     if (params.cliente_id) queryParams.append("cliente_id", params.cliente_id)
     if (params.punto_venta_id) queryParams.append("punto_venta_id", params.punto_venta_id)
     if (params.estado) queryParams.append("estado", params.estado)
+    if (params.search) queryParams.append("search", params.search)
 
     const url = `${API_URL}/reparaciones?${queryParams.toString()}`
 

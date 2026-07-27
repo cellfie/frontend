@@ -128,6 +128,8 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
   // Referencia para el contenedor de tarjetas
   const cardsContainerRef = useRef(null)
+  // Evita que una búsqueda vieja pise resultados de una más reciente
+  const busquedaRequestIdRef = useRef(0)
 
   // Cargar datos iniciales (métodos de pago, estados y tipos de acción)
   const cargarDatosIniciales = async () => {
@@ -232,58 +234,53 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     if (!searchTerm.trim()) {
       if (!isAdmin) {
         setFilteredReparaciones([])
-        setBusquedaRealizada(false) // Resetear busquedaRealizada
-        return
+        setBusquedaRealizada(false)
+        setCargando(false)
       }
-      // Si es admin y no hay término de búsqueda, cargarReparaciones se encarga o el filtro local.
-      // No es necesario llamar a buscarReparaciones si es admin y no hay término.
-      // La lógica de filtrado local del admin se activa con el useEffect.
-      setFilteredReparaciones(reparaciones) // Mostrar todas las reparaciones cargadas si es admin
+      // Admin: el filtrado local se encarga vía useEffect
       return
     }
 
     if (!isAdmin && searchTerm.trim().length < 3) {
       setFilteredReparaciones([])
-      setBusquedaRealizada(searchTerm.trim().length > 0) // Marcar como búsqueda realizada si hay texto
+      setBusquedaRealizada(searchTerm.trim().length > 0)
+      setCargando(false)
       return
     }
 
     setCargando(true)
+    const requestId = ++busquedaRequestIdRef.current
     try {
-      const params = {}
-      let reparacionesData = []
+      const params = {
+        search: searchTerm.trim(),
+      }
 
-      // Para empleados, el filtro de fecha siempre será por creación por ahora.
-      // Si se quisiera extender el filtro por acción a empleados, se necesitaría una lógica similar a la de admin aquí.
+      // El empleado puede opcionalmente acotar por fecha de creación
       if (!isAdmin && rangoFechas?.from && rangoFechas?.to) {
         params.fecha_inicio = formatearFecha(rangoFechas.from)
         params.fecha_fin = formatearFecha(rangoFechas.to)
       }
 
-      // La búsqueda por término para empleados siempre usa getReparaciones y luego filtra client-side.
-      // Si quisiéramos que el backend filtre por término, necesitaríamos modificar el endpoint.
-      const todasLasReparaciones = await getReparaciones(params) // Obtener reparaciones según fecha (creación)
+      // Búsqueda en servidor (cliente, ticket, id, marca/modelo) — no traer todo el historial
+      const reparacionesEncontradas = await getReparaciones(params)
 
-      const termino = searchTerm.toLowerCase()
-      const reparacionesFiltradasServidor = todasLasReparaciones.filter(
-        (rep) =>
-          rep.cliente_nombre?.toLowerCase().includes(termino) ||
-          rep.id?.toString().toLowerCase().includes(termino) ||
-          rep.numero_ticket?.toString().includes(termino) ||
-          rep.equipo?.marca?.toLowerCase().includes(termino) ||
-          rep.equipo?.modelo?.toLowerCase().includes(termino),
-      )
+      // Si llegó otra búsqueda más nueva, ignorar esta respuesta
+      if (requestId !== busquedaRequestIdRef.current) return
 
-      reparacionesData = reparacionesFiltradasServidor
+      const reparacionesFormateadas = reparacionesEncontradas.map(adaptReparacionToFrontend)
 
-      const reparacionesFormateadas = reparacionesData.map(adaptReparacionToFrontend)
       setFilteredReparaciones(reparacionesFormateadas)
       setBusquedaRealizada(true)
     } catch (error) {
+      if (requestId !== busquedaRequestIdRef.current) return
       console.error("Error al buscar reparaciones:", error)
-      toast.error("Error al buscar reparaciones", { position: "bottom-right" })
+      toast.error(error.message || "Error al buscar reparaciones", { position: "bottom-right" })
+      setFilteredReparaciones([])
+      setBusquedaRealizada(true)
     } finally {
-      setCargando(false)
+      if (requestId === busquedaRequestIdRef.current) {
+        setCargando(false)
+      }
     }
   }, [isAdmin, searchTerm, rangoFechas])
 
