@@ -56,7 +56,7 @@ import { Link } from "react-router-dom"
 
 // Importar componentes
 import TicketThermal from "@/components/tickets/TicketThermal"
-import PreciosRepuestos from "@/components/PreciosRepuestos"
+import PreciosRepuestos, { prefetchPreciosRepuestos } from "@/components/PreciosRepuestos"
 
 const ReparacionesPage = () => {
   // Estado para los datos del cliente
@@ -248,6 +248,13 @@ const ReparacionesPage = () => {
       })
     return () => {
       cancelled = true
+    }
+  }, [puntoVentaSeleccionado])
+
+  // Prefetch de precios al elegir punto de venta (modal abre al instante)
+  useEffect(() => {
+    if (puntoVentaSeleccionado) {
+      prefetchPreciosRepuestos(puntoVentaSeleccionado)
     }
   }, [puntoVentaSeleccionado])
 
@@ -848,12 +855,12 @@ const ReparacionesPage = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 min-h-screen bg-gray-200">
+    <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 min-h-screen bg-gray-200">
       <ToastContainer position="bottom-right" />
 
       {puntoVentaSeleccionado && cajaAbierta === false && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4 flex-wrap">
-          <p className="text-amber-800 font-medium">
+        <div className="mb-3 sm:mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-amber-800 font-medium text-sm sm:text-base">
             La caja está cerrada para este punto de venta. Debe abrir la caja para poder registrar reparaciones.
           </p>
           <Link to="/caja">
@@ -864,43 +871,33 @@ const ReparacionesPage = () => {
         </div>
       )}
 
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 text-center sm:text-left flex-1">
+      <div className="mb-3 sm:mb-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 text-center sm:text-left">
           Registrar reparaciones
         </h1>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAbrirPreciosRepuestos}
-          className="mx-auto sm:mx-0 h-9 bg-white shadow-sm border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
-        >
-          <DollarSign className="h-3.5 w-3.5 mr-1.5" />
-          Precios repuestos
-        </Button>
       </div>
 
       <AnimatePresence mode="wait">
         {!mostrarTicket ? (
           <motion.div
             key="form"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.25 }}
           >
-            <CardUI className="max-w-4xl mx-auto border-0 shadow-md overflow-hidden">
-              <CardHeader className="bg-[#131321] text-white">
-                <CardTitle className="flex items-center gap-2 text-orange-600">
+            <CardUI className="w-full border-0 shadow-md overflow-hidden">
+              <CardHeader className="bg-[#131321] text-white py-3 sm:py-4 px-4 sm:px-6">
+                <CardTitle className="flex items-center gap-2 text-orange-600 text-lg sm:text-xl">
                   <Tool size={20} /> Registro de Reparación
                 </CardTitle>
-                <CardDescription className="text-gray-300">
+                <CardDescription className="text-gray-300 text-xs sm:text-sm">
                   Complete el formulario para registrar una nueva reparación
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="p-6">
-                <div className="flex justify-between mb-8 px-2">
+              <CardContent className="p-3 sm:p-5 lg:p-6">
+                <div className="flex justify-between mb-4 sm:mb-6 px-0 sm:px-2 gap-1 overflow-x-auto">
                   {renderPasoIndicator(1, "Cliente", <User className="w-4 h-4" />)}
                   {renderPasoIndicator(2, "Equipo", <Smartphone className="w-4 h-4" />)}
                   {renderPasoIndicator(3, "Reparación", <Wrench className="w-4 h-4" />)}
@@ -914,27 +911,27 @@ const ReparacionesPage = () => {
                         <User className="h-5 w-5" /> Datos del Cliente
                       </h3>
 
-                      {/* Selección de punto de venta mejorada */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 mb-6">
-                        <div className="flex items-center gap-3 mb-4">
+                      {/* Selección de punto de venta */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-5 rounded-xl border border-blue-200 mb-4">
+                        <div className="flex items-center gap-3 mb-3">
                           <div className="p-2 bg-blue-100 rounded-lg">
                             <MapPin className="h-5 w-5 text-blue-600" />
                           </div>
                           <div>
                             <h3 className="font-semibold text-blue-900">Punto de Venta</h3>
-                            <p className="text-sm text-blue-600">
+                            <p className="text-xs sm:text-sm text-blue-600">
                               Seleccione la ubicación donde se registra la reparación
                             </p>
                           </div>
                         </div>
 
                         {cargandoPuntosVenta ? (
-                          <div className="flex items-center justify-center py-8">
+                          <div className="flex items-center justify-center py-6">
                             <Loader2 className="h-6 w-6 animate-spin text-blue-600 mr-3" />
                             <span className="text-blue-600">Cargando puntos de venta...</span>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
                             {puntosVenta.map((punto) => (
                               <div
                                 key={punto.id}
@@ -1217,7 +1214,7 @@ const ReparacionesPage = () => {
                       <h3 className="text-lg font-medium text-orange-600 flex items-center gap-2">
                         <Smartphone className="h-5 w-5" /> Datos del Equipo
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="marca">
                             Marca <span className="text-red-500">*</span>
@@ -1264,7 +1261,7 @@ const ReparacionesPage = () => {
                             className="border-orange-200 focus-visible:ring-orange-500"
                           />
                         </div>
-                        <div className="space-y-2 md:col-span-2">
+                        <div className="space-y-2 sm:col-span-2 xl:col-span-4">
                           <Label htmlFor="descripcion">Observaciones (opcional)</Label>
                           <Input
                             id="descripcion"
@@ -1384,7 +1381,7 @@ const ReparacionesPage = () => {
 
                       <CardUI className="border border-orange-200">
                         <CardContent className="pt-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                             <div className="space-y-4">
                               <div className="bg-gray-50 p-4 rounded-lg">
                                 <h4 className="font-medium flex items-center mb-2 text-orange-600">

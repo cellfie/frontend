@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { toast } from "react-toastify"
 import { Search, Package, X, MapPin, Loader2, DollarSign } from "lucide-react"
 
@@ -10,6 +10,30 @@ import { Badge } from "@/components/ui/badge"
 
 import { searchRepuestos } from "@/services/repuestosService"
 
+// Caché en memoria por punto de venta: reapertura del modal = instantánea
+const cachePreciosPorPunto = new Map()
+
+export const prefetchPreciosRepuestos = async (puntoVentaId) => {
+  if (!puntoVentaId || cachePreciosPorPunto.has(String(puntoVentaId))) return
+  try {
+    const data = await searchRepuestos({ punto_venta_id: puntoVentaId })
+    const normalizados = (data || []).map((repuesto) => ({
+      ...repuesto,
+      precio: Number.parseFloat(repuesto.precio) || 0,
+      stock: Number.parseInt(repuesto.stock, 10) || 0,
+    }))
+    cachePreciosPorPunto.set(String(puntoVentaId), normalizados)
+  } catch (error) {
+    // Prefetch silencioso: no molestar al usuario si falla
+    console.warn("Prefetch precios repuestos:", error)
+  }
+}
+
+export const invalidateCachePreciosRepuestos = (puntoVentaId) => {
+  if (puntoVentaId) cachePreciosPorPunto.delete(String(puntoVentaId))
+  else cachePreciosPorPunto.clear()
+}
+
 const PreciosRepuestos = ({
   isOpen,
   onClose,
@@ -18,43 +42,58 @@ const PreciosRepuestos = ({
   formatearPrecio,
 }) => {
   const [repuestos, setRepuestos] = useState([])
-  const [filteredRepuestos, setFilteredRepuestos] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [cargando, setCargando] = useState(false)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (!isOpen || !puntoVentaId) return
 
+    const cacheKey = String(puntoVentaId)
+    const cached = cachePreciosPorPunto.get(cacheKey)
+
+    // Mostrar caché al instante si existe
+    if (cached) {
+      setRepuestos(cached)
+      setCargando(false)
+      setSearchTerm("")
+      return
+    }
+
     let cancelled = false
+    const requestId = ++requestIdRef.current
 
     const cargar = async () => {
       setCargando(true)
       setSearchTerm("")
+      setRepuestos([])
 
       try {
         const data = await searchRepuestos({
           punto_venta_id: puntoVentaId,
         })
 
-        if (cancelled) return
+        if (cancelled || requestId !== requestIdRef.current) return
 
         const normalizados = (data || []).map((repuesto) => ({
           ...repuesto,
           precio: Number.parseFloat(repuesto.precio) || 0,
+          stock: Number.parseInt(repuesto.stock, 10) || 0,
         }))
 
+        cachePreciosPorPunto.set(cacheKey, normalizados)
         setRepuestos(normalizados)
-        setFilteredRepuestos(normalizados)
       } catch (error) {
-        if (cancelled) return
+        if (cancelled || requestId !== requestIdRef.current) return
         console.error("Error al cargar precios de repuestos:", error)
         toast.error(error.message || "Error al cargar precios de repuestos", {
           position: "bottom-right",
         })
         setRepuestos([])
-        setFilteredRepuestos([])
       } finally {
-        if (!cancelled) setCargando(false)
+        if (!cancelled && requestId === requestIdRef.current) {
+          setCargando(false)
+        }
       }
     }
 
@@ -65,24 +104,18 @@ const PreciosRepuestos = ({
     }
   }, [isOpen, puntoVentaId])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    if (!searchTerm.trim()) {
-      setFilteredRepuestos(repuestos)
-      return
-    }
-
-    const term = searchTerm.toLowerCase()
-    setFilteredRepuestos(
-      repuestos.filter(
-        (r) =>
-          r.nombre?.toLowerCase().includes(term) ||
-          r.descripcion?.toLowerCase().includes(term) ||
-          r.codigo?.toLowerCase().includes(term),
-      ),
+  const filteredRepuestos = useMemo(() => {
+    if (!searchTerm.trim()) return repuestos
+    const term = searchTerm.toLowerCase().trim()
+    return repuestos.filter(
+      (r) =>
+        r.nombre?.toLowerCase().includes(term) ||
+        r.descripcion?.toLowerCase().includes(term) ||
+        String(r.codigo || "")
+          .toLowerCase()
+          .includes(term),
     )
-  }, [searchTerm, repuestos, isOpen])
+  }, [repuestos, searchTerm])
 
   if (!isOpen) return null
 
@@ -93,13 +126,12 @@ const PreciosRepuestos = ({
       role="presentation"
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Precios de repuestos"
       >
-        {/* Header */}
         <div className="bg-[#131321] px-4 sm:px-5 py-3.5 flex justify-between items-start gap-3 shrink-0">
           <div className="min-w-0">
             <h2 className="text-orange-600 text-lg font-semibold flex items-center gap-2">
@@ -120,7 +152,6 @@ const PreciosRepuestos = ({
           </Button>
         </div>
 
-        {/* Búsqueda */}
         <div className="p-4 border-b bg-gray-50 shrink-0 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -131,6 +162,7 @@ const PreciosRepuestos = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 pr-9 h-10 border-orange-200 focus-visible:ring-orange-500"
               autoFocus
+              disabled={cargando && repuestos.length === 0}
             />
             {searchTerm && (
               <Button
@@ -152,9 +184,8 @@ const PreciosRepuestos = ({
           )}
         </div>
 
-        {/* Lista */}
         <div className="flex-1 min-h-0 overflow-y-auto">
-          {cargando ? (
+          {cargando && repuestos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
               <p className="text-sm text-gray-500">Cargando precios...</p>
@@ -172,21 +203,14 @@ const PreciosRepuestos = ({
               {filteredRepuestos.map((repuesto) => (
                 <li
                   key={repuesto.id}
-                  className="px-4 sm:px-5 py-3 flex items-start justify-between gap-3 hover:bg-orange-50/60 transition-colors"
+                  className="px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-orange-50/60 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 text-sm sm:text-base leading-snug">{repuesto.nombre}</p>
-                    {(repuesto.descripcion || repuesto.codigo) && (
-                      <p className="text-xs sm:text-sm text-gray-500 mt-0.5 line-clamp-2">
-                        {repuesto.codigo ? `${repuesto.codigo}` : ""}
-                        {repuesto.codigo && repuesto.descripcion ? " · " : ""}
-                        {repuesto.descripcion || ""}
-                      </p>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <p className="font-medium text-gray-900 text-sm sm:text-base leading-snug">{repuesto.nombre}</p>
                       <Badge
                         variant="outline"
-                        className={`text-[10px] sm:text-xs font-normal ${
+                        className={`text-[10px] font-normal ${
                           Number(repuesto.stock) > 0
                             ? "bg-green-50 text-green-700 border-green-200"
                             : "bg-red-50 text-red-700 border-red-200"
@@ -195,8 +219,15 @@ const PreciosRepuestos = ({
                         {Number(repuesto.stock) > 0 ? `Stock: ${repuesto.stock}` : "Sin stock"}
                       </Badge>
                     </div>
+                    {(repuesto.descripcion || repuesto.codigo) && (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+                        {repuesto.codigo ? `${repuesto.codigo}` : ""}
+                        {repuesto.codigo && repuesto.descripcion ? " · " : ""}
+                        {repuesto.descripcion || ""}
+                      </p>
+                    )}
                   </div>
-                  <div className="shrink-0 text-right pt-0.5">
+                  <div className="shrink-0 text-right">
                     <span className="text-base sm:text-lg font-bold text-orange-600 tabular-nums">
                       {formatearPrecio(repuesto.precio)}
                     </span>
@@ -207,7 +238,6 @@ const PreciosRepuestos = ({
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-4 sm:px-5 py-3 border-t bg-gray-50 flex items-center justify-between gap-3 shrink-0">
           <span className="text-xs sm:text-sm text-gray-500">
             {filteredRepuestos.length} repuesto{filteredRepuestos.length !== 1 ? "s" : ""}
