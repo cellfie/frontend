@@ -56,6 +56,7 @@ import { Link } from "react-router-dom"
 
 // Importar componentes
 import TicketThermal from "@/components/tickets/TicketThermal"
+import PreciosRepuestos from "@/components/PreciosRepuestos"
 
 const ReparacionesPage = () => {
   // Estado para los datos del cliente
@@ -138,6 +139,9 @@ const ReparacionesPage = () => {
   const [searchRepuestoTerm, setSearchRepuestoTerm] = useState("")
   const [cargandoRepuestos, setCargandoRepuestos] = useState(false)
   const [repuestoSeleccionadoIndex, setRepuestoSeleccionadoIndex] = useState(null)
+
+  // Consulta de precios de repuestos (disponible desde el inicio del proceso)
+  const [preciosRepuestosAbierto, setPreciosRepuestosAbierto] = useState(false)
 
   const [cajaAbierta, setCajaAbierta] = useState(null)
 
@@ -376,6 +380,17 @@ const ReparacionesPage = () => {
     } finally {
       setCargandoRepuestos(false)
     }
+  }
+
+  // Abrir consulta de precios desde cualquier paso del proceso
+  const handleAbrirPreciosRepuestos = () => {
+    if (!puntoVentaSeleccionado) {
+      toast.info("Seleccioná un punto de venta para ver los precios de repuestos", {
+        position: "bottom-right",
+      })
+      return
+    }
+    setPreciosRepuestosAbierto(true)
   }
 
   // Seleccionar un repuesto y agregarlo a la reparación
@@ -849,8 +864,20 @@ const ReparacionesPage = () => {
         </div>
       )}
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 text-center">Registrar reparaciones</h1>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-2xl font-bold text-gray-900 text-center sm:text-left flex-1">
+          Registrar reparaciones
+        </h1>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleAbrirPreciosRepuestos}
+          className="mx-auto sm:mx-0 h-9 bg-white shadow-sm border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+        >
+          <DollarSign className="h-3.5 w-3.5 mr-1.5" />
+          Precios repuestos
+        </Button>
       </div>
 
       <AnimatePresence mode="wait">
@@ -1785,6 +1812,28 @@ const ReparacionesPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Botón fijo minimalista para consultar precios en cualquier paso */}
+      {!mostrarTicket && (
+        <button
+          type="button"
+          onClick={handleAbrirPreciosRepuestos}
+          className="fixed bottom-5 right-4 z-40 flex items-center gap-1.5 rounded-full border border-orange-200 bg-white/95 px-3.5 py-2.5 text-sm font-medium text-orange-700 shadow-lg backdrop-blur-sm transition hover:bg-orange-50 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:bottom-6 sm:right-6"
+          title="Ver precios de repuestos"
+          aria-label="Ver precios de repuestos"
+        >
+          <DollarSign className="h-4 w-4" />
+          <span>Precios</span>
+        </button>
+      )}
+
+      <PreciosRepuestos
+        isOpen={preciosRepuestosAbierto}
+        onClose={() => setPreciosRepuestosAbierto(false)}
+        puntoVentaId={puntoVentaSeleccionado}
+        puntoVentaNombre={obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
+        formatearPrecio={formatearPrecio}
+      />
 
       {/* Modal de Repuestos Mejorado */}
       <Dialog open={showRepuestosModal} onOpenChange={setShowRepuestosModal}>
