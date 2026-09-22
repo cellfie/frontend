@@ -320,15 +320,26 @@ const CajaPage = () => {
   }
 
   const abrirDialogRetiro = async () => {
-    setEmpleadoRetiroId("")
     setMontoRetiro("")
     setNotasRetiro("")
     setMetodoRetiro(tiposPago[0]?.nombre || "Efectivo")
+    // Empleado: ya preseleccionado a sí mismo; admin elige de la lista
+    const yoId = currentUser?.id != null ? String(currentUser.id) : ""
+    setEmpleadoRetiroId(esAdmin ? "" : yoId)
     setDialogRetiroAbierto(true)
     setCargandoUsuariosRetiro(true)
     try {
       const lista = await getUsuariosParaRetiro()
-      setUsuariosRetiro(Array.isArray(lista) ? lista : [])
+      const usuarios = Array.isArray(lista) ? lista : []
+      setUsuariosRetiro(usuarios)
+      if (!esAdmin && yoId) {
+        setEmpleadoRetiroId(yoId)
+      } else if (!esAdmin && usuarios.length === 1) {
+        setEmpleadoRetiroId(String(usuarios[0].id))
+      } else if (esAdmin && yoId && usuarios.some((u) => String(u.id) === yoId)) {
+        // Admin: por defecto el propio usuario, pero puede cambiar
+        setEmpleadoRetiroId(yoId)
+      }
     } catch (error) {
       console.error("Error al cargar usuarios para retiro:", error)
       toast.error(error.message || "Error al cargar usuarios")
@@ -1295,27 +1306,47 @@ const CajaPage = () => {
           <div className="space-y-4 pt-2">
             <div className="space-y-1">
               <label className="block text-xs font-medium text-gray-700">Empleado</label>
-              <Select
-                value={empleadoRetiroId}
-                onValueChange={setEmpleadoRetiroId}
-                disabled={cargandoUsuariosRetiro || registrandoRetiro}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue
-                    placeholder={cargandoUsuariosRetiro ? "Cargando..." : "Seleccionar empleado"}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {usuariosRetiro.map((u) => (
-                    <SelectItem key={u.id} value={String(u.id)}>
-                      {u.nombre}
-                      {Number(u.saldo_cuenta_corriente) > 0
-                        ? ` (C/C: ${formatearMonedaARS(u.saldo_cuenta_corriente)})`
-                        : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!esAdmin ? (
+                <Input
+                  value={
+                    usuariosRetiro.find((u) => String(u.id) === String(empleadoRetiroId))?.nombre ||
+                    currentUser?.nombre ||
+                    "Tu usuario"
+                  }
+                  disabled
+                />
+              ) : (
+                <Select
+                  value={empleadoRetiroId}
+                  onValueChange={setEmpleadoRetiroId}
+                  disabled={cargandoUsuariosRetiro || registrandoRetiro}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue
+                      placeholder={cargandoUsuariosRetiro ? "Cargando..." : "Seleccionar empleado"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usuariosRetiro.map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.nombre}
+                        {Number(u.saldo_cuenta_corriente) > 0
+                          ? ` (C/C: ${formatearMonedaARS(u.saldo_cuenta_corriente)})`
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {!esAdmin && (
+                <p className="text-[11px] text-gray-500">
+                  El retiro se anota en tu cuenta corriente
+                  {usuariosRetiro[0] && Number(usuariosRetiro[0].saldo_cuenta_corriente) > 0
+                    ? ` (saldo actual: ${formatearMonedaARS(usuariosRetiro[0].saldo_cuenta_corriente)})`
+                    : ""}
+                  .
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
