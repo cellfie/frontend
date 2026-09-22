@@ -60,3 +60,33 @@ export const deleteUsuario = async (id) => {
   return response.json()
 }
 
+export const getCuentaCorrienteEmpleado = async (usuarioId, filters = {}) => {
+  const params = new URLSearchParams()
+  if (filters.fecha_inicio) params.append("fecha_inicio", filters.fecha_inicio)
+  if (filters.fecha_fin) params.append("fecha_fin", filters.fecha_fin)
+  const qs = params.toString()
+  const response = await fetch(
+    `${API_URL}/usuarios/${usuarioId}/cuenta-corriente${qs ? `?${qs}` : ""}`,
+    { method: "GET", credentials: "include" },
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Error al obtener cuenta corriente" }))
+    throw new Error(errorData.message || "Error al obtener cuenta corriente del empleado")
+  }
+  return response.json()
+}
+
+export const registrarPagoCuentaCorrienteEmpleado = async (usuarioId, { monto, notas }) => {
+  const response = await fetch(`${API_URL}/usuarios/${usuarioId}/cuenta-corriente/pagos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ monto: Number(monto), notas: notas || "" }),
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Error al registrar pago" }))
+    throw new Error(errorData.message || "Error al registrar pago de cuenta corriente")
+  }
+  return response.json()
+}
+

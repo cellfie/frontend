@@ -340,22 +340,25 @@ const DevolucionDialog = ({
 
   // Función para alternar la selección de un producto para devolución
   const toggleProductoDevolucion = (producto) => {
-    // Verificar si el producto ya está seleccionado
-    const existe = productosADevolver.find((p) => p.id === producto.id)
+    const detalleId = producto.detalleVentaId ?? null
+    const existe = productosADevolver.find(
+      (p) => p.id === producto.id && (p.detalleVentaId ?? null) === detalleId,
+    )
 
     if (existe) {
-      // Si ya está seleccionado, lo quitamos
-      setProductosADevolver(productosADevolver.filter((p) => p.id !== producto.id))
+      setProductosADevolver(
+        productosADevolver.filter(
+          (p) => !(p.id === producto.id && (p.detalleVentaId ?? null) === detalleId),
+        ),
+      )
     } else {
-      // Si no está seleccionado, lo agregamos
-      // Incluir información sobre si es un producto de reemplazo
       setProductosADevolver([
         ...productosADevolver,
         {
           ...producto,
           cantidad: 1,
           esReemplazo: producto.es_reemplazo || false,
-          detalleVentaId: producto.detalleVentaId || null,
+          detalleVentaId: detalleId,
         },
       ])
     }
@@ -415,14 +418,37 @@ const DevolucionDialog = ({
     setProductosReemplazo(productosReemplazo.filter((p) => p.id !== id))
   }
 
+  // Precio unitario que el cliente realmente pagó (incluye descuento global de la venta)
+  const obtenerPrecioPagado = (detalle) => {
+    if (!detalle) return 0
+    if (detalle.precioEfectivoPagado != null && Number.isFinite(Number(detalle.precioEfectivoPagado))) {
+      return Number(detalle.precioEfectivoPagado)
+    }
+    // Fallback si la venta no trae el campo nuevo
+    const precioLinea = Number(detalle.precioConDescuento) || 0
+    const subtotal = Number(venta?.subtotal) || 0
+    const total = Number(venta?.total) || 0
+    if (subtotal > 0.0001) return precioLinea * (total / subtotal)
+    const pct = Number(venta?.porcentajeDescuento) || 0
+    return pct > 0 ? precioLinea * (1 - pct / 100) : precioLinea
+  }
+
+  const encontrarDetalleVenta = (producto) => {
+    if (!venta?.detalles || !producto) return null
+    if (producto.detalleVentaId != null) {
+      return venta.detalles.find((d) => d.id === producto.detalleVentaId) || null
+    }
+    return venta.detalles.find((d) => d.producto.id === producto.id) || null
+  }
+
   // Cálculos para la devolución
   const calcularTotalDevolucion = () => {
     if (!venta || !venta.detalles) return 0
 
     return productosADevolver.reduce((total, producto) => {
-      const detalleVenta = venta.detalles.find((d) => d.producto.id === producto.id)
+      const detalleVenta = encontrarDetalleVenta(producto)
       if (!detalleVenta) return total
-      return total + detalleVenta.precioConDescuento * producto.cantidad
+      return total + obtenerPrecioPagado(detalleVenta) * producto.cantidad
     }, 0)
   }
 
@@ -871,7 +897,7 @@ const DevolucionDialog = ({
                                             toggleProductoDevolucion({
                                               id: detalle.producto.id,
                                               nombre: detalle.producto.nombre,
-                                              precio: detalle.precioConDescuento,
+                                              precio: obtenerPrecioPagado(detalle),
                                               es_reemplazo: detalle.es_reemplazo || false,
                                               detalleVentaId: detalle.id,
                                             })
@@ -900,7 +926,7 @@ const DevolucionDialog = ({
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-right text-sm">
-                                      {formatearPrecio(detalle.precioConDescuento)}
+                                      {formatearPrecio(obtenerPrecioPagado(detalle))}
                                     </TableCell>
                                     <TableCell>
                                       {estaSeleccionado ? (
@@ -945,8 +971,8 @@ const DevolucionDialog = ({
                                     </TableCell>
                                     <TableCell className="text-right font-medium text-sm">
                                       {estaSeleccionado
-                                        ? formatearPrecio(detalle.precioConDescuento * cantidadSeleccionada)
-                                        : formatearPrecio(detalle.precioConDescuento * cantidadDisponible)}
+                                        ? formatearPrecio(obtenerPrecioPagado(detalle) * cantidadSeleccionada)
+                                        : formatearPrecio(obtenerPrecioPagado(detalle) * cantidadDisponible)}
                                     </TableCell>
                                   </TableRow>
                                 )
@@ -1035,18 +1061,19 @@ const DevolucionDialog = ({
                         <ScrollArea className="max-h-[200px]">
                           <div className="space-y-2">
                             {productosADevolver.map((producto) => {
-                              const detalleVenta = venta.detalles.find((d) => d.producto.id === producto.id)
+                              const detalleVenta = encontrarDetalleVenta(producto)
                               if (!detalleVenta) return null
+                              const precioPagado = obtenerPrecioPagado(detalleVenta)
 
                               return (
                                 <div
-                                  key={producto.id}
+                                  key={`${producto.id}_${producto.detalleVentaId ?? "x"}`}
                                   className="flex justify-between items-center p-2 bg-gray-50 rounded-md border"
                                 >
                                   <div>
                                     <div className="font-medium text-sm">{detalleVenta.producto.nombre}</div>
                                     <div className="text-xs text-gray-500">
-                                      Cantidad: {producto.cantidad} × {formatearPrecio(detalleVenta.precioConDescuento)}
+                                      Cantidad: {producto.cantidad} × {formatearPrecio(precioPagado)}
                                     </div>
                                     {producto.esReemplazo && (
                                       <Badge className="mt-1 bg-green-100 text-green-800 border-green-300">
@@ -1056,7 +1083,7 @@ const DevolucionDialog = ({
                                     )}
                                   </div>
                                   <div className="font-medium text-sm">
-                                    {formatearPrecio(detalleVenta.precioConDescuento * producto.cantidad)}
+                                    {formatearPrecio(precioPagado * producto.cantidad)}
                                   </div>
                                 </div>
                               )
@@ -1666,11 +1693,12 @@ const DevolucionDialog = ({
                       {venta &&
                         venta.detalles &&
                         productosADevolver.map((producto) => {
-                          const detalleVenta = venta.detalles.find((d) => d.producto.id === producto.id)
+                          const detalleVenta = encontrarDetalleVenta(producto)
                           if (!detalleVenta) return null
+                          const precioPagado = obtenerPrecioPagado(detalleVenta)
                           return (
                             <div
-                              key={producto.id}
+                              key={`${producto.id}_${producto.detalleVentaId ?? "x"}`}
                               className="flex justify-between items-center p-3 bg-gray-50 rounded-md border"
                             >
                               <div>
@@ -1692,10 +1720,10 @@ const DevolucionDialog = ({
                               </div>
                               <div className="text-right">
                                 <div className="font-medium text-sm">
-                                  {formatearPrecio(detalleVenta.precioConDescuento * producto.cantidad)}
+                                  {formatearPrecio(precioPagado * producto.cantidad)}
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                  {formatearPrecio(detalleVenta.precioConDescuento)} c/u
+                                  {formatearPrecio(precioPagado)} c/u
                                 </div>
                               </div>
                             </div>

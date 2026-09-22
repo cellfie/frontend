@@ -12,6 +12,7 @@ import {
   Plus,
   MinusCircle,
   History,
+  UserMinus,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,8 @@ import {
   cerrarCaja,
   registrarMovimientoCaja,
   getMovimientosCompletosCaja,
+  getUsuariosParaRetiro,
+  registrarRetiroEmpleado,
 } from "@/services/cajaService"
 import { getTiposPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
@@ -114,6 +117,15 @@ const CajaPage = () => {
   const [tabCaja, setTabCaja] = useState("ventas_productos")
   const [dialogMovimientoAbierto, setDialogMovimientoAbierto] = useState(false)
 
+  const [dialogRetiroAbierto, setDialogRetiroAbierto] = useState(false)
+  const [usuariosRetiro, setUsuariosRetiro] = useState([])
+  const [empleadoRetiroId, setEmpleadoRetiroId] = useState("")
+  const [montoRetiro, setMontoRetiro] = useState("")
+  const [metodoRetiro, setMetodoRetiro] = useState("Efectivo")
+  const [notasRetiro, setNotasRetiro] = useState("")
+  const [registrandoRetiro, setRegistrandoRetiro] = useState(false)
+  const [cargandoUsuariosRetiro, setCargandoUsuariosRetiro] = useState(false)
+
   const [movimientos, setMovimientos] = useState([])
   const [movimientosPagination, setMovimientosPagination] = useState({
     currentPage: 1,
@@ -130,6 +142,11 @@ const CajaPage = () => {
   const esPagoProveedorCC = (mov) =>
     String(mov?.tipo || "").toLowerCase() === "egreso" &&
     String(mov?.concepto || "").toLowerCase().includes("pago a proveedor por compra")
+
+  const esRetiroEmpleado = (mov) =>
+    String(mov?.tipo || "").toLowerCase() === "egreso" &&
+    (String(mov?.tipo_referencia || "").toLowerCase() === "retiro_empleado" ||
+      String(mov?.concepto || "").toLowerCase().startsWith("retiro empleado"))
 
   // Al abrir "Cerrar caja" (también si solo se hace setDialogCierreAbierto(true)), precargar y efectivo = monto apertura
   useEffect(() => {
@@ -299,6 +316,63 @@ const CajaPage = () => {
       toast.error(error.message || "Error al registrar movimiento de caja")
     } finally {
       setRegistrandoMovimiento(false)
+    }
+  }
+
+  const abrirDialogRetiro = async () => {
+    setEmpleadoRetiroId("")
+    setMontoRetiro("")
+    setNotasRetiro("")
+    setMetodoRetiro(tiposPago[0]?.nombre || "Efectivo")
+    setDialogRetiroAbierto(true)
+    setCargandoUsuariosRetiro(true)
+    try {
+      const lista = await getUsuariosParaRetiro()
+      setUsuariosRetiro(Array.isArray(lista) ? lista : [])
+    } catch (error) {
+      console.error("Error al cargar usuarios para retiro:", error)
+      toast.error(error.message || "Error al cargar usuarios")
+      setUsuariosRetiro([])
+    } finally {
+      setCargandoUsuariosRetiro(false)
+    }
+  }
+
+  const handleRegistrarRetiro = async () => {
+    if (!cajaActual || cajaActual.estado !== "abierta") {
+      toast.error("Debes tener una caja abierta para registrar retiros")
+      return
+    }
+    if (!empleadoRetiroId) {
+      toast.error("Seleccioná el empleado")
+      return
+    }
+    const monto = Number(montoRetiro || 0)
+    if (isNaN(monto) || monto <= 0) {
+      toast.error("El monto del retiro debe ser mayor a 0")
+      return
+    }
+    setRegistrandoRetiro(true)
+    try {
+      await registrarRetiroEmpleado({
+        caja_sesion_id: cajaActual.id,
+        empleado_usuario_id: Number(empleadoRetiroId),
+        monto,
+        metodo_pago: metodoRetiro || "Efectivo",
+        notas: notasRetiro.trim(),
+      })
+      toast.success("Retiro de empleado registrado (caja + cuenta corriente)")
+      setDialogRetiroAbierto(false)
+      setEmpleadoRetiroId("")
+      setMontoRetiro("")
+      setNotasRetiro("")
+      await cargarCajaActual()
+      if (esAdmin) await cargarMovimientos(1)
+    } catch (error) {
+      console.error("Error al registrar retiro de empleado:", error)
+      toast.error(error.message || "Error al registrar retiro de empleado")
+    } finally {
+      setRegistrandoRetiro(false)
     }
   }
 
@@ -767,6 +841,14 @@ const CajaPage = () => {
               <MinusCircle className="h-4 w-4" />
               Registrar egreso
             </Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 flex items-center gap-1"
+              onClick={abrirDialogRetiro}
+              disabled={loadingMovimientos || registrandoRetiro}
+            >
+              <UserMinus className="h-4 w-4" />
+              Retiro empleado
+            </Button>
           </div>
 
           <Tabs value={tabCaja} onValueChange={setTabCaja}>
@@ -994,6 +1076,11 @@ const CajaPage = () => {
                                         Pago proveedor C/C
                                       </span>
                                     )}
+                                    {esRetiroEmpleado(mov) && (
+                                      <span className="bg-violet-100 text-violet-800 px-1 rounded text-[10px]">
+                                        Retiro empleado C/C
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -1176,6 +1263,113 @@ const CajaPage = () => {
                   : tipoMovimiento === "ingreso"
                     ? "Guardar ingreso"
                     : "Guardar egreso"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal retiro empleado: egreso de caja + cargo en C/C */}
+      <Dialog
+        open={dialogRetiroAbierto}
+        onOpenChange={(open) => {
+          setDialogRetiroAbierto(open)
+          if (!open) {
+            setEmpleadoRetiroId("")
+            setMontoRetiro("")
+            setNotasRetiro("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-orange-600 flex items-center gap-2">
+              <UserMinus className="h-5 w-5" />
+              Retiro empleado (C/C)
+            </DialogTitle>
+            <DialogDescription>
+              Sale plata de caja (egreso) y queda anotado en la cuenta corriente del empleado para liquidar después.
+              El cierre de caja cuadra porque el saldo teórico baja.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Empleado</label>
+              <Select
+                value={empleadoRetiroId}
+                onValueChange={setEmpleadoRetiroId}
+                disabled={cargandoUsuariosRetiro || registrandoRetiro}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue
+                    placeholder={cargandoUsuariosRetiro ? "Cargando..." : "Seleccionar empleado"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {usuariosRetiro.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.nombre}
+                      {Number(u.saldo_cuenta_corriente) > 0
+                        ? ` (C/C: ${formatearMonedaARS(u.saldo_cuenta_corriente)})`
+                        : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Monto</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={montoRetiro}
+                  onChange={(e) => setMontoRetiro(e.target.value)}
+                  placeholder="0,00"
+                  disabled={registrandoRetiro}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">Método</label>
+                <Select value={metodoRetiro} onValueChange={setMetodoRetiro} disabled={registrandoRetiro}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Método" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tiposPago.map((tp) => (
+                      <SelectItem key={tp.id} value={tp.nombre}>
+                        {tp.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700">Notas (opcional)</label>
+              <Textarea
+                rows={2}
+                value={notasRetiro}
+                onChange={(e) => setNotasRetiro(e.target.value)}
+                placeholder="Ej: Adelanto, viáticos..."
+                disabled={registrandoRetiro}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setDialogRetiroAbierto(false)}
+                disabled={registrandoRetiro}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-orange-600 hover:bg-orange-700"
+                onClick={handleRegistrarRetiro}
+                disabled={registrandoRetiro || cargandoUsuariosRetiro}
+              >
+                {registrandoRetiro ? "Guardando..." : "Registrar retiro"}
               </Button>
             </div>
           </div>

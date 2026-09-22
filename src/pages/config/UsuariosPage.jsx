@@ -14,8 +14,16 @@ import { Separator } from "@/components/ui/separator"
 
 import UsuariosList from "@/components/usuarios/UsuariosList"
 import UsuarioFormDialog from "@/components/usuarios/UsuarioFormDialog"
+import EmpleadoCuentaCorrienteDialog from "@/components/usuarios/EmpleadoCuentaCorrienteDialog"
 
-import { getUsuarios, createUsuario, updateUsuario, deleteUsuario } from "@/services/usuariosService"
+import {
+  getUsuarios,
+  createUsuario,
+  updateUsuario,
+  deleteUsuario,
+  getCuentaCorrienteEmpleado,
+  registrarPagoCuentaCorrienteEmpleado,
+} from "@/services/usuariosService"
 import { useAuth } from "@/context/AuthContext"
 
 const UsuariosPage = () => {
@@ -45,6 +53,12 @@ const UsuariosPage = () => {
   const [dialogDesactivarAbierto, setDialogDesactivarAbierto] = useState(false)
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null)
   const [desactivandoUsuario, setDesactivandoUsuario] = useState(false)
+
+  const [dialogCuentaCorrienteAbierto, setDialogCuentaCorrienteAbierto] = useState(false)
+  const [usuarioCuentaCorriente, setUsuarioCuentaCorriente] = useState(null)
+  const [cuentaCorrienteData, setCuentaCorrienteData] = useState(null)
+  const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
+  const [procesandoPagoCc, setProcesandoPagoCc] = useState(false)
 
   useEffect(() => {
     if (!isAdmin) {
@@ -211,6 +225,52 @@ const UsuariosPage = () => {
     }
   }
 
+  const cargarCuentaCorriente = async (usuarioId) => {
+    setCargandoCuentaCorriente(true)
+    try {
+      const data = await getCuentaCorrienteEmpleado(usuarioId)
+      setCuentaCorrienteData(data)
+    } catch (error) {
+      console.error(error)
+      toast.error(error.message || "Error al cargar cuenta corriente")
+      setCuentaCorrienteData(null)
+    } finally {
+      setCargandoCuentaCorriente(false)
+    }
+  }
+
+  const abrirDialogCuentaCorriente = async (usuario) => {
+    setUsuarioCuentaCorriente(usuario)
+    setCuentaCorrienteData(null)
+    setDialogCuentaCorrienteAbierto(true)
+    await cargarCuentaCorriente(usuario.id)
+  }
+
+  const handleRegistrarPagoCc = async ({ monto, notas }) => {
+    if (!usuarioCuentaCorriente?.id) return false
+    const montoNum = Number(monto)
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      toast.error("Ingresá un monto válido")
+      return false
+    }
+    setProcesandoPagoCc(true)
+    try {
+      await registrarPagoCuentaCorrienteEmpleado(usuarioCuentaCorriente.id, {
+        monto: montoNum,
+        notas,
+      })
+      toast.success("Liquidación registrada")
+      await cargarCuentaCorriente(usuarioCuentaCorriente.id)
+      return true
+    } catch (error) {
+      console.error(error)
+      toast.error(error.message || "Error al registrar liquidación")
+      return false
+    } finally {
+      setProcesandoPagoCc(false)
+    }
+  }
+
   return (
     <div className="container mx-auto p-4 min-h-screen bg-gray-100">
       <ToastContainer position="bottom-right" />
@@ -257,6 +317,23 @@ const UsuariosPage = () => {
         setUsuarioSeleccionado={setUsuarioSeleccionado}
         setDialogDesactivarAbierto={setDialogDesactivarAbierto}
         onToggleActivo={handleToggleActivo}
+        abrirDialogCuentaCorriente={abrirDialogCuentaCorriente}
+      />
+
+      <EmpleadoCuentaCorrienteDialog
+        open={dialogCuentaCorrienteAbierto}
+        onOpenChange={(open) => {
+          setDialogCuentaCorrienteAbierto(open)
+          if (!open) {
+            setUsuarioCuentaCorriente(null)
+            setCuentaCorrienteData(null)
+          }
+        }}
+        usuario={usuarioCuentaCorriente}
+        cuentaData={cuentaCorrienteData}
+        loading={cargandoCuentaCorriente}
+        onRegistrarPago={handleRegistrarPagoCc}
+        procesandoPago={procesandoPagoCc}
       />
 
       {/* Form crear/editar */}

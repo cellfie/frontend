@@ -105,6 +105,51 @@ export const getSesionCajaPorId = async (sesionId) => {
   return await response.json()
 }
 
+// Usuarios activos para selector de retiro empleado
+export const getUsuariosParaRetiro = async () => {
+  const response = await fetch(`${API_URL}/caja/usuarios-retiro`, {
+    method: "GET",
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Error al obtener usuarios" }))
+    throw new Error(errorData.message || "Error al obtener usuarios")
+  }
+  return await response.json()
+}
+
+// Retiro empleado: egreso de caja + cargo en C/C (partida doble)
+export const registrarRetiroEmpleado = async ({
+  caja_sesion_id,
+  empleado_usuario_id,
+  monto,
+  metodo_pago,
+  notas,
+}) => {
+  const response = await fetch(`${API_URL}/caja/retiro-empleado`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      caja_sesion_id: Number(caja_sesion_id),
+      empleado_usuario_id: Number(empleado_usuario_id),
+      monto: Number(monto),
+      metodo_pago: metodo_pago || "Efectivo",
+      notas: notas || "",
+    }),
+    credentials: "include",
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Error al registrar retiro" }))
+    throw new Error(errorData.message || "Error al registrar retiro de empleado")
+  }
+
+  return await response.json()
+}
+
 // Historial de sesiones de caja
 export const getSesionesCaja = async (page = 1, limit = 20, filters = {}) => {
   const cleanFilters = Object.fromEntries(

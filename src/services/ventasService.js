@@ -590,23 +590,37 @@ export const adaptVentaToFrontend = (venta) => {
         : [],
 
       // CORREGIDO: Detalles de productos
-      detalles: Array.isArray(venta.detalles)
-        ? venta.detalles.map((detalle) => ({
-            id: Number(detalle.id) || 0,
-            producto: {
-              id: Number(detalle.producto_id) || 0,
-              codigo: detalle.producto_codigo || "N/A",
-              nombre: detalle.producto_nombre || "Producto eliminado",
-            },
-            cantidad: Number(detalle.cantidad) || 0,
-            cantidadDevuelta: Number(detalle.cantidad_devuelta) || 0,
-            precioUnitario: Number(detalle.precio_unitario) || 0,
-            precioConDescuento: Number(detalle.precio_con_descuento) || 0,
-            subtotal: Number(detalle.subtotal) || 0,
-            devuelto: Boolean(detalle.devuelto === 1 || detalle.devuelto === true),
-            es_reemplazo: Boolean(detalle.es_reemplazo === 1 || detalle.es_reemplazo === true),
-          }))
-        : [],
+      // precioConDescuento = precio de línea (descuento de producto).
+      // precioEfectivoPagado = lo que el cliente realmente pagó por unidad,
+      // aplicando también el descuento/ajuste global de la venta (total/subtotal).
+      detalles: (() => {
+        const subtotalVenta = Number(venta.subtotal) || 0
+        const totalVenta = Number(venta.total) || 0
+        const factorPagado = subtotalVenta > 0.0001 ? totalVenta / subtotalVenta : 1
+
+        return Array.isArray(venta.detalles)
+          ? venta.detalles.map((detalle) => {
+              const precioConDescuento = Number(detalle.precio_con_descuento) || 0
+              return {
+                id: Number(detalle.id) || 0,
+                producto: {
+                  id: Number(detalle.producto_id) || 0,
+                  codigo: detalle.producto_codigo || "N/A",
+                  nombre: detalle.producto_nombre || "Producto eliminado",
+                },
+                cantidad: Number(detalle.cantidad) || 0,
+                cantidadDevuelta: Number(detalle.cantidad_devuelta) || 0,
+                precioUnitario: Number(detalle.precio_unitario) || 0,
+                precioConDescuento,
+                precioEfectivoPagado: precioConDescuento * factorPagado,
+                subtotal: Number(detalle.subtotal) || 0,
+                subtotalEfectivoPagado: (Number(detalle.subtotal) || 0) * factorPagado,
+                devuelto: Boolean(detalle.devuelto === 1 || detalle.devuelto === true),
+                es_reemplazo: Boolean(detalle.es_reemplazo === 1 || detalle.es_reemplazo === true),
+              }
+            })
+          : []
+      })(),
 
       notas: venta.notas || "",
     }

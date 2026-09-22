@@ -45,6 +45,11 @@ export function CajaSesionDetalleModal({
     String(mov?.tipo || "").toLowerCase() === "egreso" &&
     String(mov?.concepto || "").toLowerCase().includes("pago a proveedor por compra")
 
+  const esRetiroEmpleado = (mov) =>
+    String(mov?.tipo || "").toLowerCase() === "egreso" &&
+    (String(mov?.tipo_referencia || "").toLowerCase() === "retiro_empleado" ||
+      String(mov?.concepto || "").toLowerCase().startsWith("retiro empleado"))
+
   return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent hideCloseButton className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
@@ -690,6 +695,11 @@ export function CajaSesionDetalleModal({
                                       {esPagoProveedorCC(mov) && (
                                         <span className="bg-amber-100 text-amber-800 px-1 rounded text-[10px]">
                                           Pago proveedor C/C
+                                        </span>
+                                      )}
+                                      {esRetiroEmpleado(mov) && (
+                                        <span className="bg-violet-100 text-violet-800 px-1 rounded text-[10px]">
+                                          Retiro empleado C/C
                                         </span>
                                       )}
                                     </div>
