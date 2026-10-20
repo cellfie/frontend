@@ -555,12 +555,16 @@ const CajaPage = () => {
   const totalPagosCCContado = totalSeccionCierre(cierreSecciones.pagos_cuenta_corriente)
   const diffPagosCC = resumenDiferencia(totalPagosCCContado - totalPagosCuentaCorriente)
 
-  const totalIngresadoCierre =
+  // Suma de lo declarado por rubro (apertura + ventas + cobros).
+  // Los egresos/ingresos manuales NO van en los rubros: se ajustan acá para que
+  // el total contado sea comparable al balance total (que ya resta egresos).
+  const sumaRubrosCierre =
     totalMontoInicial +
     totalVentasProductosContado +
     totalVentasEquiposContado +
     totalReparacionesContado +
     totalPagosCCContado
+  const totalIngresadoCierre = sumaRubrosCierre + ingresosManuales - egresosManuales
   const diferenciaCierre = totalIngresadoCierre - saldoEsperadoCierre
 
   const handleCerrarCaja = async (montoTotal) => {
@@ -589,7 +593,15 @@ const CajaPage = () => {
         ventas_equipos: { ...cierreSecciones.ventas_equipos },
         reparaciones: { ...cierreSecciones.reparaciones },
         pagos_cuenta_corriente: { ...cierreSecciones.pagos_cuenta_corriente },
+        movimientos_manuales: {
+          ingresos: ingresosManuales,
+          egresos: egresosManuales,
+          neto: ingresosManuales - egresosManuales,
+        },
         totales: {
+          suma_rubros: sumaRubrosCierre,
+          ingresos_manuales: ingresosManuales,
+          egresos_manuales: egresosManuales,
           saldo_esperado: saldoEsperadoCierre,
           total_contado: monto,
           diferencia: monto - saldoEsperadoCierre,
@@ -1490,21 +1502,22 @@ const CajaPage = () => {
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-semibold text-slate-900">Movimientos manuales (ingresos/egresos)</p>
                   <p className="text-xs text-gray-600 leading-relaxed">
-                    Este bloque explica el ajuste manual de la sesión y su impacto en el balance total esperado.
+                    Los egresos (retiros, adelantos, etc.) ya salieron de caja: se restan del total contado y del
+                    monto esperado, para que el cierre cuadre si los rubros están bien.
                   </p>
                 </div>
                 <div className="rounded-lg bg-white p-3 border border-slate-100 space-y-2">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Impacto en balance total</p>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Ajuste del cierre</p>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Ingresos</span>
-                    <span className="font-semibold text-gray-900 tabular-nums">
-                      {formatearMonedaARS(ingresosManuales)}
+                    <span className="text-gray-600">Ingresos manuales</span>
+                    <span className="font-semibold text-green-700 tabular-nums">
+                      +{formatearMonedaARS(ingresosManuales)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Egresos</span>
-                    <span className="font-semibold text-gray-900 tabular-nums">
-                      {formatearMonedaARS(egresosManuales)}
+                    <span className="text-gray-600">Egresos manuales</span>
+                    <span className="font-semibold text-red-700 tabular-nums">
+                      −{formatearMonedaARS(egresosManuales)}
                     </span>
                   </div>
                   <Separator />
@@ -1522,9 +1535,6 @@ const CajaPage = () => {
                       {formatearMonedaARS(ingresosManuales - egresosManuales)}
                     </span>
                   </div>
-                  <p className="text-[11px] text-gray-600 leading-relaxed pt-1">
-                    Estos movimientos ya están incluidos en el <strong>monto esperado</strong> del balance total.
-                  </p>
                 </div>
               </div>
             </div>
@@ -1762,11 +1772,38 @@ const CajaPage = () => {
               <div className="rounded-lg bg-white p-3 border border-orange-100 space-y-2">
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado (balance total)</p>
                 <p className="text-lg font-bold text-gray-900">{formatearMonedaARS(saldoEsperadoCierre)}</p>
+                <p className="text-[11px] text-gray-500 leading-snug">
+                  Apertura + ingresos − egresos manuales
+                </p>
               </div>
               <div className="rounded-lg bg-white p-3 border border-orange-100 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total ingresado</span>
-                  <span className="font-semibold text-gray-900">{formatearMonedaARS(totalIngresadoCierre)}</span>
+                  <span className="text-gray-600">Suma de rubros</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(sumaRubrosCierre)}
+                  </span>
+                </div>
+                {ingresosManuales > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">+ Ingresos manuales</span>
+                    <span className="font-semibold text-green-700 tabular-nums">
+                      {formatearMonedaARS(ingresosManuales)}
+                    </span>
+                  </div>
+                )}
+                {egresosManuales > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">− Egresos manuales</span>
+                    <span className="font-semibold text-red-700 tabular-nums">
+                      {formatearMonedaARS(egresosManuales)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm pt-1 border-t border-orange-100">
+                  <span className="text-gray-700 font-medium">Total contado</span>
+                  <span className="font-bold text-gray-900 tabular-nums">
+                    {formatearMonedaARS(totalIngresadoCierre)}
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex justify-between items-center pt-1">

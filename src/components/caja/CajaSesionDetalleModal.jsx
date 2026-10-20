@@ -168,6 +168,39 @@ export function CajaSesionDetalleModal({
                     s.monto_cierre != null && s.monto_cierre !== "" ? Number(s.monto_cierre) : null
                   const diferencia =
                     s.diferencia != null && s.diferencia !== "" ? Number(s.diferencia) : null
+
+                  // Contado comparable al saldo teórico = suma de rubros ± movimientos manuales.
+                  // (Cierres viejos guardaban solo la suma de rubros y marcaban sobrante = egresos.)
+                  const desgloseCierre = s.desglose_cierre
+                  const nSec = (x) => (x === "" || x == null || Number.isNaN(Number(x)) ? 0 : Number(x))
+                  const sumSecDesglose = (sec) => {
+                    if (!sec || typeof sec !== "object") return 0
+                    return nSec(sec.efectivo) + nSec(sec.transferencia) + nSec(sec.tarjeta) + nSec(sec.viumi)
+                  }
+                  let sumaRubrosDesglose = 0
+                  let tieneRubrosDesglose = false
+                  if (desgloseCierre && typeof desgloseCierre === "object") {
+                    if (desgloseCierre.totales?.suma_rubros != null) {
+                      sumaRubrosDesglose = Number(desgloseCierre.totales.suma_rubros) || 0
+                      tieneRubrosDesglose = true
+                    } else {
+                      const partes = [
+                        desgloseCierre.monto_inicial,
+                        desgloseCierre.ventas_productos,
+                        desgloseCierre.ventas_equipos,
+                        desgloseCierre.reparaciones,
+                        desgloseCierre.pagos_cuenta_corriente,
+                      ]
+                      tieneRubrosDesglose = partes.some((p) => p && typeof p === "object")
+                      sumaRubrosDesglose = partes.reduce((acc, p) => acc + sumSecDesglose(p), 0)
+                    }
+                  }
+                  const totalContadoArqueo = tieneRubrosDesglose
+                    ? sumaRubrosDesglose + ingManual - egrManual
+                    : montoCierre != null && !Number.isNaN(montoCierre)
+                      ? Number(montoCierre)
+                      : null
+
                   const cierreRegistrado =
                     s.estado === "cerrada" &&
                     s.fecha_cierre &&
@@ -224,7 +257,11 @@ export function CajaSesionDetalleModal({
                     return null
                   }
 
-                  const diferenciaCoherente = Number(montoCierre) - saldoTeoricoArqueo
+                  const dineroContadoMostrar =
+                    totalContadoArqueo != null && Number.isFinite(totalContadoArqueo)
+                      ? totalContadoArqueo
+                      : Number(montoCierre)
+                  const diferenciaCoherente = dineroContadoMostrar - saldoTeoricoArqueo
                   const diferenciaRegistrada = Number(diferencia)
                   const legacyMismatch =
                     Number.isFinite(diferenciaRegistrada) &&
@@ -264,8 +301,18 @@ export function CajaSesionDetalleModal({
                           </div>
                           <div className="rounded-lg border bg-white/80 p-3">
                             <p className="text-xs font-medium text-gray-500 uppercase">Dinero contado</p>
-                            <p className="text-lg font-bold text-gray-900">{formatearMonedaARS(montoCierre)}</p>
-                            <p className="text-xs text-gray-500 mt-1">Monto físico declarado al cerrar</p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {formatearMonedaARS(dineroContadoMostrar)}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1 leading-snug">
+                              {tieneRubrosDesglose
+                                ? `Rubros ${formatearMonedaARS(sumaRubrosDesglose)}${
+                                    ingManual > 0 ? ` + ing. manual ${formatearMonedaARS(ingManual)}` : ""
+                                  }${
+                                    egrManual > 0 ? ` − egresos ${formatearMonedaARS(egrManual)}` : ""
+                                  }`
+                                : "Monto declarado al cerrar"}
+                            </p>
                           </div>
                           <div className="rounded-lg border bg-white/80 p-3">
                             <p className="text-xs font-medium text-gray-500 uppercase">Saldo teórico (balance total)</p>
@@ -306,13 +353,14 @@ export function CajaSesionDetalleModal({
                         <div className="rounded-lg border border-dashed border-gray-300 bg-white/60 p-3 text-sm">
                           <p className="text-xs font-medium text-gray-500 uppercase mb-1">Diferencia (contado − balance total)</p>
                           <p className="font-mono font-semibold text-gray-900">
-                            {formatearMonedaARS(montoCierre)} − {formatearMonedaARS(saldoTeoricoArqueo)} ={" "}
+                            {formatearMonedaARS(dineroContadoMostrar)} − {formatearMonedaARS(saldoTeoricoArqueo)} ={" "}
                             {formatearMonedaARS(diferenciaCoherente)}
                           </p>
                           {legacyMismatch && (
                             <p className="text-xs text-amber-800 mt-2">
-                              Valor almacenado al cierre (cálculo anterior): {formatearMonedaARS(diferenciaRegistrada)}. Las
-                              nuevas sesiones guardan la diferencia con la misma fórmula que este balance.
+                              Diferencia guardada al cerrar (sin descontar egresos/ingresos manuales del contado):{" "}
+                              {formatearMonedaARS(diferenciaRegistrada)}. Ahora el arqueo compara el contado ya ajustado
+                              por esos movimientos, igual que el balance total.
                             </p>
                           )}
                           <p className="text-xs text-gray-500 mt-1">
@@ -336,6 +384,20 @@ export function CajaSesionDetalleModal({
                 {(() => {
                   const d = sesionDetalle.sesion.desglose_cierre
                   if (!d || typeof d !== "object") return null
+                  const totSesion = sesionDetalle.totales
+                  const manualSesion = totSesion?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
+                  const ingManualSesion =
+                    d.totales?.ingresos_manuales != null
+                      ? Number(d.totales.ingresos_manuales) || 0
+                      : d.movimientos_manuales?.ingresos != null
+                        ? Number(d.movimientos_manuales.ingresos) || 0
+                        : Number(manualSesion.ingresos) || 0
+                  const egrManualSesion =
+                    d.totales?.egresos_manuales != null
+                      ? Number(d.totales.egresos_manuales) || 0
+                      : d.movimientos_manuales?.egresos != null
+                        ? Number(d.movimientos_manuales.egresos) || 0
+                        : Number(manualSesion.egresos) || 0
                   const n = (x) => (x === "" || x == null || Number.isNaN(Number(x)) ? 0 : Number(x))
                   const sumSec = (sec) => {
                     if (!sec || typeof sec !== "object") return 0
@@ -356,14 +418,38 @@ export function CajaSesionDetalleModal({
                     { key: "rep", label: "Reparaciones", sub: null, sec: d.reparaciones, soloEfectivo: false },
                     { key: "pcc", label: "Pagos cuenta corriente", sub: null, sec: d.pagos_cuenta_corriente, soloEfectivo: false },
                   ]
+                  const sumaRubros = filas.reduce((acc, row) => acc + sumSec(row.sec), 0)
+                  const totalContadoNeto = sumaRubros + ingManualSesion - egrManualSesion
                   const tot = d.totales || {}
+                  const saldoEsperadoMostrar =
+                    tot.saldo_esperado != null
+                      ? Number(tot.saldo_esperado) || 0
+                      : (() => {
+                          const vp = (totSesion?.ventas_productos || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                          const ve = (totSesion?.ventas_equipos || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                          const rep = (totSesion?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0)
+                          const pcc = (totSesion?.pagos_cuenta_corriente || []).reduce(
+                            (s, v) => s + Number(v.total || 0),
+                            0,
+                          )
+                          return (
+                            Number(sesionDetalle.sesion.monto_apertura || 0) +
+                            vp +
+                            ve +
+                            rep +
+                            pcc +
+                            ingManualSesion -
+                            egrManualSesion
+                          )
+                        })()
+                  const diferenciaMostrar = totalContadoNeto - saldoEsperadoMostrar
                   return (
                     <Card className="border border-sky-200 bg-sky-50/40">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base text-sky-900">Conteo físico al cerrar</CardTitle>
                         <CardDescription>
-                          Así se cargó el arqueo al cerrar: el <strong>monto inicial</strong> está separado del resto de
-                          rubros (no mezcla fondo de apertura con ventas).
+                          Rubros declarados al cerrar. Los egresos/ingresos manuales se restan o suman al final para
+                          comparar contra el balance total.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3 overflow-x-auto">
@@ -407,34 +493,67 @@ export function CajaSesionDetalleModal({
                                 </tr>
                               )
                             })}
+                            {(ingManualSesion > 0 || egrManualSesion > 0) && (
+                              <>
+                                <tr className="border-b border-sky-100/80 bg-white/50">
+                                  <td className="py-2 pr-2" colSpan={5}>
+                                    <span className="font-medium text-gray-900">Suma de rubros</span>
+                                  </td>
+                                  <td className="py-2 pl-2 text-right font-medium tabular-nums">
+                                    {formatearMonedaARS(sumaRubros)}
+                                  </td>
+                                </tr>
+                                {ingManualSesion > 0 && (
+                                  <tr className="border-b border-sky-100/80">
+                                    <td className="py-2 pr-2" colSpan={5}>
+                                      <span className="font-medium text-green-800">+ Ingresos manuales</span>
+                                    </td>
+                                    <td className="py-2 pl-2 text-right font-medium tabular-nums text-green-700">
+                                      {formatearMonedaARS(ingManualSesion)}
+                                    </td>
+                                  </tr>
+                                )}
+                                {egrManualSesion > 0 && (
+                                  <tr className="border-b border-sky-100/80">
+                                    <td className="py-2 pr-2" colSpan={5}>
+                                      <span className="font-medium text-red-800">− Egresos manuales</span>
+                                      <p className="text-[11px] text-gray-600 mt-0.5">
+                                        Plata que ya salió de caja (retiros, adelantos, etc.)
+                                      </p>
+                                    </td>
+                                    <td className="py-2 pl-2 text-right font-medium tabular-nums text-red-700">
+                                      {formatearMonedaARS(egrManualSesion)}
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            )}
                           </tbody>
                         </table>
-                        {tot && (tot.saldo_esperado != null || tot.total_contado != null) && (
-                          <div className="rounded-lg border border-sky-200 bg-white/90 p-3 text-sm space-y-1">
-                            <div className="flex justify-between gap-2">
-                              <span className="text-gray-600">Saldo esperado (balance)</span>
-                              <span className="font-semibold">{formatearMonedaARS(Number(tot.saldo_esperado) || 0)}</span>
-                            </div>
-                            <div className="flex justify-between gap-2">
-                              <span className="text-gray-600">Total contado (suma del cuadro)</span>
-                              <span className="font-semibold">{formatearMonedaARS(Number(tot.total_contado) || 0)}</span>
-                            </div>
-                            <div className="flex justify-between gap-2 pt-1 border-t border-sky-100">
-                              <span className="text-gray-700 font-medium">Diferencia</span>
-                              <span
-                                className={`font-bold ${
-                                  Number(tot.diferencia) === 0
-                                    ? "text-green-700"
-                                    : Number(tot.diferencia) > 0
-                                      ? "text-sky-700"
-                                      : "text-red-700"
-                                }`}
-                              >
-                                {formatearMonedaARS(Number(tot.diferencia) || 0)}
-                              </span>
-                            </div>
+                        <div className="rounded-lg border border-sky-200 bg-white/90 p-3 text-sm space-y-1">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Saldo esperado (balance)</span>
+                            <span className="font-semibold">{formatearMonedaARS(saldoEsperadoMostrar)}</span>
                           </div>
-                        )}
+                          <div className="flex justify-between gap-2">
+                            <span className="text-gray-600">Total contado (rubros ± manuales)</span>
+                            <span className="font-semibold">{formatearMonedaARS(totalContadoNeto)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 pt-1 border-t border-sky-100">
+                            <span className="text-gray-700 font-medium">Diferencia</span>
+                            <span
+                              className={`font-bold ${
+                                Math.abs(diferenciaMostrar) < 0.02
+                                  ? "text-green-700"
+                                  : diferenciaMostrar > 0
+                                    ? "text-sky-700"
+                                    : "text-red-700"
+                              }`}
+                            >
+                              {formatearMonedaARS(diferenciaMostrar)}
+                            </span>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   )
