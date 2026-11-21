@@ -92,8 +92,8 @@ const UsuariosList = ({
                             size="icon"
                             onClick={() => abrirDialogCuentaCorriente(u)}
                             className="hover:bg-orange-50 hover:text-orange-600"
-                            aria-label="Cuenta corriente"
-                            title="Cuenta corriente"
+                            aria-label="Sueldos / Retiros"
+                            title="Sueldos / Retiros"
                           >
                             <CreditCard className="h-4 w-4" />
                           </Button>

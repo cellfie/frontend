@@ -51,11 +51,9 @@ const RepuestosSeleccionModal = ({
         punto_venta_id: puntoVentaId,
       })
 
-      // Filtrar solo repuestos con stock > 0
-      const repuestosConStock = data.filter((repuesto) => repuesto.stock > 0)
-
-      setRepuestos(repuestosConStock)
-      setFilteredRepuestos(repuestosConStock)
+      // Incluir sin stock: se puede usar en reparación y descontar (o quedar negativo) al terminar
+      setRepuestos(data)
+      setFilteredRepuestos(data)
     } catch (error) {
       console.error("Error al cargar repuestos:", error)
       toast.error("Error al cargar repuestos", { position: "bottom-right" })

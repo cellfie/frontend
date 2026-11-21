@@ -77,7 +77,7 @@ const ReparacionesPage = () => {
   })
 
   // Estado para las reparaciones
-  const [reparaciones, setReparaciones] = useState([{ descripcion: "", precio: "" }])
+  const [reparaciones, setReparaciones] = useState([{ descripcion: "", precio: "", repuesto_id: null, cantidad: 1 }])
 
   // Estado para el pago
   const [pago, setPago] = useState({
@@ -419,14 +419,24 @@ const ReparacionesPage = () => {
     nuevasReparaciones[repuestoSeleccionadoIndex] = {
       descripcion: `${repuesto.nombre}${repuesto.descripcion ? ` - ${repuesto.descripcion}` : ""}`,
       precio: precioNumerico,
+      repuesto_id: repuesto.id,
+      cantidad: 1,
     }
 
     setReparaciones(nuevasReparaciones)
     setShowRepuestosModal(false)
 
-    toast.success(`Repuesto "${repuesto.nombre}" agregado con precio ${formatearPrecio(precioNumerico)}`, {
-      position: "bottom-right",
-    })
+    const stockActual = Number(repuesto.stock)
+    if (Number.isFinite(stockActual) && stockActual <= 0) {
+      toast.info(
+        `Repuesto "${repuesto.nombre}" agregado sin stock. Al marcar la reparación como terminada se descontará (puede quedar negativo).`,
+        { position: "bottom-right" },
+      )
+    } else {
+      toast.success(`Repuesto "${repuesto.nombre}" agregado con precio ${formatearPrecio(precioNumerico)}`, {
+        position: "bottom-right",
+      })
+    }
   }
 
   // Calcular el total de las reparaciones
@@ -585,12 +595,17 @@ const ReparacionesPage = () => {
   const handleReparacionChange = (index, field, value) => {
     const nuevasReparaciones = [...reparaciones]
     nuevasReparaciones[index][field] = value
+    // Si editan la descripción a mano, ya no es el repuesto del catálogo
+    if (field === "descripcion") {
+      nuevasReparaciones[index].repuesto_id = null
+      nuevasReparaciones[index].cantidad = 1
+    }
     setReparaciones(nuevasReparaciones)
   }
 
   // Agregar una nueva reparación
   const agregarReparacion = () => {
-    setReparaciones([...reparaciones, { descripcion: "", precio: "" }])
+    setReparaciones([...reparaciones, { descripcion: "", precio: "", repuesto_id: null, cantidad: 1 }])
   }
 
   // Eliminar una reparación
@@ -720,6 +735,9 @@ const ReparacionesPage = () => {
         reparaciones: reparaciones.map((rep) => ({
           descripcion: rep.descripcion,
           precio: convertirANumero(rep.precio) || 0,
+          ...(rep.repuesto_id
+            ? { repuesto_id: Number(rep.repuesto_id), cantidad: Number(rep.cantidad) || 1 }
+            : {}),
         })),
         pago: pago.realizaPago
           ? {
@@ -809,7 +827,7 @@ const ReparacionesPage = () => {
     setMostrarTicket(false)
     setCliente({ nombre: "", telefono: "", dni: "", id: null })
     setEquipo({ marca: "", modelo: "", password: "", imei: "", descripcion: "" })
-    setReparaciones([{ descripcion: "", precio: "" }])
+    setReparaciones([{ descripcion: "", precio: "", repuesto_id: null, cantidad: 1 }])
     setPago({ realizaPago: false, monto: "", metodo: "efectivo" })
     setPasoActual(1)
     setReparacionRegistrada(false)
@@ -1327,6 +1345,12 @@ const ReparacionesPage = () => {
                                 placeholder="Ej: Cambio de pantalla, Reparación de placa"
                                 className="border-orange-200 focus-visible:ring-orange-500"
                               />
+                              {reparacion.repuesto_id ? (
+                                <p className="text-[11px] text-blue-700 flex items-center gap-1">
+                                  <Package className="h-3 w-3" />
+                                  Vinculado al stock: se descontará al marcar como terminada
+                                </p>
+                              ) : null}
                             </div>
                             <div className="md:col-span-4 space-y-2">
                               <Label htmlFor={`precio-${index}`}>Precio</Label>
@@ -1873,7 +1897,10 @@ const ReparacionesPage = () => {
                   <MapPin className="h-3 w-3 mr-1" />
                   Punto de venta: {obtenerNombrePuntoVenta(puntoVentaSeleccionado)}
                 </Badge>
-                <span className="text-sm text-gray-500">Solo se muestran repuestos de este punto de venta</span>
+                <span className="text-sm text-gray-500">
+                  Solo se muestran repuestos de este punto de venta. Podés elegir aunque no haya stock; se descuenta al
+                  marcar terminada.
+                </span>
               </div>
             )}
           </div>

@@ -62,11 +62,12 @@ export const searchRepuestos = async (params = {}) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
+      const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || "Error al buscar repuestos")
     }
 
-    return await response.json()
+    const data = await response.json()
+    return Array.isArray(data) ? data : []
   } catch (error) {
     console.error("Error en searchRepuestos:", error)
     throw error
@@ -165,12 +166,15 @@ export const deleteRepuesto = async (id) => {
 
 // Función para adaptar los datos del backend al formato que espera el frontend
 export const adaptRepuestoToFrontend = (repuesto) => {
+  const stockNum = Number(repuesto.stock)
+  const priceNum = Number(repuesto.precio)
   return {
     id: repuesto.id,
     name: repuesto.nombre,
     description: repuesto.descripcion,
-    price: repuesto.precio || 0, // Cambiado de precio a price para consistencia en el frontend
-    stock: repuesto.stock || 0,
+    price: Number.isFinite(priceNum) ? priceNum : 0,
+    // Number(x) || 0 convierte stock negativo a 0 — no usar ||
+    stock: Number.isFinite(stockNum) ? stockNum : 0,
     pointOfSale: repuesto.punto_venta,
     punto_venta_id: repuesto.punto_venta_id,
   }

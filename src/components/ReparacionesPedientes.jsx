@@ -190,8 +190,10 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
           params.fecha_inicio = formatearFecha(rangoFechas.from)
           params.fecha_fin = formatearFecha(rangoFechas.to)
         }
-        // Para admin, si el filtro es por creación y no hay fechas, podría cargar todas o un rango por defecto.
-        // La lógica actual de useEffect ya establece un rango por defecto para admin.
+        // Enviar estado al backend: si es "entregada", las fechas se aplican a fecha_entrega
+        if (filtroEstado && filtroEstado !== "todos") {
+          params.estado = filtroEstado
+        }
         reparacionesData = await getReparaciones(params)
       } else if (filtroTipoFecha === "accion") {
         if (tipoAccionSeleccionado && rangoFechasAccion?.from && rangoFechasAccion?.to) {
@@ -476,10 +478,15 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
     return calcularSaldoPendiente(reparacion) <= 0
   }
 
-  // Formatear fecha para el backend
+  // Formatear fecha local YYYY-MM-DD (evitar corrimiento por UTC de toISOString)
   const formatearFecha = (fecha) => {
     if (!fecha) return null
-    return fecha.toISOString().split("T")[0]
+    const d = fecha instanceof Date ? fecha : new Date(fecha)
+    if (Number.isNaN(d.getTime())) return null
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
   }
 
   // Formatear fecha para mostrar
@@ -1049,7 +1056,9 @@ const ReparacionesPendientes = ({ showHeader = true }) => {
 
                 {filtroTipoFecha === "creacion" && (
                   <div>
-                    <Label className="text-sm font-medium text-gray-700 mb-1 block">Rango (Creación)</Label>
+                    <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                      {filtroEstado === "entregada" ? "Rango (Fecha de entrega)" : "Rango (Fecha de ingreso)"}
+                    </Label>
                     <DateRangePicker date={rangoFechas} setDate={setRangoFechas} className="w-full" align="start" />
                   </div>
                 )}

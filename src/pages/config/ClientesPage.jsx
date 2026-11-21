@@ -29,9 +29,11 @@ import { useAuth } from "@/context/AuthContext"
 
 import ClientesList from "../../components/clientes/ClientesList"
 import ClienteFormDialog from "../../components/clientes/ClienteFormDialog"
+import ClienteDetalleDialog from "../../components/clientes/ClienteDetalleDialog"
 import CuentaCorrienteDialog from "../../components/clientes/CuentaCorrienteDialog"
 import PagoDialog from "../../components/clientes/PagoDialog"
 import AjusteDialog from "../../components/clientes/AjusteDialog"
+import { getMovimientosCuentaCorriente } from "@/services/cuentasCorrientesService"
 
 const ClientesPage = () => {
   const { currentUser } = useAuth()
@@ -64,6 +66,7 @@ const ClientesPage = () => {
     notas: "",
     tipo_pago: "Efectivo",
   })
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
   const [cuentaCorriente, setCuentaCorriente] = useState(null)
   const [movimientosCuenta, setMovimientosCuenta] = useState([])
@@ -277,27 +280,61 @@ const ClientesPage = () => {
     setClientesFiltrados(filtrados)
   }
 
-  // Cargar detalle del cliente - MEJORADO para mantener el foco
+  const cerrarDetalleCliente = () => {
+    setDetalleClienteAbierto(null)
+    setRangoFechasMovimientos({ from: null, to: null })
+  }
+
+  // Abrir modal de detalle del cliente
   const cargarDetalleCliente = async (clienteId) => {
-    if (detalleClienteAbierto === clienteId) {
-      setDetalleClienteAbierto(null)
-      setClienteSeleccionado(null)
-      return
-    }
+    setDetalleClienteAbierto(clienteId)
+    setCargandoDetalle(true)
+    setCuentaCorriente(null)
+    setMovimientosCuenta([])
+    setRangoFechasMovimientos({ from: null, to: null })
 
     try {
-      // NO usar setCargando aquí para mantener el foco en la lista
       const clienteDetallado = await getClienteById(clienteId)
       setClienteSeleccionado(adaptClienteToFrontend(clienteDetallado))
-      setDetalleClienteAbierto(clienteId)
 
-      // Cargar cuenta corriente si existe
       if (clienteDetallado.cuenta_corriente) {
         await cargarCuentaCorriente(clienteId)
       }
     } catch (error) {
       console.error("Error al obtener detalle del cliente:", error)
       toast.error("Error al obtener detalle del cliente")
+      setDetalleClienteAbierto(null)
+      setClienteSeleccionado(null)
+    } finally {
+      setCargandoDetalle(false)
+    }
+  }
+
+  const formatearFechaLocal = (fecha) => {
+    if (!fecha) return null
+    const d = fecha instanceof Date ? fecha : new Date(fecha)
+    if (Number.isNaN(d.getTime())) return null
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+  }
+
+  const cargarMovimientosPorFecha = async (cuentaId, rangoFechas) => {
+    if (!cuentaId || !rangoFechas?.from || !rangoFechas?.to) return
+
+    setCargandoCuentaCorriente(true)
+    try {
+      const movimientos = await getMovimientosCuentaCorriente(cuentaId, {
+        fecha_inicio: formatearFechaLocal(rangoFechas.from),
+        fecha_fin: formatearFechaLocal(rangoFechas.to),
+      })
+      setMovimientosCuenta(movimientos)
+    } catch (error) {
+      console.error("Error al cargar movimientos por fecha:", error)
+      toast.error("Error al filtrar movimientos")
+    } finally {
+      setCargandoCuentaCorriente(false)
     }
   }
 
@@ -816,24 +853,12 @@ const ClientesPage = () => {
           clientes={clientesFiltrados}
           cargando={cargando}
           detalleClienteAbierto={detalleClienteAbierto}
-          clienteSeleccionado={clienteSeleccionado}
           busqueda={busqueda}
           cargarDetalleCliente={cargarDetalleCliente}
           abrirDialogCliente={abrirDialogCliente}
           setClienteSeleccionado={setClienteSeleccionado}
           setDialogEliminarAbierto={setDialogEliminarAbierto}
-          formatearFechaHora={formatearFechaHora}
           formatearPrecio={formatearPrecio}
-          cargandoCuentaCorriente={cargandoCuentaCorriente}
-          setCargandoCuentaCorriente={setCargandoCuentaCorriente}
-          cuentaCorriente={cuentaCorriente}
-          movimientosCuenta={movimientosCuenta}
-          setMovimientosCuenta={setMovimientosCuenta}
-          rangoFechasMovimientos={rangoFechasMovimientos}
-          setRangoFechasMovimientos={setRangoFechasMovimientos}
-          abrirDialogCuentaCorriente={abrirDialogCuentaCorriente}
-          abrirDialogPago={abrirDialogPago}
-          abrirDialogAjuste={abrirDialogAjuste}
         />
       )}
 
@@ -850,6 +875,28 @@ const ClientesPage = () => {
         </Card>
       )}
 
+      {/* Modal detalle */}
+      <ClienteDetalleDialog
+        open={Boolean(detalleClienteAbierto)}
+        onOpenChange={(abierto) => {
+          if (!abierto) cerrarDetalleCliente()
+        }}
+        clienteSeleccionado={clienteSeleccionado}
+        cargandoDetalle={cargandoDetalle}
+        formatearFechaHora={formatearFechaHora}
+        formatearPrecio={formatearPrecio}
+        cargandoCuentaCorriente={cargandoCuentaCorriente}
+        movimientosCuenta={movimientosCuenta}
+        rangoFechasMovimientos={rangoFechasMovimientos}
+        setRangoFechasMovimientos={setRangoFechasMovimientos}
+        abrirDialogCliente={abrirDialogCliente}
+        abrirDialogEliminar={() => setDialogEliminarAbierto(true)}
+        abrirDialogCuentaCorriente={abrirDialogCuentaCorriente}
+        abrirDialogPago={abrirDialogPago}
+        abrirDialogAjuste={abrirDialogAjuste}
+        cargarMovimientosPorFecha={cargarMovimientosPorFecha}
+      />
+
       {/* Diálogos */}
       <ClienteFormDialog
         open={dialogClienteAbierto}
@@ -858,7 +905,7 @@ const ClientesPage = () => {
         formCliente={formCliente}
         setFormCliente={setFormCliente}
         guardarCliente={guardarCliente}
-        clienteSeleccionado={clienteEnEdicion} // Usar clienteEnEdicion en lugar de clienteSeleccionado
+        clienteSeleccionado={dialogEliminarAbierto ? clienteSeleccionado : clienteEnEdicion}
         dialogEliminarAbierto={dialogEliminarAbierto}
         setDialogEliminarAbierto={setDialogEliminarAbierto}
         eliminarCliente={eliminarCliente}

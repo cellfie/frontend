@@ -19,7 +19,13 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatearMonedaARS, formatearFechaHora, interpretarCierreCaja } from "@/lib/cajaHistorialUtils"
+import {
+  formatearMonedaARS,
+  formatearFechaHora,
+  interpretarCierreCaja,
+  obtenerMovimientosManualesCaja,
+  calcularSaldoTeoricoCaja,
+} from "@/lib/cajaHistorialUtils"
 import { PaginationControls } from "@/lib/PaginationControls"
 
 /**
@@ -158,12 +164,18 @@ export function CajaSesionDetalleModal({
                   const ve = (tot?.ventas_equipos || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
                   const rep = (tot?.reparaciones || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
                   const pcc = (tot?.pagos_cuenta_corriente || []).reduce((acc, v) => acc + Number(v.total || 0), 0)
-                  const manual = tot?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
-                  const ingManual = Number(manual.ingresos) || 0
-                  const egrManual = Number(manual.egresos) || 0
+                  const { ingresos: ingManual, egresos: egrManual } = obtenerMovimientosManualesCaja(tot)
                   const montoApertura = Number(s.monto_apertura) || 0
                   // Mismo criterio que "Balance total" y que el cierre en pantalla (Caja).
-                  const saldoTeoricoArqueo = montoApertura + vp + ve + rep + pcc + ingManual - egrManual
+                  const saldoTeoricoArqueo = calcularSaldoTeoricoCaja({
+                    montoApertura,
+                    ventasProductos: vp,
+                    ventasEquipos: ve,
+                    reparaciones: rep,
+                    pagosCuentaCorriente: pcc,
+                    ingresosManuales: ingManual,
+                    egresosManuales: egrManual,
+                  })
                   const montoCierre =
                     s.monto_cierre != null && s.monto_cierre !== "" ? Number(s.monto_cierre) : null
                   const diferencia =
@@ -385,19 +397,19 @@ export function CajaSesionDetalleModal({
                   const d = sesionDetalle.sesion.desglose_cierre
                   if (!d || typeof d !== "object") return null
                   const totSesion = sesionDetalle.totales
-                  const manualSesion = totSesion?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
+                  const manualSesion = obtenerMovimientosManualesCaja(totSesion)
                   const ingManualSesion =
                     d.totales?.ingresos_manuales != null
                       ? Number(d.totales.ingresos_manuales) || 0
                       : d.movimientos_manuales?.ingresos != null
                         ? Number(d.movimientos_manuales.ingresos) || 0
-                        : Number(manualSesion.ingresos) || 0
+                        : manualSesion.ingresos
                   const egrManualSesion =
                     d.totales?.egresos_manuales != null
                       ? Number(d.totales.egresos_manuales) || 0
                       : d.movimientos_manuales?.egresos != null
                         ? Number(d.movimientos_manuales.egresos) || 0
-                        : Number(manualSesion.egresos) || 0
+                        : manualSesion.egresos
                   const n = (x) => (x === "" || x == null || Number.isNaN(Number(x)) ? 0 : Number(x))
                   const sumSec = (sec) => {
                     if (!sec || typeof sec !== "object") return 0
@@ -566,11 +578,19 @@ export function CajaSesionDetalleModal({
                   const ve = (tot?.ventas_equipos || []).reduce((s, v) => s + Number(v.total || 0), 0)
                   const rep = (tot?.reparaciones || []).reduce((s, v) => s + Number(v.total || 0), 0)
                   const pcc = (tot?.pagos_cuenta_corriente || []).reduce((s, v) => s + Number(v.total || 0), 0)
-                  const manual = tot?.movimientos_por_origen?.general || { ingresos: 0, egresos: 0 }
-                  const totalIngresos = vp + ve + rep + pcc + (manual.ingresos || 0)
-                  const totalEgresos = manual.egresos || 0
+                  const { ingresos: ingMan, egresos: egrMan } = obtenerMovimientosManualesCaja(tot)
+                  const totalIngresos = vp + ve + rep + pcc + ingMan
+                  const totalEgresos = egrMan
                   const montoInicial = Number(sesionDetalle.sesion.monto_apertura || 0)
-                  const balance = montoInicial + totalIngresos - totalEgresos
+                  const balance = calcularSaldoTeoricoCaja({
+                    montoApertura: montoInicial,
+                    ventasProductos: vp,
+                    ventasEquipos: ve,
+                    reparaciones: rep,
+                    pagosCuentaCorriente: pcc,
+                    ingresosManuales: ingMan,
+                    egresosManuales: egrMan,
+                  })
                   return (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <Card className="border border-gray-200">
@@ -624,8 +644,12 @@ export function CajaSesionDetalleModal({
                               : tab === "reparaciones"
                                 ? sesionDetalle.totales?.reparaciones || []
                                 : []
-                        const manualIng = tab === "general" ? (sesionDetalle.totales?.movimientos_por_origen?.general?.ingresos || 0) : 0
-                        const manualEgr = tab === "general" ? (sesionDetalle.totales?.movimientos_por_origen?.general?.egresos || 0) : 0
+                        const manualTab =
+                          tab === "general"
+                            ? obtenerMovimientosManualesCaja(sesionDetalle.totales)
+                            : { ingresos: 0, egresos: 0 }
+                        const manualIng = manualTab.ingresos
+                        const manualEgr = manualTab.egresos
                         const totalTab =
                           tab === "general"
                             ? manualIng +

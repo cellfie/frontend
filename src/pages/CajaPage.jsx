@@ -39,7 +39,12 @@ import {
 import { getTiposPago } from "@/services/pagosService"
 import { useAuth } from "@/context/AuthContext"
 import { PaginationControls } from "@/lib/PaginationControls"
-import { formatearMonedaARS, formatearFechaHora } from "@/lib/cajaHistorialUtils"
+import {
+  formatearMonedaARS,
+  formatearFechaHora,
+  obtenerMovimientosManualesCaja,
+  calcularSaldoTeoricoCaja,
+} from "@/lib/cajaHistorialUtils"
 
 // Métodos de pago usados en el sistema (orden fijo para desglose)
 const METODOS_PAGO_NOMBRES = [
@@ -148,7 +153,7 @@ const CajaPage = () => {
     (String(mov?.tipo_referencia || "").toLowerCase() === "retiro_empleado" ||
       String(mov?.concepto || "").toLowerCase().startsWith("retiro empleado"))
 
-  // Al abrir "Cerrar caja" (también si solo se hace setDialogCierreAbierto(true)), precargar y efectivo = monto apertura
+  // Al abrir "Cerrar caja": refrescar totales (egresos) y precargar fondo de apertura
   useEffect(() => {
     if (!dialogCierreAbierto) {
       prevDialogCierreAbierto.current = false
@@ -158,6 +163,9 @@ const CajaPage = () => {
 
     const justOpened = !prevDialogCierreAbierto.current
     if (justOpened) {
+      // Asegurar egresos/ingresos al día antes de calcular el arqueo
+      cargarCajaActual()
+
       const raw = cajaActual.monto_apertura
       let apertura = Number(raw)
       if (!Number.isFinite(apertura)) {
@@ -176,6 +184,7 @@ const CajaPage = () => {
       })
     }
     prevDialogCierreAbierto.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogCierreAbierto, cajaActual])
 
   // Cargar puntos de venta y setear por defecto Trancas (igual que en ventas)
@@ -437,12 +446,9 @@ const CajaPage = () => {
     0,
   )
 
-  const movimientosPorOrigen = resumenTotales?.movimientos_por_origen || {}
-
-  // Ingresos y egresos manuales son siempre "general": se aplican igual en todos los tabs
-  const manualGeneral = movimientosPorOrigen.general || { ingresos: 0, egresos: 0 }
-  const ingresosManuales = manualGeneral.ingresos || 0
-  const egresosManuales = manualGeneral.egresos || 0
+  // Ingresos/egresos de caja_movimientos (egreso manual + retiro empleado, etc.)
+  const { ingresos: ingresosManuales, egresos: egresosManuales } =
+    obtenerMovimientosManualesCaja(resumenTotales)
 
   const getTotalesTab = (tab) => {
     if (tab === "general") {
@@ -471,6 +477,16 @@ const CajaPage = () => {
   }
 
   const totalesTabActual = getTotalesTab(tabCaja)
+
+  const balanceTotalSesion = calcularSaldoTeoricoCaja({
+    montoApertura: cajaActual?.monto_apertura,
+    ventasProductos: totalVentasProductos,
+    ventasEquipos: totalVentasEquipos,
+    reparaciones: totalReparaciones,
+    pagosCuentaCorriente: totalPagosCuentaCorriente,
+    ingresosManuales,
+    egresosManuales,
+  })
 
   // Desglose de ingresos por método de pago para el modal (al hacer clic en la tarjeta Ingresos)
   const getDesgloseIngresos = (tab) => {
@@ -516,17 +532,17 @@ const CajaPage = () => {
     return filas
   }
 
-  // Saldo esperado para el cierre: mismo cálculo que el "Balance total" general,
-  // es decir: monto de apertura + todas las ventas (productos, equipos, reparaciones)
-  // + ingresos manuales - egresos manuales.
-  const saldoEsperadoCierre =
-    (Number(cajaActual?.monto_apertura || 0) || 0) +
-    totalVentasProductos +
-    totalVentasEquipos +
-    totalReparaciones +
-    totalPagosCuentaCorriente +
-    ingresosManuales -
-    egresosManuales
+  // Saldo esperado = lo que debería haber físicamente en caja ahora
+  // (apertura + cobros − egresos/retiros). Misma fórmula que el Balance total.
+  const saldoEsperadoCierre = calcularSaldoTeoricoCaja({
+    montoApertura: cajaActual?.monto_apertura,
+    ventasProductos: totalVentasProductos,
+    ventasEquipos: totalVentasEquipos,
+    reparaciones: totalReparaciones,
+    pagosCuentaCorriente: totalPagosCuentaCorriente,
+    ingresosManuales,
+    egresosManuales,
+  })
   const num = (v) => (v === "" || v === undefined ? 0 : Number(v))
   const totalSeccionCierre = (s) =>
     num(s?.efectivo) + num(s?.transferencia) + num(s?.tarjeta) + num(s?.viumi)
@@ -971,17 +987,14 @@ const CajaPage = () => {
                         </div>
                         <Separator />
                         <div className="flex justify-between items-center pt-2 bg-orange-50 rounded-lg px-4 py-3 border border-orange-100">
-                          <span className="font-semibold text-gray-800">Balance total</span>
+                          <div>
+                            <span className="font-semibold text-gray-800">Balance total</span>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              Apertura + ingresos − egresos (debería haber en caja)
+                            </p>
+                          </div>
                           <span className="text-xl font-bold text-orange-700">
-                            {formatearMonedaARS(
-                              (Number(cajaActual.monto_apertura || 0) || 0) +
-                                totalVentasProductos +
-                                totalVentasEquipos +
-                                totalReparaciones +
-                                totalPagosCuentaCorriente +
-                                ingresosManuales -
-                                egresosManuales,
-                            )}
+                            {formatearMonedaARS(balanceTotalSesion)}
                           </span>
                         </div>
                       </CardContent>
@@ -1037,6 +1050,11 @@ const CajaPage = () => {
                               (tab === tabCaja ? totalesTabActual.egresos : getTotalesTab(tab).egresos),
                           )}
                         </p>
+                        {egresosManuales > 0 && (
+                          <p className="text-[10px] text-red-600 mt-0.5">
+                            Incluye −{formatearMonedaARS(egresosManuales)} de egresos
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -1428,23 +1446,60 @@ const CajaPage = () => {
               Cerrar caja
             </DialogTitle>
             <DialogDescription>
-              Cierre para <strong>{puntoVentaNombre}</strong>. El <strong>monto inicial</strong> viene cargado en
-              efectivo (lo declarado al abrir); completá el resto por rubro.
+              Cierre para <strong>{puntoVentaNombre}</strong>. Declará por rubro lo que entró (apertura y cobros).
+              Los egresos/retiros se descuentan solos del balance.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            {/* Monto inicial: solo efectivo; valor por defecto = monto_apertura (efect sincronizado al abrir el modal) */}
+            {/* Resumen: lo que debería haber físicamente en caja */}
+            <div className="rounded-lg border-2 border-orange-300 bg-orange-50 p-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-orange-950">
+                    Dinero que debería haber en caja ahora
+                  </p>
+                  <p className="text-xs text-orange-900/80 mt-1 leading-relaxed">
+                    Apertura {formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}
+                    {" + "}ingresos{" "}
+                    {formatearMonedaARS(
+                      totalVentasProductos +
+                        totalVentasEquipos +
+                        totalReparaciones +
+                        totalPagosCuentaCorriente +
+                        ingresosManuales,
+                    )}
+                    {egresosManuales > 0 ? (
+                      <>
+                        {" − "}egresos{" "}
+                        <strong className="text-red-700">{formatearMonedaARS(egresosManuales)}</strong>
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+                <p className="text-2xl font-bold text-orange-700 tabular-nums shrink-0">
+                  {formatearMonedaARS(saldoEsperadoCierre)}
+                </p>
+              </div>
+              {egresosManuales > 0 && (
+                <p className="text-xs text-orange-950/90 mt-3 rounded-md bg-white/80 border border-orange-200 px-3 py-2">
+                  Hay egresos/retiros por <strong>{formatearMonedaARS(egresosManuales)}</strong>. No bajes el
+                  monto inicial: dejá lo que abriste. El sistema ya restó esa plata del saldo teórico.
+                </p>
+              )}
+            </div>
+
+            {/* Monto inicial: fondo de apertura (NO el efectivo que queda después de egresos) */}
             <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_minmax(200px,220px)] gap-4 items-start">
                 <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-semibold text-sky-950">Monto inicial (solo efectivo)</p>
+                  <p className="text-sm font-semibold text-sky-950">Monto inicial (fondo al abrir)</p>
                   <p className="text-xs text-gray-600 leading-relaxed">
-                    Fondo al abrir la caja (no mezclar con ventas). Declarado al abrir:{" "}
+                    Es lo que declaraste al <strong>abrir</strong> la caja, no lo que queda ahora. Declarado:{" "}
                     <strong className="text-gray-900">
                       {formatearMonedaARS(Number(cajaActual?.monto_apertura || 0))}
                     </strong>
-                    .
+                    . Si sacaste plata con un egreso, no lo reduzcas acá.
                   </p>
                   <div className="mt-2 rounded-md bg-white/70 border border-sky-100 px-3 py-2">
                     <div className="flex items-center justify-between text-xs">
@@ -1469,7 +1524,7 @@ const CajaPage = () => {
                     htmlFor="cierre-monto-inicial-efectivo"
                     className="text-xs font-medium text-gray-700"
                   >
-                    Efectivo contado
+                    Fondo de apertura
                   </label>
                   <Input
                     id="cierre-monto-inicial-efectivo"
@@ -1770,10 +1825,12 @@ const CajaPage = () => {
                 General
               </h3>
               <div className="rounded-lg bg-white p-3 border border-orange-100 space-y-2">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Monto esperado (balance total)</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">
+                  Saldo teórico (debería haber en caja)
+                </p>
                 <p className="text-lg font-bold text-gray-900">{formatearMonedaARS(saldoEsperadoCierre)}</p>
                 <p className="text-[11px] text-gray-500 leading-snug">
-                  Apertura + ingresos − egresos manuales
+                  Apertura + ingresos − egresos/retiros
                 </p>
               </div>
               <div className="rounded-lg bg-white p-3 border border-orange-100 space-y-2">

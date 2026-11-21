@@ -201,13 +201,15 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                                                     : ""
                                             }`}
                                           >
-                                            {repuesto.stock > 10
-                                              ? "Stock disponible"
-                                              : repuesto.stock > 0 && repuesto.stock < 3
-                                                ? "Stock bajo"
-                                                : repuesto.stock > 0
-                                                  ? "Stock limitado"
-                                                  : "Sin stock"}
+                                            {repuesto.stock < 0
+                                              ? "Stock negativo"
+                                              : repuesto.stock > 10
+                                                ? "Stock disponible"
+                                                : repuesto.stock > 0 && repuesto.stock < 3
+                                                  ? "Stock bajo"
+                                                  : repuesto.stock > 0
+                                                    ? "Stock limitado"
+                                                    : "Sin stock"}
                                           </Badge>
                                         </div>
                                       </div>
@@ -258,13 +260,15 @@ export const RepuestoTable = ({ repuestos = [], isLoading = false, onEdit, onDel
                                                       : ""
                                               }`}
                                             >
-                                              {repuesto.stock > 10
-                                                ? "Stock disponible"
-                                                : repuesto.stock > 0 && repuesto.stock < 3
-                                                  ? "Stock bajo"
-                                                  : repuesto.stock > 0
-                                                    ? "Stock limitado"
-                                                    : "Sin stock"}
+                                              {repuesto.stock < 0
+                                                ? "Stock negativo"
+                                                : repuesto.stock > 10
+                                                  ? "Stock disponible"
+                                                  : repuesto.stock > 0 && repuesto.stock < 3
+                                                    ? "Stock bajo"
+                                                    : repuesto.stock > 0
+                                                      ? "Stock limitado"
+                                                      : "Sin stock"}
                                             </Badge>
                                           </div>
                                         </div>

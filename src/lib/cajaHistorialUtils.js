@@ -40,6 +40,49 @@ export const formatearFechaHora = (fechaString) => {
 /** Tolerancia en pesos para considerar cierre "perfecto" (redondeos). */
 export const DIF_CIERRE_EPS = 0.02
 
+/**
+ * Ingresos/egresos de caja_movimientos para el balance de caja.
+ * Usa el total global (todos los orígenes) y, si falta, suma movimientos_por_origen.
+ * Así un egreso/retiro siempre baja el saldo teórico aunque el origen venga mal.
+ */
+export const obtenerMovimientosManualesCaja = (totales) => {
+  const globalIng = Number(totales?.movimientos?.ingresos) || 0
+  const globalEgr = Number(totales?.movimientos?.egresos) || 0
+  const porOrigen = totales?.movimientos_por_origen || {}
+
+  let sumaIng = 0
+  let sumaEgr = 0
+  Object.values(porOrigen).forEach((o) => {
+    if (!o || typeof o !== "object") return
+    sumaIng += Number(o.ingresos) || 0
+    sumaEgr += Number(o.egresos) || 0
+  })
+
+  // Preferir el mayor por si alguno de los agregados viene incompleto
+  return {
+    ingresos: Math.max(globalIng, sumaIng),
+    egresos: Math.max(globalEgr, sumaEgr),
+  }
+}
+
+/** Balance teórico de sesión: apertura + cobros/ventas + ingresos manuales − egresos. */
+export const calcularSaldoTeoricoCaja = ({
+  montoApertura = 0,
+  ventasProductos = 0,
+  ventasEquipos = 0,
+  reparaciones = 0,
+  pagosCuentaCorriente = 0,
+  ingresosManuales = 0,
+  egresosManuales = 0,
+} = {}) =>
+  (Number(montoApertura) || 0) +
+  (Number(ventasProductos) || 0) +
+  (Number(ventasEquipos) || 0) +
+  (Number(reparaciones) || 0) +
+  (Number(pagosCuentaCorriente) || 0) +
+  (Number(ingresosManuales) || 0) -
+  (Number(egresosManuales) || 0)
+
 export const interpretarCierreCaja = (diferencia) => {
   const d = Number(diferencia)
   if (!Number.isFinite(d)) return { tipo: "sin_datos", label: "Sin datos", descripcion: "" }
@@ -48,7 +91,7 @@ export const interpretarCierreCaja = (diferencia) => {
       tipo: "perfecto",
       label: "Cierre perfecto",
       descripcion:
-        "El dinero contado coincide con el saldo teórico: apertura más ventas y cobros de la sesión (menos egresos manuales generales).",
+        "El dinero contado coincide con el saldo teórico: apertura más ventas y cobros de la sesión (menos egresos).",
     }
   }
   if (d > 0) {
@@ -61,6 +104,6 @@ export const interpretarCierreCaja = (diferencia) => {
   return {
     tipo: "faltante",
     label: "Faltante",
-    descripcion: "Falta dinero en caja respecto del saldo teórico del balance total (apertura + ingresos − egresos manuales generales).",
+    descripcion: "Falta dinero en caja respecto del saldo teórico (apertura + ingresos − egresos).",
   }
 }

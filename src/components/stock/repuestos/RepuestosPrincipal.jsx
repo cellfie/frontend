@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { ToastContainer, toast } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import { AnimatePresence } from "framer-motion"
@@ -9,7 +9,6 @@ import { RepuestoTable } from "./RepuestoTable"
 import { AddRepuestoModal } from "./AddRepuestoModal"
 import {
   getRepuestos,
-  searchRepuestos,
   createRepuesto,
   updateRepuesto,
   deleteRepuesto,
@@ -17,9 +16,17 @@ import {
 } from "../../../services/repuestosService"
 import { getPuntosVenta } from "../../../services/puntosVentaService"
 
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(handler)
+  }, [value, delay])
+  return debouncedValue
+}
+
 export const RepuestosPrincipal = () => {
   const [repuestos, setRepuestos] = useState([])
-  const [filteredRepuestos, setFilteredRepuestos] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedRepuestos, setSelectedRepuestos] = useState([])
   const [showModal, setShowModal] = useState(false)
@@ -32,6 +39,8 @@ export const RepuestosPrincipal = () => {
   const [selectedPuntoVentaId, setSelectedPuntoVentaId] = useState(null)
   const [maxStockAvailable, setMaxStockAvailable] = useState(100)
 
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+
   // Cargar puntos de venta
   useEffect(() => {
     const fetchPuntosVenta = async () => {
@@ -39,7 +48,6 @@ export const RepuestosPrincipal = () => {
         const data = await getPuntosVenta()
         setPuntosVenta(data)
 
-        // Establecer el punto de venta por defecto (ID 1 o el primero disponible)
         if (data.length > 0) {
           const defaultPuntoVenta = data.find((pv) => pv.id === 1) || data[0]
           setSelectedPuntoVentaId(defaultPuntoVenta.id)
@@ -53,24 +61,24 @@ export const RepuestosPrincipal = () => {
     fetchPuntosVenta()
   }, [])
 
-  // Cargar repuestos
+  // Cargar repuestos (una sola vez; el filtrado es local)
   useEffect(() => {
     const fetchRepuestos = async () => {
       setIsLoading(true)
       try {
         const data = await getRepuestos()
-        // Adaptar los datos del backend al formato que espera el frontend
-        const adaptedRepuestos = data.map(adaptRepuestoToFrontend)
+        const list = Array.isArray(data) ? data : []
+        const adaptedRepuestos = list.map(adaptRepuestoToFrontend)
 
-        // Calculate maximum stock available
         if (adaptedRepuestos.length > 0) {
-          const maxStock = Math.max(...adaptedRepuestos.map((p) => p.stock))
-          setMaxStockAvailable(maxStock > 0 ? maxStock : 100)
-          setStockRange([0, maxStock > 0 ? maxStock : 100])
+          const stocks = adaptedRepuestos.map((p) => Number(p.stock)).filter((n) => Number.isFinite(n))
+          const maxPositivo = stocks.length ? Math.max(0, ...stocks) : 0
+          const maxStock = maxPositivo > 0 ? maxPositivo : 100
+          setMaxStockAvailable(maxStock)
+          setStockRange([0, maxStock])
         }
 
         setRepuestos(adaptedRepuestos)
-        setFilteredRepuestos(adaptedRepuestos)
       } catch (error) {
         console.error("Error al cargar repuestos:", error)
         toast.error("Error al cargar repuestos")
@@ -82,53 +90,61 @@ export const RepuestosPrincipal = () => {
     fetchRepuestos()
   }, [])
 
-  // Filtrar repuestos
-  useEffect(() => {
-    const applyFilters = async () => {
-      setIsLoading(true)
-      try {
-        if (searchTerm || stockRange[0] > 0 || stockRange[1] < maxStockAvailable || pointOfSale !== "todos") {
-          // Preparar parámetros para la búsqueda
-          const params = {}
-          if (searchTerm) params.query = searchTerm
-          if (stockRange[0] > 0) params.min_stock = stockRange[0]
-          if (stockRange[1] < maxStockAvailable) params.max_stock = stockRange[1]
+  // Filtrado local: evita llamadas a /search en cada tecla (y el toast de error)
+  const filteredRepuestos = useMemo(() => {
+    const term = (debouncedSearchTerm || "").trim().toLowerCase()
+    const [minStock, maxStock] = stockRange
+    const filtrarPorStock = minStock > 0 || maxStock < maxStockAvailable
 
-          // Si se selecciona un punto de venta específico
-          if (pointOfSale !== "todos") {
-            const puntoVenta = puntosVenta.find((pv) => pv.nombre === pointOfSale)
-            if (puntoVenta) params.punto_venta_id = puntoVenta.id
-          }
-
-          // Realizar la búsqueda con los filtros
-          const data = await searchRepuestos(params)
-          const adaptedRepuestos = data.map(adaptRepuestoToFrontend)
-          setFilteredRepuestos(adaptedRepuestos)
-        } else {
-          // Si no hay filtros, mostrar todos los repuestos
-          setFilteredRepuestos(repuestos)
-        }
-      } catch (error) {
-        console.error("Error al filtrar repuestos:", error)
-        toast.error("Error al filtrar repuestos")
-      } finally {
-        setIsLoading(false)
+    return repuestos.filter((r) => {
+      if (term) {
+        const nombre = (r.name || "").toLowerCase()
+        const desc = (r.description || "").toLowerCase()
+        if (!nombre.includes(term) && !desc.includes(term)) return false
       }
+
+      if (pointOfSale !== "todos") {
+        if ((r.pointOfSale || "") !== pointOfSale) return false
+      }
+
+      if (filtrarPorStock) {
+        const stock = Number(r.stock)
+        const s = Number.isFinite(stock) ? stock : 0
+        // Incluir negativos cuando el mínimo es 0 (sin filtro inferior real)
+        if (minStock > 0 && s < minStock) return false
+        if (maxStock < maxStockAvailable && s > maxStock) return false
+      }
+
+      return true
+    })
+  }, [repuestos, debouncedSearchTerm, stockRange, pointOfSale, maxStockAvailable])
+
+  const refreshRepuestos = async () => {
+    const updatedRepuestos = await getRepuestos()
+    const list = Array.isArray(updatedRepuestos) ? updatedRepuestos : []
+    const adaptedRepuestos = list.map(adaptRepuestoToFrontend)
+    setRepuestos(adaptedRepuestos)
+
+    if (adaptedRepuestos.length > 0) {
+      const stocks = adaptedRepuestos.map((p) => Number(p.stock)).filter((n) => Number.isFinite(n))
+      const maxPositivo = stocks.length ? Math.max(0, ...stocks) : 0
+      const maxStock = maxPositivo > 0 ? maxPositivo : 100
+      setMaxStockAvailable(maxStock)
+      setStockRange((prev) => {
+        // Mantener filtro de stock solo si seguía en el rango “completo”
+        if (prev[0] === 0 && prev[1] === maxStockAvailable) return [0, maxStock]
+        return [Math.min(prev[0], maxStock), Math.min(prev[1], maxStock)]
+      })
     }
 
-    applyFilters()
-  }, [searchTerm, stockRange, pointOfSale, repuestos, puntosVenta, maxStockAvailable])
+    return adaptedRepuestos
+  }
 
   const handleAddRepuesto = async (newRepuesto) => {
     try {
       setIsLoading(true)
       const result = await createRepuesto(newRepuesto)
-
-      // Obtener todos los repuestos actualizados
-      const updatedRepuestos = await getRepuestos()
-      const adaptedRepuestos = updatedRepuestos.map(adaptRepuestoToFrontend)
-
-      setRepuestos(adaptedRepuestos)
+      await refreshRepuestos()
       toast.success("Repuesto agregado exitosamente")
       return result
     } catch (error) {
@@ -144,10 +160,6 @@ export const RepuestosPrincipal = () => {
     try {
       setIsLoading(true)
 
-      // Log para depuración
-      console.log("Repuesto a actualizar:", updatedRepuesto)
-
-      // Actualizar el repuesto sin cambiar el punto de venta
       await updateRepuesto(updatedRepuesto.id, {
         code: updatedRepuesto.code,
         name: updatedRepuesto.name,
@@ -155,25 +167,10 @@ export const RepuestosPrincipal = () => {
         modelo: updatedRepuesto.modelo,
         description: updatedRepuesto.description,
         stock: Number(updatedRepuesto.stock),
-        price: updatedRepuesto.price, // Campo agregado para enviar el precio
-        // No incluimos punto_venta_id aquí, se mantendrá el original en el backend
+        price: updatedRepuesto.price,
       })
 
-      // Actualizar la lista de repuestos
-      const updatedRepuestos = await getRepuestos()
-      const adaptedRepuestos = updatedRepuestos.map(adaptRepuestoToFrontend)
-
-      // Log para depuración
-      console.log("Repuestos actualizados:", adaptedRepuestos)
-
-      setRepuestos(adaptedRepuestos)
-      setFilteredRepuestos((prev) => {
-        // Actualizar también los repuestos filtrados para reflejar los cambios inmediatamente
-        return prev.map((p) =>
-          p.id === updatedRepuesto.id ? adaptedRepuestos.find((ap) => ap.id === updatedRepuesto.id) : p,
-        )
-      })
-
+      await refreshRepuestos()
       toast.success("Repuesto actualizado correctamente")
       return updatedRepuesto
     } catch (error) {
@@ -188,16 +185,9 @@ export const RepuestosPrincipal = () => {
   const handleDeleteRepuesto = async (repuestoId) => {
     try {
       setIsLoading(true)
-
-      // Eliminar el repuesto completo
       await deleteRepuesto(repuestoId)
       toast.success("Repuesto eliminado")
-
-      // Actualizar la lista de repuestos
-      const updatedRepuestos = await getRepuestos()
-      const adaptedRepuestos = updatedRepuestos.map(adaptRepuestoToFrontend)
-
-      setRepuestos(adaptedRepuestos)
+      await refreshRepuestos()
       return true
     } catch (error) {
       console.error("Error al eliminar repuesto:", error)
@@ -214,7 +204,6 @@ export const RepuestosPrincipal = () => {
   }
 
   const openEditModal = (repuesto) => {
-    // Guardar una copia profunda del repuesto para poder comparar después
     setEditingRepuesto(JSON.parse(JSON.stringify(repuesto)))
     setShowModal(true)
   }
@@ -235,7 +224,6 @@ export const RepuestosPrincipal = () => {
   }
 
   const handleExportSelected = () => {
-    // Implementar exportación real si es necesario
     console.log("Exportando repuestos:", selectedRepuestos)
     toast.info(`Exportando ${selectedRepuestos.length} repuesto(s)`)
   }
@@ -285,7 +273,6 @@ export const RepuestosPrincipal = () => {
         )}
       </AnimatePresence>
 
-      {/* React-Toastify - Solo un contenedor */}
       <ToastContainer
         position="bottom-right"
         autoClose={3000}

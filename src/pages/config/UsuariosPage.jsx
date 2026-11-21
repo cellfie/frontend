@@ -59,6 +59,8 @@ const UsuariosPage = () => {
   const [cuentaCorrienteData, setCuentaCorrienteData] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
   const [procesandoPagoCc, setProcesandoPagoCc] = useState(false)
+  const [fechaInicioMovs, setFechaInicioMovs] = useState("")
+  const [fechaFinMovs, setFechaFinMovs] = useState("")
 
   useEffect(() => {
     if (!isAdmin) {
@@ -225,25 +227,44 @@ const UsuariosPage = () => {
     }
   }
 
-  const cargarCuentaCorriente = async (usuarioId) => {
+  const cargarCuentaCorriente = async (usuarioId, filters = {}) => {
     setCargandoCuentaCorriente(true)
     try {
-      const data = await getCuentaCorrienteEmpleado(usuarioId)
+      const data = await getCuentaCorrienteEmpleado(usuarioId, filters)
       setCuentaCorrienteData(data)
     } catch (error) {
       console.error(error)
-      toast.error(error.message || "Error al cargar cuenta corriente")
+      toast.error(error.message || "Error al cargar sueldos / retiros")
       setCuentaCorrienteData(null)
     } finally {
       setCargandoCuentaCorriente(false)
     }
   }
 
+  const filtrosMovimientosActivos = () => ({
+    ...(fechaInicioMovs ? { fecha_inicio: fechaInicioMovs } : {}),
+    ...(fechaFinMovs ? { fecha_fin: fechaFinMovs } : {}),
+  })
+
   const abrirDialogCuentaCorriente = async (usuario) => {
     setUsuarioCuentaCorriente(usuario)
     setCuentaCorrienteData(null)
+    setFechaInicioMovs("")
+    setFechaFinMovs("")
     setDialogCuentaCorrienteAbierto(true)
     await cargarCuentaCorriente(usuario.id)
+  }
+
+  const filtrarMovimientosCuenta = async () => {
+    if (!usuarioCuentaCorriente?.id) return
+    await cargarCuentaCorriente(usuarioCuentaCorriente.id, filtrosMovimientosActivos())
+  }
+
+  const limpiarFiltrosMovimientos = async () => {
+    setFechaInicioMovs("")
+    setFechaFinMovs("")
+    if (!usuarioCuentaCorriente?.id) return
+    await cargarCuentaCorriente(usuarioCuentaCorriente.id)
   }
 
   const handleRegistrarPagoCc = async ({ monto, notas }) => {
@@ -260,7 +281,7 @@ const UsuariosPage = () => {
         notas,
       })
       toast.success("Liquidación registrada")
-      await cargarCuentaCorriente(usuarioCuentaCorriente.id)
+      await cargarCuentaCorriente(usuarioCuentaCorriente.id, filtrosMovimientosActivos())
       return true
     } catch (error) {
       console.error(error)
@@ -327,11 +348,19 @@ const UsuariosPage = () => {
           if (!open) {
             setUsuarioCuentaCorriente(null)
             setCuentaCorrienteData(null)
+            setFechaInicioMovs("")
+            setFechaFinMovs("")
           }
         }}
         usuario={usuarioCuentaCorriente}
         cuentaData={cuentaCorrienteData}
         loading={cargandoCuentaCorriente}
+        fechaInicio={fechaInicioMovs}
+        setFechaInicio={setFechaInicioMovs}
+        fechaFin={fechaFinMovs}
+        setFechaFin={setFechaFinMovs}
+        onFiltrarMovimientos={filtrarMovimientosCuenta}
+        onLimpiarFiltros={limpiarFiltrosMovimientos}
         onRegistrarPago={handleRegistrarPagoCc}
         procesandoPago={procesandoPagoCc}
       />
