@@ -25,6 +25,7 @@ import {
   UserPlus,
   Barcode,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -62,7 +63,17 @@ import { useAuth } from "@/context/AuthContext"
 import { DollarContext } from "@/context/DollarContext"
 import { Link } from "react-router-dom"
 import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
+import { normalizarErrorGuardadoVenta } from "@/lib/ventaApiError"
 import { VentaModalPagosUI } from "@/components/ventas/VentaModalPagosUI"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Importar componente de precios canjes
 import PreciosCanjes from "@/components/PreciosCanje"
@@ -226,6 +237,7 @@ const VentasEquipos = () => {
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false)
   const [tiposPagoDisponibles, setTiposPagoDisponibles] = useState([])
   const [procesandoVenta, setProcesandoVenta] = useState(false)
+  const [errorGuardadoVenta, setErrorGuardadoVenta] = useState(null)
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
   const [planCanjeAbierto, setPlanCanjeAbierto] = useState(false)
@@ -625,6 +637,7 @@ const VentasEquipos = () => {
     }
 
     setProcesandoVenta(true)
+    setErrorGuardadoVenta(null)
     try {
       const ventaData = {
         cliente_id: cliente.id,
@@ -657,14 +670,26 @@ const VentasEquipos = () => {
       setCuentaCorrienteInfo(null)
       setMostrarInteresVisualGeneral(false)
 
-      // Recargar equipos
-      const equiposData = await getEquipos()
-      const equiposAdaptados = equiposData.map(adaptEquipoToFrontend)
-      setEquipos(equiposAdaptados)
-      setEquiposFiltrados(equiposAdaptados) // Actualizar filtrados también
+      // Recargar listado aparte: si falla, la venta ya quedó guardada
+      try {
+        const equiposData = await getEquipos()
+        const equiposAdaptados = equiposData.map(adaptEquipoToFrontend)
+        setEquipos(equiposAdaptados)
+        setEquiposFiltrados(equiposAdaptados)
+      } catch (refreshError) {
+        console.error("Error al refrescar equipos tras venta:", refreshError)
+        toast.warn("La venta se guardó, pero no se pudo actualizar el listado de equipos.", {
+          position: "bottom-right",
+          autoClose: 5000,
+        })
+      }
     } catch (error) {
       console.error("Error al finalizar venta:", error)
-      toast.error("Error al finalizar venta: " + error.message)
+      const info = normalizarErrorGuardadoVenta(error, { entidad: "equipo" })
+      setErrorGuardadoVenta(info)
+      toast.error(info.noGuardada ? "La venta NO se guardó" : "No se pudo confirmar la venta", {
+        autoClose: 5000,
+      })
     } finally {
       setProcesandoVenta(false)
     }
@@ -1691,6 +1716,35 @@ const VentasEquipos = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <AlertDialog
+              open={Boolean(errorGuardadoVenta)}
+              onOpenChange={(open) => {
+                if (!open) setErrorGuardadoVenta(null)
+              }}
+            >
+              <AlertDialogContent className="border-red-300 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-red-700 flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    {errorGuardadoVenta?.estadoIncierto
+                      ? "No se pudo confirmar la venta"
+                      : "La venta NO se guardó"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-700 text-sm leading-relaxed">
+                    {errorGuardadoVenta?.message}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogAction
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={() => setErrorGuardadoVenta(null)}
+                  >
+                    Entendido
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardFooter>
         </Card>
       </div>

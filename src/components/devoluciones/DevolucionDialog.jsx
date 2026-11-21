@@ -98,6 +98,8 @@ const DevolucionDialog = ({
   const [busquedaCliente, setBusquedaCliente] = useState("")
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
+  // Reembolso cuando diferencia < 0: cuenta_corriente (default) | efectivo
+  const [tipoReembolso, setTipoReembolso] = useState("cuenta_corriente")
 
   // Estado local para manejar el cliente si no se proporciona setCliente
   const [clienteLocal, setClienteLocal] = useState(cliente)
@@ -118,6 +120,7 @@ const DevolucionDialog = ({
       setTipoPagoSeleccionado("")
       setMontoPagoActual("")
       setPagosDiferencia([])
+      setTipoReembolso("cuenta_corriente")
       setEstadoDevolucion({ exito: false, error: false, mensaje: "" })
       setDevolucionesExistentes([])
       setProductosDevueltos(new Map())
@@ -640,32 +643,31 @@ const DevolucionDialog = ({
         }
       }
 
-      // Si hay diferencia a favor del cliente, asegurarse de que tenga cuenta
+      // Si hay diferencia a favor del cliente
       if (diferencia < 0) {
-        const clienteActual = typeof setCliente === "function" ? cliente : clienteLocal
+        if (tipoReembolso === "efectivo") {
+          // Reembolso en efectivo: impacta caja; no requiere cliente
+        } else {
+          const clienteActual = typeof setCliente === "function" ? cliente : clienteLocal
 
-        if (!clienteActual?.id) {
-          toast.error("Debe seleccionar un cliente para acreditar el saldo a favor")
-          return
-        }
-
-        try {
-          // Mostrar un indicador de carga
-          setCargandoCuentaCorriente(true)
-
-          // Asegurar que el cliente tenga una cuenta corriente
-          const cuenta = await asegurarCuentaCorrienteCliente(clienteActual.id)
-
-          // Actualizar la información de la cuenta
-          if (cuenta) {
-            setCuentaCorrienteInfo(cuenta)
+          if (!clienteActual?.id) {
+            toast.error("Debe seleccionar un cliente para acreditar el saldo a favor")
+            return
           }
-        } catch (error) {
-          console.error("Error al verificar cuenta corriente:", error)
-          toast.error("Error al verificar la cuenta corriente del cliente")
-          return
-        } finally {
-          setCargandoCuentaCorriente(false)
+
+          try {
+            setCargandoCuentaCorriente(true)
+            const cuenta = await asegurarCuentaCorrienteCliente(clienteActual.id)
+            if (cuenta) {
+              setCuentaCorrienteInfo(cuenta)
+            }
+          } catch (error) {
+            console.error("Error al verificar cuenta corriente:", error)
+            toast.error("Error al verificar la cuenta corriente del cliente")
+            return
+          } finally {
+            setCargandoCuentaCorriente(false)
+          }
         }
       }
     }
@@ -708,15 +710,15 @@ const DevolucionDialog = ({
         }
       }
 
-      // Si es cuenta corriente o hay diferencia a favor del cliente, verificar que haya un cliente seleccionado
-      if ((esCuentaCorriente || diferencia < 0) && (!clienteActual || !clienteActual.id)) {
+      const reembolsoACuenta = diferencia < 0 && tipoReembolso !== "efectivo"
+
+      // Cliente obligatorio para cargo/crédito a cuenta corriente
+      if ((esCuentaCorriente || reembolsoACuenta) && (!clienteActual || !clienteActual.id)) {
         throw new Error("Debe seleccionar un cliente para este tipo de operación")
       }
 
-      // Si hay un cliente seleccionado y es una operación que afecta la cuenta corriente, asegurar que tenga cuenta
-      if (clienteActual && clienteActual.id && (esCuentaCorriente || diferencia < 0)) {
+      if (clienteActual && clienteActual.id && (esCuentaCorriente || reembolsoACuenta)) {
         try {
-          // Asegurar que el cliente tenga una cuenta corriente
           await asegurarCuentaCorrienteCliente(clienteActual.id)
         } catch (error) {
           console.error("Error al verificar cuenta corriente:", error)
@@ -767,6 +769,7 @@ const DevolucionDialog = ({
         // Compatibilidad: primer método (o null) por si algún consumidor legacy lo usa
         tipo_pago: diferencia > 0 && pagosDiferencia.length > 0 ? pagosDiferencia[0].tipo_pago_nombre : null,
         cliente_id: clienteActual?.id || null,
+        tipo_reembolso: diferencia < 0 ? tipoReembolso : undefined,
       }
 
       // Realizar la llamada a la API para crear la devolución
@@ -783,10 +786,21 @@ const DevolucionDialog = ({
         }
       }
 
+      let mensajeExito = "Devolución procesada correctamente"
+      if (diferencia > 0) {
+        mensajeExito =
+          "Devolución procesada. La diferencia cobrada quedó registrada en caja (salvo cuenta corriente)."
+      } else if (diferencia < 0) {
+        mensajeExito =
+          tipoReembolso === "efectivo"
+            ? "Devolución procesada. El reembolso en efectivo quedó como egreso de caja."
+            : "Devolución procesada. El saldo a favor se acreditó a la cuenta corriente del cliente."
+      }
+
       setEstadoDevolucion({
         exito: true,
         error: false,
-        mensaje: "Devolución procesada correctamente",
+        mensaje: mensajeExito,
       })
 
       // Cerrar el diálogo después de 2 segundos
@@ -1573,16 +1587,54 @@ const DevolucionDialog = ({
 
                         {calcularDiferencia() < 0 && (
                           <>
-                            <div className="text-sm mb-3">
+                            <div className="text-sm mb-3 space-y-3">
                               <p>
                                 Hay una diferencia a favor del cliente de{" "}
                                 <span className="font-medium text-green-600">
                                   {formatearPrecio(Math.abs(calcularDiferencia()))}
                                 </span>
-                                . Este monto se acreditará a su cuenta corriente.
+                                .
                               </p>
+                              <div>
+                                <Label className="text-xs text-gray-600 mb-1.5 block">Cómo devolver el saldo</Label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTipoReembolso("cuenta_corriente")}
+                                    className={cn(
+                                      "rounded-lg border-2 px-3 py-2.5 text-left text-xs transition-all",
+                                      tipoReembolso === "cuenta_corriente"
+                                        ? "border-orange-500 bg-orange-50 text-orange-900 ring-2 ring-orange-200"
+                                        : "border-gray-200 bg-white hover:border-orange-300",
+                                    )}
+                                  >
+                                    <span className="font-semibold block">Acreditar a cuenta corriente</span>
+                                    <span className="text-gray-500">No sale plata de caja</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTipoReembolso("efectivo")}
+                                    className={cn(
+                                      "rounded-lg border-2 px-3 py-2.5 text-left text-xs transition-all",
+                                      tipoReembolso === "efectivo"
+                                        ? "border-orange-500 bg-orange-50 text-orange-900 ring-2 ring-orange-200"
+                                        : "border-gray-200 bg-white hover:border-orange-300",
+                                    )}
+                                  >
+                                    <span className="font-semibold block">Devolver en efectivo</span>
+                                    <span className="text-gray-500">Registra egreso en la caja abierta</span>
+                                  </button>
+                                </div>
+                              </div>
+                              {tipoReembolso === "efectivo" && (
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 text-xs">
+                                  Se descontará {formatearPrecio(Math.abs(calcularDiferencia()))} de la caja abierta
+                                  del punto de venta. Si no hay caja abierta, no se podrá confirmar.
+                                </div>
+                              )}
                             </div>
 
+                            {tipoReembolso === "cuenta_corriente" && (
                             <div className="p-3 rounded-md border text-sm">
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-gray-600">Cliente:</span>
@@ -1643,6 +1695,7 @@ const DevolucionDialog = ({
                                 </div>
                               )}
                             </div>
+                            )}
                           </>
                         )}
                       </CardContent>

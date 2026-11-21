@@ -1,3 +1,5 @@
+import { fetchConTimeout } from "@/lib/ventaApiError"
+
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Cache mejorado para ventas con mejor gestión
@@ -416,7 +418,7 @@ export const createVenta = async (ventaData) => {
       notas: ventaData.notas || "",
     }
 
-    const response = await fetch(`${API_URL}/ventas`, {
+    const response = await fetchConTimeout(`${API_URL}/ventas`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -428,7 +430,11 @@ export const createVenta = async (ventaData) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: "Error de conexión" }))
-      throw new Error(errorData.message || "Error al crear la venta")
+      const detalle =
+        errorData.message ||
+        (Array.isArray(errorData.errors) && errorData.errors[0]?.msg) ||
+        "Error al crear la venta"
+      throw new Error(detalle)
     }
 
     const result = await response.json()

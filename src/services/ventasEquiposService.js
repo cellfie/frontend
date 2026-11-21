@@ -1,3 +1,5 @@
+import { fetchConTimeout } from "@/lib/ventaApiError"
+
 const API_URL = "https://api.sistemacellfierm22.site/api"
 
 // Función para formatear fechas de Argentina (suma 3 horas)
@@ -102,18 +104,23 @@ export const createVentaEquipo = async (ventaData) => {
       notas: ventaData.notas || "",
     }
 
-    const response = await fetch(`${API_URL}/ventas-equipos`, {
+    const response = await fetchConTimeout(`${API_URL}/ventas-equipos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify(backendData),
       credentials: "include",
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.message || "Error al crear la venta de equipo")
+      const errorData = await response.json().catch(() => ({ message: "Error de conexión" }))
+      const detalle =
+        errorData.message ||
+        (Array.isArray(errorData.errors) && errorData.errors[0]?.msg) ||
+        "Error al crear la venta de equipo"
+      throw new Error(detalle)
     }
 
     return await response.json()

@@ -21,6 +21,7 @@ import {
   PercentCircle,
   Filter,
   UserPlus,
+  AlertTriangle,
 } from "lucide-react"
 import { NumericFormat } from "react-number-format"
 
@@ -57,7 +58,17 @@ import { getCajaActual } from "@/services/cajaService"
 import { useAuth } from "@/context/AuthContext"
 import { Link } from "react-router-dom"
 import { esMetodoPagoConCalculadoraFinanciacion } from "@/lib/pagosUiUtils"
+import { normalizarErrorGuardadoVenta } from "@/lib/ventaApiError"
 import { VentaModalPagosUI } from "@/components/ventas/VentaModalPagosUI"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Hook personalizado para debounce
 const useDebounce = (value, delay) => {
@@ -112,6 +123,7 @@ const VentasProductos = () => {
   const [busquedaCliente, setBusquedaCliente] = useState("")
   const [dialogNuevoClienteAbierto, setDialogNuevoClienteAbierto] = useState(false)
   const [procesandoVenta, setProcesandoVenta] = useState(false)
+  const [errorGuardadoVenta, setErrorGuardadoVenta] = useState(null)
   const [cuentaCorrienteInfo, setCuentaCorrienteInfo] = useState(null)
   const [cargandoCuentaCorriente, setCargandoCuentaCorriente] = useState(false)
   const [cajaAbierta, setCajaAbierta] = useState(null)
@@ -485,6 +497,7 @@ const VentasProductos = () => {
     }
 
     setProcesandoVenta(true)
+    setErrorGuardadoVenta(null)
     try {
       const ventaData = {
         cliente_id: cliente.id || null,
@@ -519,7 +532,11 @@ const VentasProductos = () => {
 
       if (debouncedSearchTerm) buscarProductos()
     } catch (error) {
-      toast.error(`Error al finalizar venta: ${error.message}`)
+      const info = normalizarErrorGuardadoVenta(error, { entidad: "venta" })
+      setErrorGuardadoVenta(info)
+      toast.error(info.noGuardada ? "La venta NO se guardó" : "No se pudo confirmar la venta", {
+        autoClose: 5000,
+      })
     } finally {
       setProcesandoVenta(false)
     }
@@ -1346,6 +1363,35 @@ const VentasProductos = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <AlertDialog
+              open={Boolean(errorGuardadoVenta)}
+              onOpenChange={(open) => {
+                if (!open) setErrorGuardadoVenta(null)
+              }}
+            >
+              <AlertDialogContent className="border-red-300 max-w-md">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-red-700 flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    {errorGuardadoVenta?.estadoIncierto
+                      ? "No se pudo confirmar la venta"
+                      : "La venta NO se guardó"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-700 text-sm leading-relaxed">
+                    {errorGuardadoVenta?.message}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogAction
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={() => setErrorGuardadoVenta(null)}
+                  >
+                    Entendido
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardFooter>
         </Card>
       </div>
